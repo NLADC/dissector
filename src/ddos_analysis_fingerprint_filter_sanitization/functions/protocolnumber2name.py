@@ -14,3 +14,6 @@ def protocolnumber2name(ip_proto_number):
     except:
         return str(ip_proto_number)
 
+def hame(name):
+	return 'hello '+str(name)
+

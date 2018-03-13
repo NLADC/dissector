@@ -1,12 +1,11 @@
 
 # coding: utf-8
 
-# In[1]:
+# In[46]:
 
 
-input_file='input_file_for_test/1.pcap'
-
-#check exist!!!!
+#COMMENT WHEN USING MAIN
+# input_file='input_file_for_test/2.pcap'
 
 
 # ## Libraries for data analysis
@@ -25,7 +24,7 @@ import numpy as np
 # In[3]:
 
 
-import functions/protocolnumber2name.ipynb
+from functions.protocolnumber2name import *
 
 
 # usage:
@@ -41,7 +40,7 @@ protocolnumber2name(17)
 # In[5]:
 
 
-import functions/portnumber2name.ipynb
+from functions.portnumber2name import *
 
 
 # usage:
@@ -57,7 +56,7 @@ portnumber2name(53)
 # In[7]:
 
 
-import functions/tcpflagletters2names.ipynb
+from functions.tcpflagletters2names import *
 
 
 # usage:
@@ -71,104 +70,53 @@ tcpflagletters2names('R')
 # ### F4. Determining the type of the input file (pcap, pcapng, sflow, nfdump)
 # Sometimes a tool has an extension, for example pcap, but it is another type of file, for example pcapng.
 
-# In[9]:
-
-
-import functions/check_filetype.ipynb
-
-
-# usage:
-
-# In[33]:
-
-
-check_filetype(input_file)
-
-
 # ### F5. Converting packet-based input file (depending on the type of file) to dataframe
 
-# In[34]:
+# In[11]:
 
 
-import functions/pcap2dataframe.ipynb
-import functions/pcapng2dataframe.ipynb
-# %run functions/sflow2dataframe.ipynb
+from functions.pcap2dataframe import *
+from functions.pcapng2dataframe import *
 
 
 # ## Converting the input file into a dataframe 
 
-# In[42]:
+# In[39]:
 
 
-input_file
-
-
-# In[45]:
-
-
-file_type
-
-
-# In[81]:
-
-
-file_type = check_filetype (input_file)
-
-if file_type == 'pcap':
-    df = pcap2dataframe(input_file)
+def input2dataframe (input_file):
+    """<short_description>
+    <more description>
+    <more description>
     
-elif file_type == 'pcapng':
-    df = pcapng2dataframe(input_file)
+    :param <train_data>: <meaning>
+    :return
+    """
     
-elif file_type == 'sflow':
-    df = sflow2dataframe(input_file)
+    import subprocess
+    file_info, error = subprocess.Popen(["file",input_file], stdout=subprocess.PIPE).communicate()
+
+    if file_info.split()[1] == 'tcpdump':
+        return pcap2dataframe(input_file)
+
+    elif file_info.split()[1] == 'pcap-ng':
+        return pcapng2dataframe(input_file)
     
-elif file_type == 'nfdump':
-    print "SORRY! We didn't developed a parser for this type of file!\n\nPLEASE contact us and we will develop it as soon as possible!"
+    elif 'sflow' in file_path:
+        return sflow2dataframe(input_file)
+ 
+    elif file_info.split()[1] == 'data' and ('nfdump' in file_path or 'nfcapd' in file_path):
+        print "SORRY! We didn't developed a parser for this type of file!\n\nPLEASE contact us and we will develop it as soon as possible!"
     
-else:
-    print "SORRY! We neither developed the parser for this type of file (YET) OR we recognized the format of your file!"
-
-
-# ## Checking what we have, so far.
-
-# In[47]:
-
-
-print len(df)
-
-df.head()
+    else:
+        print "SORRY! We neither developed the parser for this type of file (YET) OR we recognized the format of your file!"
+        
+    
 
 
 # ## DDoS attack vector (pattern) identification/recognition
 
-# In[51]:
-
-
-top_ip_dst = df['ip_dst'].value_counts().index[0]
-
-
-# In[55]:
-
-
-top_proto = df[df['ip_dst'] == top_ip_dst]['ip_proto'].value_counts().index[0]
-
-
-# In[60]:
-
-
-a = df[df['ip_dst'] == top_ip_dst]
-df_filtered =  a[a['ip_proto'] == top_proto]
-
-
-# In[70]:
-
-
-df_filtered['dport'].value_counts().sort_index()
-# .divide(float(total_packets_filtered) / 100)
-
-
-# In[94]:
+# In[16]:
 
 
 import collections
@@ -189,24 +137,7 @@ def analyse(df, debug=False, ttl_variation_threshold = 4):
     allpatterns = {
         "dst_ip" : "",
         "patterns": []
-    }
-#     result_structure = {
-#         "start_timestamp":0,
-#         "end_timestamp":0,
-#         "ip_protocol":0,
-#         "dst_ip":[],
-#         "src_ips":[],
-#         "dst_ports":[], #(port,share)
-#         "src_ports":[], #(port,share)
-#         "reflected":False,
-#         "spoofed":False,
-#         "fragmented":False,
-#         "pattern_traffic_share":0.0,
-#         "pattern_packet_count":0,
-#         "pattern_total_megabytes":0,
-#         "ttl_variation":[],
-# #         "packets":[]
-#     }    
+    }    
     
     if debug: print "Total number packets: "+ str(len(df))
     if debug: print "\n###################################\nIDENTIFYING MAIN CHARACTERISTICS:\n###################################"
@@ -295,10 +226,6 @@ def analyse(df, debug=False, ttl_variation_threshold = 4):
             
             result["pattern_packet_count"] = pattern_packets
 
-            #WARNING Can be wrong
-            result['raw_attack_size_megabytes'] = (df_pattern['raw_size'].sum() /1000000).item()
-            result["pattern_total_megabytes"] = (df_pattern[df_pattern['fragments'] == 0]['ip_length'].sum() / 1000000).item()
-
             #####
             # Calculating the percentage of the current pattern compared to the raw input file
             representativeness = float(pattern_packets) * 100 / float(total_packets_to_target)
@@ -316,8 +243,7 @@ def analyse(df, debug=False, ttl_variation_threshold = 4):
             #####
             # Calculating the number of source IPs involved in the attack
             ips_involved = df_pattern['ip_src'].unique()
-######      
-            print ips_involved
+
             if len(ips_involved) < 2:
                 
                 if debug: print "\n###################################################################################################################"
@@ -490,44 +416,69 @@ def analyse(df, debug=False, ttl_variation_threshold = 4):
 # - 2: NTP  against HTTP (~20'')
 # - 3: Multi-vector attack (DNS reflection and netbios) (1' 20'')
 
-# In[95]:
+# In[17]:
 
 
-# %%time
-allpatterns = analyse(df, True)
+# COMMENT THIS FOR THE MAIN
+# allpatterns = analyse(df, True)
 
 
 # 
 # # Let's take a look on the attack pattern!!!!
 
-# In[96]:
+# In[ ]:
 
 
-print allpatterns.keys()
-# print "\n"
-print allpatterns['patterns'][0].keys()
+# print allpatterns.keys()
+# # print "\n"
+# print allpatterns['patterns'][0].keys()
 
 
-# In[97]:
+# In[ ]:
 
 
-allpatterns['patterns'][0]['src_ports']
+# allpatterns['patterns'][0]['src_ports']
 
 
-# In[98]:
+# In[ ]:
 
 
-allpatterns['patterns'][0]['dst_ports']
+# allpatterns['patterns'][0]['dst_ports']
 
 
-# In[99]:
+# In[ ]:
 
 
-allpatterns['patterns'][0]['src_ips']
+# allpatterns['patterns'][0]['src_ips']
 
 
-# In[100]:
+# In[ ]:
 
 
-allpatterns['dst_ip']
+# allpatterns['dst_ip']
+
+
+# In[42]:
+
+
+if __name__ == '__main__':
+    import argparse
+    import os.path
+    
+    parser = argparse.ArgumentParser(description='Create a ArcHydro schema')
+    
+    parser.add_argument('--input', metavar='input_file', required=True,
+                        help='the path of a input file')
+    args = parser.parse_args()
+    
+    input_file=args.input
+    
+    if os.path.isfile(input_file) == False:
+        print 'We were unable to find the file. Please check the file path!!'
+    
+    df = input2dataframe (input_file)
+        
+    allpatterns = analyse(df, debug=False, ttl_variation_threshold = 4)
+
+    print allpatterns
 
