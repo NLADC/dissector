@@ -1,12 +1,13 @@
 
 # coding: utf-8
 
-# In[3]:
+# In[1]:
 
 
 import pandas
 import subprocess
 import numpy
+import time
 
 def netflow2dataframe(file_input):
 
@@ -82,6 +83,7 @@ def netflow2dataframe(file_input):
     
     df['dp'] = df['dp'].astype('int32')
     df['ibyt'] = df['ibyt'].astype('int32')
+    df['sp'] = df['sp'].astype('int32')
     
     df.columns = columns
 
