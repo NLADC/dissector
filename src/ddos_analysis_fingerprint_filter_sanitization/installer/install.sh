@@ -20,7 +20,7 @@ if [ $(id -u) = 0 ]; then
     if [ -n "$(command -v apt-get)" ]; then
         # For Debian-based distributions
         apt-get update
-        apt-get -y install git libtool autoconf automake pkg-config flex bison libbz2-dev libpcap libpcap-dev
+        apt-get -y install git libtool autoconf automake pkg-config flex bison libbz2-dev libpcap-dev
     elif [ -n "$(command -v yum)" ]; then
         # For Red Hat-based distributions
         yum check-update
