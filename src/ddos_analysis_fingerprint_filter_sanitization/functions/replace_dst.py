@@ -22,7 +22,7 @@ def replace_ipindf(df,dst_ip):
 
 
 def replace_ipinpcap(input_pcap,ip):
-    p = subprocess.Popen(["bittwiste -I " + input_pcap + " -O output/replaced_ip.pcap -T ip -s " + ip + ",1.1.1.1 -d " + ip + ",1.1.1.1"], shell=True, stdout=subprocess.PIPE)
+    p = subprocess.Popen(["bittwiste -I " + input_pcap + " -O output/replaced_ip.pcap -T ip -d " + ip + ",1.1.1.1"], shell=True, stdout=subprocess.PIPE)
     p.communicate()
     p.wait()
     
