@@ -1,4 +1,4 @@
-/* Compile :  clang -Wall -I/usr/include/json-c/ -o pcap2json pcap2json.c -ljson-c -lpcap */
+/* Compile :  gcc -Wall -I/usr/local/include/json-c/ -o pcap2json pcap2json.c -ljson-c -lpcap */
 
 
 #include<pcap.h>
@@ -13,7 +13,64 @@
 #include<netinet/udp.h>   //Provides declarations for udp header
 #include<netinet/tcp.h>   //Provides declarations for tcp header
 #include<netinet/ip.h>    //Provides declarations for ip header
+//#include<netinet/dns.h>
 #include<json.h>
+
+//DNS header structure
+struct DNS_HEADER
+{
+    unsigned short id; // identification number
+
+    unsigned char rd :1; // recursion desired
+    unsigned char tc :1; // truncated message
+    unsigned char aa :1; // authoritive answer
+    unsigned char opcode :4; // purpose of message
+    unsigned char qr :1; // query/response flag
+
+    unsigned char rcode :4; // response code
+    unsigned char cd :1; // checking disabled
+    unsigned char ad :1; // authenticated data
+    unsigned char z :1; // its z! reserved
+    unsigned char ra :1; // recursion available
+
+    unsigned short q_count; // number of question entries
+    unsigned short ans_count; // number of answer entries
+    unsigned short auth_count; // number of authority entries
+    unsigned short add_count; // number of resource entries
+};
+
+//Constant sized fields of query structure
+struct QUESTION
+{
+    unsigned short qtype;
+    unsigned short qclass;
+};
+
+//Constant sized fields of the resource record structure
+#pragma pack(push, 1)
+struct R_DATA
+{
+    unsigned short type;
+    unsigned short _class;
+    unsigned int ttl;
+    unsigned short data_len;
+};
+#pragma pack(pop)
+
+//Pointers to resource record contents
+struct RES_RECORD
+{
+    unsigned char *name;
+    struct R_DATA *resource;
+    unsigned char *rdata;
+};
+
+//Structure of a Query
+typedef struct
+{
+    unsigned char *name;
+    struct QUESTION *ques;
+} QUERY;
 
 void process_packet(u_char *, const struct pcap_pkthdr *, const u_char *);
 void process_ip_packet(const u_char * , int);
@@ -21,12 +78,17 @@ void print_ip_packet(const u_char * , int);
 void print_tcp_packet(const u_char *  , int );
 void print_udp_packet(const u_char * , int);
 void print_icmp_packet(const u_char * , int );
+u_char* ReadName(unsigned char* reader,unsigned char* buffer,int* count);
+
 
 FILE *jsonfile;
 char *json_string;
-struct json_object *jobj, *jobj_ether, *jobj_ip, *jobj_tcp, *jobj_udp, *jobj_icmp;
+struct json_object *jobj, *jobj_ether, *jobj_ip, *jobj_tcp, *jobj_udp, *jobj_icmp, *jobj_dns;
 struct sockaddr_in source,dest;
 int tcp=0,udp=0,icmp=0,others=0,igmp=0,total=0,i,j;
+
+//#define JSON_C_TO_STRING_NOSLASHESCAPE (1<<4)
+#define T_A 1 //Ipv4 address
 
 int main(int argc, char *argv[])
 {
@@ -54,6 +116,7 @@ int main(int argc, char *argv[])
     jobj_tcp = json_object_new_object();
     jobj_udp = json_object_new_object();
     jobj_icmp = json_object_new_object();
+    jobj_dns = json_object_new_object();
 
     jsonfile=fopen("json_file.txt","w");
     if(jsonfile==NULL)
@@ -92,7 +155,9 @@ void process_packet(u_char *args, const struct pcap_pkthdr *header, const u_char
         default: //Some Other Protocol like ARP etc.
             break;
     }
-    fprintf(jsonfile,"%s\n", json_object_to_json_string_ext(jobj, JSON_C_TO_STRING_PLAIN));
+
+    fprintf(jsonfile,"%s\n", json_object_to_json_string_ext(jobj, JSON_C_TO_STRING_NOSLASHESCAPE));
+    //printf("%s\n", json_object_to_json_string_ext(jobj, JSON_C_TO_STRING_NOSLASHESCAPE));
 }
 
 void print_ethernet_header(const u_char *Buffer, int Size)
@@ -108,19 +173,19 @@ void print_ethernet_header(const u_char *Buffer, int Size)
     json_object_object_add(jobj_ether, "proto", json_object_new_string(temp));
     free(temp);
 
-    sprintf(json_string, "%s", json_object_to_json_string_ext(jobj_ether, JSON_C_TO_STRING_PLAIN));
+    sprintf(json_string, "%s", json_object_to_json_string_ext(jobj_ether, JSON_C_TO_STRING_NOSLASHESCAPE));
     json_object_object_add(jobj, "ether", json_object_new_string(json_string));
     return;
 }
 
 void print_ip_header(const u_char * Buffer, int Size)
 {
-    print_ethernet_header(Buffer , Size);
+    //print_ethernet_header(Buffer , Size);
 
-    unsigned short iphdrlen;
+    //unsigned short iphdrlen;
 
     struct iphdr *iph = (struct iphdr *)(Buffer  + sizeof(struct ethhdr) );
-    iphdrlen =iph->ihl*4;
+    //iphdrlen =iph->ihl*4;
 
     memset(&source, 0, sizeof(source));
     source.sin_addr.s_addr = iph->saddr;
@@ -139,20 +204,36 @@ void print_ip_header(const u_char * Buffer, int Size)
     json_object_object_add(jobj_ip, "len", json_object_new_string(temp));
     sprintf(temp, "%d",ntohs(iph->id));
     json_object_object_add(jobj_ip, "id", json_object_new_string(temp));
+    sprintf(temp, "%d",(ntohs(iph->frag_off) == 0) ? 0 : 1);
+    json_object_object_add(jobj_ip, "is_fragmented", json_object_new_string(temp));
     sprintf(temp, "%d",(unsigned int)iph->ttl);
     json_object_object_add(jobj_ip, "ttl", json_object_new_string(temp));
-    sprintf(temp, "%d",(unsigned int)iph->protocol);
-    json_object_object_add(jobj_ip, "proto", json_object_new_string(temp));
+    //sprintf(temp, "%d",(unsigned int)iph->protocol);
+    //json_object_object_add(jobj_ip, "proto", json_object_new_string(temp));
+    sprintf(temp, "%d", (unsigned int)iph->protocol);
+    json_object_object_add(jobj,"ip_proto", json_object_new_string(temp));
+
+
+    //printf("Fragment offset: %x\n\n", iph->frag_off);
+    //printf("Don't fragment: %x\n", ((ntohs(iph->frag_off)):1));
+    //printf("More fragments: %x\n\n", ((ntohs(iph->frag_off)):1));
+
+
     sprintf(temp, "%d", ntohs(iph->check));
     json_object_object_add(jobj_ip, "checksum", json_object_new_string(temp));
-    sprintf(temp, "%s" , inet_ntoa(source.sin_addr));
-    json_object_object_add(jobj_ip, "src", json_object_new_string(temp));
-    sprintf(temp, "%s" , inet_ntoa(dest.sin_addr));
-    json_object_object_add(jobj_ip, "dst", json_object_new_string(temp));
+    //sprintf(temp, "%s" , inet_ntoa(source.sin_addr));
+    //json_object_object_add(jobj_ip, "src", json_object_new_string(temp));
+    //sprintf(temp, "%s" , inet_ntoa(dest.sin_addr));
+    //json_object_object_add(jobj_ip, "dst", json_object_new_string(temp));
+    sprintf(temp, "%s", inet_ntoa(source.sin_addr));
+    json_object_object_add(jobj, "ip_src", json_object_new_string(temp));
+    sprintf(temp, "%s", inet_ntoa(dest.sin_addr));
+    json_object_object_add(jobj, "ip_dst", json_object_new_string(temp));
+
     free(temp);
 
-    sprintf(json_string, "%s", json_object_to_json_string_ext(jobj_ip, JSON_C_TO_STRING_PLAIN));
-    json_object_object_add(jobj, "ip", json_object_new_string(json_string));
+    sprintf(json_string, "%s", json_object_to_json_string_ext(jobj_ip, JSON_C_TO_STRING_NOSLASHESCAPE));
+    json_object_object_add(jobj, "ip_header", json_object_new_string(json_string));
 
     return;
 }
@@ -170,11 +251,18 @@ void print_tcp_packet(const u_char * Buffer, int Size)
 
     print_ip_header(Buffer,Size);
 
-    char *temp =(char*)malloc(sizeof(char)*50);
+    char *temp =(char*)malloc(sizeof(char)*50); //arbitrary
+    //sprintf(temp, "%u",ntohs(tcph->source));
+    //json_object_object_add(jobj_tcp, "sport", json_object_new_string(temp));
+    //sprintf(temp, "%u",ntohs(tcph->dest));
+    //json_object_object_add(jobj_tcp, "dport", json_object_new_string(temp));
     sprintf(temp, "%u",ntohs(tcph->source));
-    json_object_object_add(jobj_tcp, "sport", json_object_new_string(temp));
+    json_object_object_add(jobj, "port_src", json_object_new_string(temp));
     sprintf(temp, "%u",ntohs(tcph->dest));
-    json_object_object_add(jobj_tcp, "dport", json_object_new_string(temp));
+    json_object_object_add(jobj, "port_dst", json_object_new_string(temp));
+
+
+
     sprintf(temp, "%u",ntohl(tcph->seq));
     json_object_object_add(jobj_tcp, "seq_num", json_object_new_string(temp));
     sprintf(temp, "%u",ntohl(tcph->ack_seq));
@@ -201,6 +289,9 @@ void print_tcp_packet(const u_char * Buffer, int Size)
     json_object_object_add(jobj_tcp, "urg_ptr", json_object_new_string(temp));
     free(temp);
 
+    sprintf(json_string, "%s", json_object_to_json_string_ext(jobj_tcp, JSON_C_TO_STRING_NOSLASHESCAPE));
+    json_object_object_add(jobj, "transport_header", json_object_new_string(json_string));
+
     char *temp2 = (char*)malloc(sizeof(char)*10000); //ARBITRARY
 
     int i, temp2_len;
@@ -211,9 +302,6 @@ void print_tcp_packet(const u_char * Buffer, int Size)
     }
     json_object_object_add(jobj_tcp, "payload", json_object_new_string(temp2));
     free(temp2);
-
-    sprintf(json_string, "%s", json_object_to_json_string_ext(jobj_tcp, JSON_C_TO_STRING_PLAIN));
-    json_object_object_add(jobj, "tcp", json_object_new_string(json_string));
 
     return;
 }
@@ -229,35 +317,186 @@ void print_udp_packet(const u_char *Buffer , int Size)
     struct udphdr *udph = (struct udphdr*)(Buffer + iphdrlen  + sizeof(struct ethhdr));
 
     int header_size =  sizeof(struct ethhdr) + iphdrlen + sizeof udph;
+    int sport = ntohs(udph->source);
+    int dport = ntohs(udph->dest);
 
     print_ip_header(Buffer,Size);
 
     char *temp =(char*)malloc(sizeof(char)*50);
-    sprintf(temp, "%d" , ntohs(udph->source));
-    json_object_object_add(jobj_udp, "sport", json_object_new_string(temp));
-    sprintf(temp, "%d" , ntohs(udph->dest));
-    json_object_object_add(jobj_udp, "dport", json_object_new_string(temp));
+    // sprintf(temp, "%d" , sport);
+    // json_object_object_add(jobj_udp, "sport", json_object_new_string(temp));
+    // sprintf(temp, "%d" , dport);
+    // json_object_object_add(jobj_udp, "dport", json_object_new_string(temp));
+    sprintf(temp, "%d" , sport);
+    json_object_object_add(jobj, "port_src", json_object_new_string(temp));
+    sprintf(temp, "%d" , dport);
+    json_object_object_add(jobj, "port_dst", json_object_new_string(temp));
+
+
+
     sprintf(temp, "%d" , ntohs(udph->len));
     json_object_object_add(jobj_udp, "len", json_object_new_string(temp));
     sprintf(temp,  "%d" , ntohs(udph->check));
     json_object_object_add(jobj_udp, "checksum", json_object_new_string(temp));
     free(temp);
 
-    char *temp2 = (char*)malloc(sizeof(char)*10000); //ARBITRARY
+    sprintf(json_string, "%s", json_object_to_json_string_ext(jobj_udp, JSON_C_TO_STRING_NOSLASHESCAPE));
+    json_object_object_add(jobj, "transport_header", json_object_new_string(json_string));
 
-    int i, temp2_len;
-    temp2_len = 0;
-    for(i=0 ; i < (Size - header_size); i++) {
-        sprintf(temp2 + temp2_len, "%02X",(unsigned int)(Buffer+header_size)[i]);
-        temp2_len = strlen(temp2);
+
+    if (sport == 53 || dport == 53) {
+      struct DNS_HEADER *dns = NULL;
+      //struct QUESTION *qinfo = NULL;
+
+      //unsigned char buf[65536], *qname, *reader;
+      //struct RES_RECORD answers[20],auth[20],addit[20]; //the replies from the DNS server
+
+      //Set the DNS structure to standard queries
+      dns = (struct DNS_HEADER*)(Buffer+header_size);
+
+      /*printf("Transaction ID: 0x%x\n", ntohs(dns->id)); // Transaction ID
+      printf("Query response flag: %x\n", dns->qr);
+      printf("Opcode: %x\n", ntohs(dns->opcode));
+      printf("Truncated message: %x\n", dns->tc);
+      printf("Recursion desired: %x\n", dns->rd);
+      printf("Z: %x\n", dns->z);
+      printf("Non-authenticated data: %x\n", dns->ad);
+      printf("Questions: %d\n", ntohs(dns->q_count));
+      printf("Answer RRs: %d", ntohs(dns->ans_count));
+      printf("Authority RRs: %d", ntohs(dns->auth_count));
+      printf("Additional RRs: %d", ntohs(dns->add_count)); */
+
+      char *temp3 =(char*)malloc(sizeof(char)*2000);
+      sprintf(temp3, "0x%x" , ntohs(dns->id));
+      json_object_object_add(jobj_dns, "id", json_object_new_string(temp3));
+      sprintf(temp3, "%x" , ntohs(dns->qr));
+      json_object_object_add(jobj_dns, "query_flag", json_object_new_string(temp3));
+      sprintf(temp3, "0x%x" , ntohs(dns->opcode));
+      json_object_object_add(jobj_dns, "opcode", json_object_new_string(temp3));
+      sprintf(temp3,  "%x" , dns->tc);
+      json_object_object_add(jobj_dns, "truncated", json_object_new_string(temp3));
+      sprintf(temp3, "%x", dns->rd);
+      json_object_object_add(jobj_dns, "recusion_desired", json_object_new_string(temp3));
+      sprintf(temp3, "%x", dns->z);
+      json_object_object_add(jobj_dns, "z", json_object_new_string(temp3));
+      sprintf(temp3, "%x", dns->ad);
+      json_object_object_add(jobj_dns, "non_auth_data", json_object_new_string(temp3));
+      sprintf(temp3, "%d", ntohs(dns->q_count));
+      json_object_object_add(jobj_dns, "questions", json_object_new_string(temp3));
+      sprintf(temp3, "%d", ntohs(dns->ans_count));
+      json_object_object_add(jobj_dns, "answers", json_object_new_string(temp3));
+      sprintf(temp3, "%d", ntohs(dns->auth_count));
+      json_object_object_add(jobj_dns, "authorities", json_object_new_string(temp3));
+      sprintf(temp3, "%d", ntohs(dns->add_count));
+      json_object_object_add(jobj_dns, "additional", json_object_new_string(temp3));
+
+      /*
+      //point to the query portion
+      dns = (struct DNS_HEADER*)(Buffer+header_size);
+      unsigned char *qname =(unsigned char*)(Buffer+header_size+sizeof(struct DNS_HEADER) + 1);
+      unsigned char *reader = (unsigned char*)(sizeof(struct DNS_HEADER) + (strlen((const char*)qname)+1) + sizeof(struct QUESTION));
+      unsigned char buf[65536];
+      //ChangetoDnsNameFormat(qname , host);
+      //qinfo = (struct QUESTION*)(Buffer+header_size+strlen((const char*)qname) + 1); //fill it
+      qinfo = (struct QUESTION*)(Buffer+header_size+strlen(qname)); //fill it
+
+
+      printf("Query name: %s\n", qname);
+      printf("Query type: %x\n", (qinfo->qtype));
+      printf("Query info: %x\n", (qinfo->qclass));
+      //qinfo->qtype = htons( query_type ); //type of the query , A , MX , CNAME , NS etc
+      //qinfo->qclass = htons(1); //its internet (lol)
+      */
+      if (sport == 53) {
+        /*printf("Recursion available: %x\n", dns->ra);
+        printf("Authorative answer: %x\n", dns->aa);
+        printf("Response code: %x\n", ntohs(dns->rcode));*/
+        sprintf(temp3, "%x", dns->ra);
+        json_object_object_add(jobj_dns, "recursion_available", json_object_new_string(temp3));
+        sprintf(temp3, "%x", dns->aa);
+        json_object_object_add(jobj_dns, "authorative_answer", json_object_new_string(temp3));
+        sprintf(temp3, "0x%x", ntohs(dns->rcode));
+        json_object_object_add(jobj_dns, "rcode", json_object_new_string(temp3));
+        /*
+        //Start reading answers
+        int stop=0;
+        struct RES_RECORD answers[20];
+
+        for(int i=0;i<ntohs(dns->ans_count);i++)
+        {
+            answers[i].name=ReadName(reader,buf,&stop);
+            reader = reader + stop;
+
+            answers[i].resource = (struct R_DATA*)(reader);
+            reader = reader + sizeof(struct R_DATA);
+
+            if(ntohs(answers[i].resource->type) == 1) //if its an ipv4 address
+            {
+                answers[i].rdata = (unsigned char*)malloc(ntohs(answers[i].resource->data_len));
+
+                for(j=0 ; j<ntohs(answers[i].resource->data_len) ; j++)
+                {
+                    answers[i].rdata[j]=reader[j];
+                }
+
+                answers[i].rdata[ntohs(answers[i].resource->data_len)] = '\0';
+
+                reader = reader + ntohs(answers[i].resource->data_len);
+            }
+            else
+            {
+                answers[i].rdata = ReadName(reader,buf,&stop);
+                reader = reader + stop;
+            }
+        }
+
+              //print answers
+        printf("\nAnswer Records : %d \n" , ntohs(dns->ans_count) );
+        for(i=0 ; i < ntohs(dns->ans_count) ; i++)
+        {
+          printf("Name : %s ",answers[i].name);
+
+          if( ntohs(answers[i].resource->type) == T_A) //IPv4 address
+          {
+              long *p;
+              p=(long*)answers[i].rdata;
+              a.sin_addr.s_addr=(*p); //working without ntohl
+              printf("has IPv4 address : %s",inet_ntoa(a.sin_addr));
+          }
+
+          if(ntohs(answers[i].resource->type)==5)
+          {
+              //Canonical name for an alias
+              printf("has alias name : %s",answers[i].rdata);
+          }
+
+          printf("\n");
+        }*/
+      }
+
+      free(temp3);
+      /*unsigned short q_count; // number of question entries
+      unsigned short ans_count; // number of answer entries
+      unsigned short auth_count; // number of authority entries
+      unsigned short add_count; // number of resource entries*/
+      //printf("\n\n\n");
+      sprintf(json_string, "%s", json_object_to_json_string_ext(jobj_dns, JSON_C_TO_STRING_NOSLASHESCAPE));
+      json_object_object_add(jobj, "payload", json_object_new_string(json_string));
+
     }
-    json_object_object_add(jobj_udp, "payload", json_object_new_string(temp2));
+    else {
+      char *temp2 = (char*)malloc(sizeof(char)*10000); //ARBITRARY
 
-    free(temp2);
+      int i, temp2_len;
+      temp2_len = 0;
+      for(i=0 ; i < (Size - header_size); i++) {
+          sprintf(temp2 + temp2_len, "%02X",(unsigned int)(Buffer+header_size)[i]);
+          temp2_len = strlen(temp2);
+      }
+      json_object_object_add(jobj, "payload", json_object_new_string(temp2));
 
-    sprintf(json_string, "%s", json_object_to_json_string_ext(jobj_udp, JSON_C_TO_STRING_PLAIN));
-    json_object_object_add(jobj, "udp", json_object_new_string(json_string));
-
+      free(temp2);
+    }
     return;
 }
 
@@ -276,12 +515,15 @@ void print_icmp_packet(const u_char * Buffer , int Size)
 
     char *temp =(char*)malloc(sizeof(char)*50);
     sprintf(temp, "%d", (unsigned int)(icmph->type));
-    json_object_object_add(jobj_icmp, "icmp_type", json_object_new_string(temp));
+    json_object_object_add(jobj_icmp, "type", json_object_new_string(temp));
     sprintf(temp, "%d", (unsigned int)(icmph->code));
-    json_object_object_add(jobj_icmp, "icmp_code", json_object_new_string(temp));
+    json_object_object_add(jobj_icmp, "code", json_object_new_string(temp));
     sprintf(temp, "%d", ntohs(icmph->checksum));
-    json_object_object_add(jobj_icmp, "icmp_checksum", json_object_new_string(temp));
+    json_object_object_add(jobj_icmp, "checksum", json_object_new_string(temp));
     free(temp);
+
+    sprintf(json_string, "%s", json_object_to_json_string_ext(jobj_icmp, JSON_C_TO_STRING_NOSLASHESCAPE));
+    json_object_object_add(jobj, "transport_header", json_object_new_string(json_string));
 
     char *temp2 = (char*)malloc(sizeof(char)*10000); //ARBITRARY
 
@@ -291,10 +533,62 @@ void print_icmp_packet(const u_char * Buffer , int Size)
         sprintf(temp2 + temp2_len, "%02X",(unsigned int)(Buffer+header_size)[i]);
         temp2_len = strlen(temp2);
     }
-    json_object_object_add(jobj_icmp, "payload", json_object_new_string(temp2));
+    json_object_object_add(jobj, "payload", json_object_new_string(temp2));
     free(temp2);
 
-    sprintf(json_string, "%s", json_object_to_json_string_ext(jobj_icmp, JSON_C_TO_STRING_PLAIN));
-    json_object_object_add(jobj, "ip", json_object_new_string(json_string));
     return;
+}
+
+u_char* ReadName(unsigned char* reader,unsigned char* buffer,int* count)
+{
+    unsigned char *name;
+    unsigned int p=0,jumped=0,offset;
+    int i , j;
+
+    *count = 1;
+    name = (unsigned char*)malloc(256);
+
+    name[0]='\0';
+
+    //read the names in 3www6google3com format
+    while(*reader!=0)
+    {
+        if(*reader>=192)
+        {
+            offset = (*reader)*256 + *(reader+1) - 49152; //49152 = 11000000 00000000 ;)
+            reader = buffer + offset - 1;
+            jumped = 1; //we have jumped to another location so counting wont go up!
+        }
+        else
+        {
+            name[p++]=*reader;
+        }
+
+        reader = reader+1;
+
+        if(jumped==0)
+        {
+            *count = *count + 1; //if we havent jumped to another location then we can count up
+        }
+    }
+
+    name[p]='\0'; //string complete
+    if(jumped==1)
+    {
+        *count = *count + 1; //number of steps we actually moved forward in the packet
+    }
+
+    //now convert 3www6google3com0 to www.google.com
+    for(i=0;i<(int)strlen((const char*)name);i++)
+    {
+        p=name[i];
+        for(j=0;j<(int)p;j++)
+        {
+            name[i]=name[i+1];
+            i=i+1;
+        }
+        name[i]='.';
+    }
+    name[i-1]='\0'; //remove the last dot
+    return name;
 }
