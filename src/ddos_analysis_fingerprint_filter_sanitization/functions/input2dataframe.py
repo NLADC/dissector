@@ -6,7 +6,7 @@
 
 import subprocess
 from pcap2dataframe import *
-#from pcapng2datafame import *
+#from pcapng2dataframe import *
 #from sflow2dataframe import *
 from netflow2dataframe import *
 
