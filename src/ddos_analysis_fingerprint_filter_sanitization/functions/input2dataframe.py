@@ -6,8 +6,7 @@
 
 import subprocess
 from pcap2dataframe import *
-#from pcapng2dataframe import *
-#from sflow2dataframe import *
+from pcapng2pcap2dataframe import *
 from netflow2dataframe import *
 
 
@@ -29,7 +28,7 @@ def input2dataframe (input_file):
         return pcap2dataframe(input_file)
 
     elif file_info.split()[1] == 'pcap-ng':
-        return pcapng2dataframe(input_file)
+        return pcapng2pcap2dataframe(input_file)
     
     #elif 'sflow' in file_path:
     elif 'sflow' in file_info:
