@@ -1,0 +1,3 @@
+OS platform mismatch
+    while executing
+"mportinit ui_options global_options global_variations"
