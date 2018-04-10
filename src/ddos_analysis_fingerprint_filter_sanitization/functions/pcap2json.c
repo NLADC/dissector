@@ -204,7 +204,14 @@ void print_ip_header(const u_char * Buffer, int Size)
     json_object_object_add(jobj_ip, "len", json_object_new_string(temp));
     sprintf(temp, "%d",ntohs(iph->id));
     json_object_object_add(jobj_ip, "id", json_object_new_string(temp));
-    sprintf(temp, "%d",(ntohs(iph->frag_off) == 0) ? 0 : 1);
+
+    //int fragment_offset = iph->frag_off;
+    //printf("Fragment offset: %d", fragment_offset);
+    //if (fragment_offset == 32) {
+    //  printf("Is fragment\n\n");
+    //}
+
+    sprintf(temp, "%d",((int)(iph->frag_off) == 32) ? 1 : 0);
     json_object_object_add(jobj_ip, "is_fragmented", json_object_new_string(temp));
     sprintf(temp, "%d",(unsigned int)iph->ttl);
     json_object_object_add(jobj_ip, "ttl", json_object_new_string(temp));
@@ -214,7 +221,6 @@ void print_ip_header(const u_char * Buffer, int Size)
     json_object_object_add(jobj,"ip_proto", json_object_new_string(temp));
 
 
-    //printf("Fragment offset: %x\n\n", iph->frag_off);
     //printf("Don't fragment: %x\n", ((ntohs(iph->frag_off)):1));
     //printf("More fragments: %x\n\n", ((ntohs(iph->frag_off)):1));
 
@@ -377,8 +383,8 @@ void print_udp_packet(const u_char *Buffer , int Size)
       json_object_object_add(jobj_dns, "truncated", json_object_new_string(temp3));
       sprintf(temp3, "%x", dns->rd);
       json_object_object_add(jobj_dns, "recusion_desired", json_object_new_string(temp3));
-      sprintf(temp3, "%x", dns->z);
-      json_object_object_add(jobj_dns, "z", json_object_new_string(temp3));
+      //sprintf(temp3, "%x", dns->z);
+      //json_object_object_add(jobj_dns, "z", json_object_new_string(temp3));
       sprintf(temp3, "%x", dns->ad);
       json_object_object_add(jobj_dns, "non_auth_data", json_object_new_string(temp3));
       sprintf(temp3, "%d", ntohs(dns->q_count));
