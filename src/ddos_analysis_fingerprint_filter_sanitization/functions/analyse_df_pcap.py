@@ -102,11 +102,11 @@ def analyse_df_pcap(df, debug=False, ttl_variation_threshold = 4):
                 if percent_src_ports.values[0] > percent_dst_ports.values[0]:
                     if debug: print "\nUsing top source port: ", percent_src_ports.keys()[0] 
                     df_pattern = df_filtered[df_filtered['src_port'] == percent_src_ports.keys()[0]]
-                    result["selected_port"] = "src_" + str(percent_src_ports.keys()[0])
+                    result["selected_port"] = "src" + str(percent_src_ports.keys()[0])
                 else:
                     if debug: print "\n Using top dest port: ", percent_dst_ports.keys()[0]
                     df_pattern = df_filtered[df_filtered['dst_port'] == percent_dst_ports.keys()[0]]
-                    result["selected_port"] = "dst_" + str(percent_dst_ports.keys()[0])
+                    result["selected_port"] = "dst" + str(percent_dst_ports.keys()[0])
             else:
                 if debug: print 'no top source/dest port' 
                 return None
@@ -130,13 +130,13 @@ def analyse_df_pcap(df, debug=False, ttl_variation_threshold = 4):
             # Calculating the number of source IPs involved in the attack
             ips_involved = df_pattern['src_ip'].unique()
 
-            if len(ips_involved) < 2:
+#             if len(ips_involved) < 2:
                 
-                if debug: print "\n###################################################################################################################"
-                if debug: print "\n###################################################################################################################"
-                if debug: print "\n###################################################################################################################"
-                if debug: print("\nNO MORE PATTERNS")
-                break
+#                 if debug: print "\n###################################################################################################################"
+#                 if debug: print "\n###################################################################################################################"
+#                 if debug: print "\n###################################################################################################################"
+#                 if debug: print("\nNO MORE PATTERNS")
+#                 break
             
             if debug: print("\n############################\nPATTERN (ATTACK VECTOR) LABEL "+ "\n############################")
             
