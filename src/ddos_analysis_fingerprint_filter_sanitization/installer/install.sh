@@ -20,15 +20,15 @@ if [ $(id -u) = 0 ]; then
     if [ -n "$(command -v apt-get)" ]; then
         # For Debian-based distributions
         apt-get update
-        apt-get -y install git libtool autoconf automake pkg-config flex bison libbz2-dev libpcap-dev
+        apt-get -y install git libtool autoconf automake pkg-config flex bison libbz2-dev libpcap-dev bittwist
     elif [ -n "$(command -v yum)" ]; then
         # For Red Hat-based distributions
         yum check-update
-        yum -y install git libtool autoconf automake pkg-config flex bison bzip2-devel libpcap-devel
+        yum -y install git libtool autoconf automake pkg-config flex bison bzip2-devel libpcap-devel bittwist
     elif [ -n "$(command -v dnf)" ]; then
         # For Fedora-based distributions
         dnf check-update
-        dnf -y install git libtool autoconf automake pkg-config flex bison bzip2-devel libpcap-devel
+        dnf -y install git libtool autoconf automake pkg-config flex bison bzip2-devel libpcap-devel bittwist
     else 
         echo "Package manager yum, dnf or apt-get not found!"
         exit 1;
@@ -38,10 +38,11 @@ else
 fi
 
 echo "=========== CLONING REPOSITORY ==========="
-git clone https://github.com/Koenvh1/nfdump.git
+cd "../functions"
+git clone https://github.com/Koenvh1/nfdump.git nfdump_modified
 
 # Going into the just cloned repository
-cd "./nfdump"
+cd "./nfdump_modified"
 echo "=========== GENERATING ==========="
 /bin/sh ./autogen.sh
 
