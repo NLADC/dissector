@@ -9,6 +9,8 @@
 #include<sys/socket.h>
 #include<arpa/inet.h> // for inet_ntoa()
 #include<net/ethernet.h>
+#include<netinet/if_ether.h> 
+#include<netinet/ip.h>   //Provides declarations for icmp header
 #include<netinet/ip_icmp.h>   //Provides declarations for icmp header
 #include<netinet/udp.h>   //Provides declarations for udp header
 #include<netinet/tcp.h>   //Provides declarations for tcp header

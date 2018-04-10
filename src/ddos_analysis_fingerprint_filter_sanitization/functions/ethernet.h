@@ -24,7 +24,7 @@
 #include <sys/types.h>
 #include <stdint.h>
 
-#include <linux/if_ether.h>     /* IEEE 802.3 Ethernet constants */
+#include <netinet/if_ether.h>     /* IEEE 802.3 Ethernet constants */
 
 __BEGIN_DECLS
 
