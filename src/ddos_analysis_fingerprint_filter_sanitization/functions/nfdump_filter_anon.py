@@ -25,25 +25,15 @@ def nfdump_filter_anon(input_file, pattern, dst_ip):
     timestamp = pattern["start_timestamp"].split()
     filename =  timestamp[0].replace("-", "") + timestamp[1].replace(":", "") + "_" + str(pattern["selected_port"]) + ".nfdump"
     
-    
-    #running nfdump with the filters created above
-    p = subprocess.Popen(["nfdump -r " + input_file + " -w output/nfdumptemp " + "'" + filter_out + "'"], shell=True, stdout=subprocess.PIPE)
+    p = subprocess.Popen(["functions/nfdump_modified/bin/nfdump -r " + input_file + " -w output/nfdumptemp " + "'" + filter_out + "'"], shell=True, stdout=subprocess.PIPE)
     p.communicate()
     p.wait()
     
-    p = subprocess.Popen(["functions/nfdump/bin/nfanon -r output/nfdumptemp -w output/" + filename], shell=True, stdout=subprocess.PIPE)
+    p = subprocess.Popen(["functions/nfdump_modified/bin/nfanon -r output/nfdumptemp -w output/" + filename], shell=True, stdout=subprocess.PIPE)
     p.communicate()
     p.wait()
     
     p = subprocess.Popen(["rm output/nfdumptemp"], shell=True, stdout=subprocess.PIPE)
     p.communicate()
     p.wait()
-    #
-    #
-    #
-    #NEED to add the replacing in ips
-    #
-    #
-    #
-    
 
