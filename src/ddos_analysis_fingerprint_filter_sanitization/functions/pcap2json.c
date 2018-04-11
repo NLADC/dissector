@@ -44,8 +44,10 @@ struct DNS_HEADER
 //Constant sized fields of query structure
 struct QUESTION
 {
+    
+    unsigned char qclass :1;
+    unsigned short temp;
     unsigned short qtype;
-    unsigned short qclass;
 };
 
 //Constant sized fields of the resource record structure
@@ -353,7 +355,7 @@ void print_udp_packet(const u_char *Buffer , int Size)
 
     if (sport == 53 || dport == 53) {
       struct DNS_HEADER *dns = NULL;
-      //struct QUESTION *qinfo = NULL;
+      struct QUESTION *qinfo = NULL;
 
       //unsigned char buf[65536], *qname, *reader;
       //struct RES_RECORD answers[20],auth[20],addit[20]; //the replies from the DNS server
@@ -397,20 +399,28 @@ void print_udp_packet(const u_char *Buffer , int Size)
       sprintf(temp3, "%d", ntohs(dns->add_count));
       json_object_object_add(jobj_dns, "additional", json_object_new_string(temp3));
 
-      /*
+      
       //point to the query portion
-      dns = (struct DNS_HEADER*)(Buffer+header_size);
+      //dns = (struct DNS_HEADER*)(Buffer+header_size);
       unsigned char *qname =(unsigned char*)(Buffer+header_size+sizeof(struct DNS_HEADER) + 1);
       unsigned char *reader = (unsigned char*)(sizeof(struct DNS_HEADER) + (strlen((const char*)qname)+1) + sizeof(struct QUESTION));
+      printf("Query name: %s\n", qname);
+      printf("string length %d\n", strlen((const char*)qname));
+      qinfo = (struct QUESTION*)(Buffer+header_size + sizeof(struct DNS_HEADER) + strlen((const char*)qname) + 1);
+      
+      //printf("query all: %x\n", qinfo->temp);
+      printf("Query type: %x\n", (qinfo->qtype));
+      printf("Query info: %x\n", (qinfo->qclass));
+      //printf("z bit: %x\n", (qinfo->z));
+      /*
       unsigned char buf[65536];
       //ChangetoDnsNameFormat(qname , host);
-      //qinfo = (struct QUESTION*)(Buffer+header_size+strlen((const char*)qname) + 1); //fill it
+      
       qinfo = (struct QUESTION*)(Buffer+header_size+strlen(qname)); //fill it
 
 
-      printf("Query name: %s\n", qname);
-      printf("Query type: %x\n", (qinfo->qtype));
-      printf("Query info: %x\n", (qinfo->qclass));
+
+      
       //qinfo->qtype = htons( query_type ); //type of the query , A , MX , CNAME , NS etc
       //qinfo->qclass = htons(1); //its internet (lol)
       */
