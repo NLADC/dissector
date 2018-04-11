@@ -9,7 +9,7 @@
 #include<sys/socket.h>
 #include<arpa/inet.h> // for inet_ntoa()
 #include<net/ethernet.h>
-#include<netinet/if_ether.h> 
+#include<netinet/if_ether.h>
 #include<netinet/ip.h>   //Provides declarations for icmp header
 #include<netinet/ip_icmp.h>   //Provides declarations for icmp header
 #include<netinet/udp.h>   //Provides declarations for udp header
@@ -41,13 +41,13 @@ struct DNS_HEADER
     unsigned short add_count; // number of resource entries
 };
 
-//Constant sized fields of query structure
+//Constant sized fields of query structure - may be problematic
 struct QUESTION
 {
-    
-    unsigned char qclass :1;
+
     unsigned short temp;
     unsigned short qtype;
+    unsigned char qclass :1;
 };
 
 //Constant sized fields of the resource record structure
@@ -59,7 +59,13 @@ struct R_DATA
     unsigned int ttl;
     unsigned short data_len;
 };
+
+struct SOA_DATA {
+  unsigned short mname;
+};
+
 #pragma pack(pop)
+
 
 //Pointers to resource record contents
 struct RES_RECORD
@@ -399,28 +405,31 @@ void print_udp_packet(const u_char *Buffer , int Size)
       sprintf(temp3, "%d", ntohs(dns->add_count));
       json_object_object_add(jobj_dns, "additional", json_object_new_string(temp3));
 
-      
+
       //point to the query portion
       //dns = (struct DNS_HEADER*)(Buffer+header_size);
       unsigned char *qname =(unsigned char*)(Buffer+header_size+sizeof(struct DNS_HEADER) + 1);
-      unsigned char *reader = (unsigned char*)(sizeof(struct DNS_HEADER) + (strlen((const char*)qname)+1) + sizeof(struct QUESTION));
-      printf("Query name: %s\n", qname);
-      printf("string length %d\n", strlen((const char*)qname));
       qinfo = (struct QUESTION*)(Buffer+header_size + sizeof(struct DNS_HEADER) + strlen((const char*)qname) + 1);
-      
-      //printf("query all: %x\n", qinfo->temp);
-      printf("Query type: %x\n", (qinfo->qtype));
-      printf("Query info: %x\n", (qinfo->qclass));
+
+      sprintf(temp3, "%s", qname);
+      json_object_object_add(jobj_dns, "qname" , json_object_new_string(temp3));
+      sprintf(temp3, "%d", qinfo->qtype);
+      json_object_object_add(jobj_dns, "qtype" , json_object_new_string(temp3));
+      sprintf(temp3, "%d", qinfo->qclass);
+      json_object_object_add(jobj_dns, "qclass" , json_object_new_string(temp3));
+
+
+      //printf("Query class: %x\n", (qinfo->temp));
       //printf("z bit: %x\n", (qinfo->z));
       /*
       unsigned char buf[65536];
       //ChangetoDnsNameFormat(qname , host);
-      
+
       qinfo = (struct QUESTION*)(Buffer+header_size+strlen(qname)); //fill it
 
 
 
-      
+
       //qinfo->qtype = htons( query_type ); //type of the query , A , MX , CNAME , NS etc
       //qinfo->qclass = htons(1); //its internet (lol)
       */
@@ -434,7 +443,51 @@ void print_udp_packet(const u_char *Buffer , int Size)
         json_object_object_add(jobj_dns, "authorative_answer", json_object_new_string(temp3));
         sprintf(temp3, "0x%x", ntohs(dns->rcode));
         json_object_object_add(jobj_dns, "rcode", json_object_new_string(temp3));
-       
+
+        struct R_DATA* response = NULL;
+        response = (struct R_DATA*)(Buffer+header_size + sizeof(struct DNS_HEADER) + strlen((const char*)qname) + sizeof(struct QUESTION) + 2);
+        int response_type = ntohs(response->type);
+        sprintf(temp3, "%d", response_type);
+        json_object_object_add(jobj_dns, "rtype", json_object_new_string(temp3));
+        sprintf(temp3, "%d", ntohs(response->_class));
+        json_object_object_add(jobj_dns, "rclass", json_object_new_string(temp3));
+        sprintf(temp3, "%d", ntohs(response->ttl));
+        json_object_object_add(jobj_dns, "rttl", json_object_new_string(temp3));
+
+        int data_len = response->data_len;
+        sprintf(temp3, "%d", data_len);
+        json_object_object_add(jobj_dns, "rdata_len", json_object_new_string(temp3));
+
+        printf("Response type: %x\n", ntohs(response->type));
+        printf("Response class: %x\n", ntohs(response->_class));
+        printf("Response ttl: %d\n", htonl(response->ttl));
+        printf("Response datalen: %d\n", ntohs(response->data_len));
+        /*
+            unsigned short type;
+            unsigned short _class;
+            unsigned int ttl;
+            unsigned short data_len;
+        };*/
+
+        // sprintf(temp, "%s", inet_ntoa(source.sin_addr));
+        // json_object_object_add(jobj, "ip_src", json_object_new_string(temp));
+        //
+        //
+        // unsigned char *SOA_mname = NULL;
+        // int* address = NULL;
+        // switch (response_type) {
+        //   case 1:
+        //     address = (int*)(Buffer+header_size + sizeof(struct DNS_HEADER) + strlen((const char*)qname) + sizeof(qinfo) + sizeof(response) + 2);
+        //     printf("ADD: %x\n", *address);
+        //     break;
+        //   case 6:
+        //     SOA_mname = (unsigned char*)(Buffer+header_size + sizeof(struct DNS_HEADER) + strlen((const char*)qname) + sizeof(qinfo) + sizeof(response) + 2) ;
+        //     printf("SOA: %s\n", SOA_mname);
+        //     break;
+        //   default:
+        //     printf("Response type not implemented\n");
+        //
+        // }
       }
 
       free(temp3);
@@ -460,6 +513,7 @@ void print_udp_packet(const u_char *Buffer , int Size)
 
       free(temp2);
     }
+    printf("\n\n");
     return;
 }
 
