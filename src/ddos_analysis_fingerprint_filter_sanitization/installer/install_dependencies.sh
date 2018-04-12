@@ -43,10 +43,11 @@ else
 fi
 
 echo "=========== CLONING REPOSITORY ==========="
-git clone https://github.com/Koenvh1/nfdump.git
+cd "../functions"
+git clone https://github.com/Koenvh1/nfdump.git nfdump_modified
 
 # Going into the just cloned repository
-cd "./nfdump"
+cd "./nfdump_modified"
 echo "=========== GENERATING ==========="
 /bin/sh ./autogen.sh
 
