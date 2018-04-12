@@ -33,6 +33,7 @@ def tcpdump_filter_anon(input_file, pattern, dst_ip):
     p.communicate()
     p.wait()
     
+    get_ipython().system("ls 'output/'")
     #running bittwiste for anonymizing destination ip
     p = subprocess.Popen(["bittwiste -I " + "output/temp " + " -O output/" + filename + " -T ip -d " + dst_ip + ",1.1.1.1"], shell=True, stdout=subprocess.PIPE)
     p.communicate()
