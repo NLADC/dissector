@@ -29,8 +29,13 @@ if [ $(id -u) = 0 ]; then
         # For Fedora-based distributions
         dnf check-update
         dnf -y install git libtool autoconf automake pkg-config flex bison bzip2-devel libpcap-devel bittwist
+    elif [ -n "$(command -v brew)" ]; then
+        # For macOS-based distributions
+        brew check-update
+        brew -y install git libtool autoconf automake pkg-config flex bison bittwist
+        brew -y install --devel bzip2 libpcap
     else 
-        echo "Package manager yum, dnf or apt-get not found!"
+        echo "Package manager yum, dnf, brew or apt-get not found!"
         exit 1;
     fi
 else

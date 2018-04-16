@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[2]:
+# In[ ]:
 
 
 import subprocess
@@ -24,10 +24,10 @@ def tcpdump_filter_anon(input_file, pattern, dst_ip):
         filter_out = "dst host " + dst_ip + " and proto " + str(pattern['ip_protocol']) + " and src port " + str(pattern["src_ports"].keys()[0])
     
     #convert epoch time to datetime
-    timestamp = time.strftime('%Y%m%d%H%M%S', time.localtime(pattern["start_timestamp"]))
+    b = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(pattern["start_timestamp"]))
     
     #proper filename based on start timestamp and selected port
-    filename = timestamp + "_" + str(pattern["selected_port"]) + ".pcap"
+    filename = b.split()[0].replace('-', '') + "_" + str(pattern["selected_port"]) + ".pcap"
     
     p = subprocess.Popen(["tcpdump -r " + input_file + " -w output/temp " + filter_out], shell=True, stdout=subprocess.PIPE)
     p.communicate()
