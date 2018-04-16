@@ -130,7 +130,7 @@ int tcp=0,udp=0,icmp=0,others=0,igmp=0,total=0,i,j;
 int main(int argc, char *argv[])
 {
     pcap_t *handle;
-    char errbuf[PCAP_ERRBUF_SIZE];
+    char errbuf[PCAP_ERRBUF_SIZE]; //not used
 
     /* Skip over the program name. */
     ++argv; --argc;
@@ -334,7 +334,7 @@ void print_udp_packet(const u_char *Buffer , int Size)
 {
 
     struct iphdr *iph = (struct iphdr *)(Buffer +  sizeof(struct ethhdr));
-    unsigned short iphdrlen = iph->ihl*4;
+    unsigned short iphdrlen = iph->ihl*4; //4 is magic :D, ref = libpcap packet sniffer
 
     struct udphdr *udph = (struct udphdr*)(Buffer + sizeof(struct ethhdr) + iphdrlen);
 
@@ -439,7 +439,7 @@ void print_dns(const u_char* Buffer, int Size, int header_size) {
       int auth_count = ntohs(dns->auth_count);
       int add_count = ntohs(dns->add_count);
 
-      char *temp3 =(char*)malloc(sizeof(char)*2000);
+      char *temp3 =(char*)malloc(sizeof(char)*2000); // kind of arbitrary value used here - 2000 - POSSIBLY 8
       sprintf(temp3, "0x%x" , ntohs(dns->id));
       json_object_object_add(jobj_dns, "id", json_object_new_string(temp3));
       sprintf(temp3, "%x" , ntohs(dns->qr));
@@ -472,6 +472,7 @@ void print_dns(const u_char* Buffer, int Size, int header_size) {
 
       header_size = header_size + sizeof(struct DNS_HEADER);
       int offset = 0;
+      //for multiple questions
       for(int i=0; i<q_count; i++) {
         offset += print_dns_question(Buffer,header_size,offset);
       }
@@ -520,6 +521,7 @@ int print_dns_answer(const u_char* Buffer,int Size, int header_size,int offset) 
     int size_of_a = 0;
 
     qname = qnameReader(Buffer, header_size + offset + 1, qname_len);
+	//check possibilities when 0
     if (*qname_len == 0) {
       free(qname);
       //qname = (u_char*)malloc(sizeof(char) * 7);
@@ -575,8 +577,9 @@ int print_dns_answer(const u_char* Buffer,int Size, int header_size,int offset) 
         printf("\n");
 
         i = 0;
-        while(i<(Size-(header_size + offset + *qname_len + 3  + sizeof(struct ANSWER) + tag_len))) {
-          cur_char = Buffer + header_size + offset + *qname_len + 3  + sizeof(struct ANSWER) + tag_len;
+        //1 is the correct but 3 works in some cases (single answer)
+        while(i<(Size-(header_size + offset + *qname_len + 1 + sizeof(struct ANSWER) + tag_len))) {
+          cur_char = Buffer + header_size + offset + *qname_len + 1 + sizeof(struct ANSWER) + tag_len;
           printf("%c", cur_char[i]);
           i++;
         }
@@ -590,6 +593,7 @@ int print_dns_answer(const u_char* Buffer,int Size, int header_size,int offset) 
         printf("txt_len: %d\n", txt_len);
 
         char* cur_char;
+        //the -2 and +4 is magic also -- needs testing
         for(int i=0; i<txt_len-2;i++) {
           cur_char = Buffer + header_size + offset + *qname_len +  4  + sizeof(struct ANSWER);
           printf("%c", cur_char[i]);
@@ -649,6 +653,7 @@ int print_dns_answer(const u_char* Buffer,int Size, int header_size,int offset) 
     }
 
     printf("\n");
+    //for testing -- not useful
     if (*qname_len != 0) free(qname_len);
     return size_of_a;
 }
@@ -686,60 +691,6 @@ u_char* qnameReader(const u_char* Buffer, int offset, int* qname_len) {
     name[j-1] = '\0';
 
     *qname_len = j;
-    return name;
-}
-
-u_char* ReadName(unsigned char* reader,unsigned char* buffer,int* count)
-{
-    unsigned char *name;
-    unsigned int p=0,jumped=0,offset;
-    int i , j;
-
-    *count = 1;
-    name = (unsigned char*)malloc(256);
-
-    name[0]='\0';
-
-    //read the names in 3www6google3com format
-    while(*reader!=0)
-    {
-        if(*reader>=192)
-        {
-            offset = (*reader)*256 + *(reader+1) - 49152; //49152 = 11000000 00000000 ;)
-            reader = buffer + offset - 1;
-            jumped = 1; //we have jumped to another location so counting wont go up!
-        }
-        else
-        {
-            name[p++]=*reader;
-        }
-
-        reader = reader+1;
-
-        if(jumped==0)
-        {
-            *count = *count + 1; //if we havent jumped to another location then we can count up
-        }
-    }
-
-    name[p]='\0'; //string complete
-    if(jumped==1)
-    {
-        *count = *count + 1; //number of steps we actually moved forward in the packet
-    }
-
-    //now convert 3www6google3com0 to www.google.com
-    for(i=0;i<(int)strlen((const char*)name);i++)
-    {
-        p=name[i];
-        for(j=0;j<(int)p;j++)
-        {
-            name[i]=name[i+1];
-            i=i+1;
-        }
-        name[i]='.';
-    }
-    name[i-1]='\0'; //remove the last dot
     return name;
 }
 
