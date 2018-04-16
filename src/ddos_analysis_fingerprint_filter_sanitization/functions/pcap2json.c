@@ -159,7 +159,7 @@ void process_packet(u_char *args, const struct pcap_pkthdr *header, const u_char
     }
 
     fprintf(jsonfile,"%s\n", json_object_to_json_string_ext(jobj, JSON_C_TO_STRING_NOSLASHESCAPE));
-    //printf("%s\n", json_object_to_json_string_ext(jobj, JSON_C_TO_STRING_NOSLASHESCAPE));
+
 }
 
 void print_ethernet_header(const u_char *Buffer, int Size)
@@ -172,11 +172,10 @@ void print_ethernet_header(const u_char *Buffer, int Size)
     sprintf(temp, "%.2X-%.2X-%.2X-%.2X-%.2X-%.2X", eth->h_source[0] , eth->h_source[1] , eth->h_source[2] , eth->h_source[3] , eth->h_source[4] , eth->h_source[5]);
     json_object_object_add(jobj_ether, "src", json_object_new_string(temp));
     sprintf(temp,"%u",(unsigned short)eth->h_proto);
-    json_object_object_add(jobj_ether, "proto", json_object_new_string(temp));
+    json_object_object_add(jobj_ether, "IP Type", json_object_new_string(temp));
     free(temp);
 
-    sprintf(json_string, "%s", json_object_to_json_string_ext(jobj_ether, JSON_C_TO_STRING_NOSLASHESCAPE));
-    json_object_object_add(jobj, "ether", json_object_new_string(json_string));
+    json_object_object_add(jobj, "ether", json_object_get(jobj_ether));
     return;
 }
 
@@ -217,8 +216,6 @@ void print_ip_header(const u_char * Buffer, int Size)
     json_object_object_add(jobj_ip, "is_fragmented", json_object_new_string(temp));
     sprintf(temp, "%d",(unsigned int)iph->ttl);
     json_object_object_add(jobj_ip, "ttl", json_object_new_string(temp));
-    //sprintf(temp, "%d",(unsigned int)iph->protocol);
-    //json_object_object_add(jobj_ip, "proto", json_object_new_string(temp));
     sprintf(temp, "%d", (unsigned int)iph->protocol);
     json_object_object_add(jobj,"ip_proto", json_object_new_string(temp));
 
@@ -229,10 +226,6 @@ void print_ip_header(const u_char * Buffer, int Size)
 
     sprintf(temp, "%d", ntohs(iph->check));
     json_object_object_add(jobj_ip, "checksum", json_object_new_string(temp));
-    //sprintf(temp, "%s" , inet_ntoa(source.sin_addr));
-    //json_object_object_add(jobj_ip, "src", json_object_new_string(temp));
-    //sprintf(temp, "%s" , inet_ntoa(dest.sin_addr));
-    //json_object_object_add(jobj_ip, "dst", json_object_new_string(temp));
     sprintf(temp, "%s", inet_ntoa(source.sin_addr));
     json_object_object_add(jobj, "ip_src", json_object_new_string(temp));
     sprintf(temp, "%s", inet_ntoa(dest.sin_addr));
@@ -240,8 +233,7 @@ void print_ip_header(const u_char * Buffer, int Size)
 
     free(temp);
 
-    sprintf(json_string, "%s", json_object_to_json_string_ext(jobj_ip, JSON_C_TO_STRING_NOSLASHESCAPE));
-    json_object_object_add(jobj, "ip_header", json_object_new_string(json_string));
+    json_object_object_add(jobj, "ip_header", json_object_get(jobj_ip));
 
     return;
 }
@@ -297,8 +289,7 @@ void print_tcp_packet(const u_char * Buffer, int Size)
     json_object_object_add(jobj_tcp, "urg_ptr", json_object_new_string(temp));
     free(temp);
 
-    sprintf(json_string, "%s", json_object_to_json_string_ext(jobj_tcp, JSON_C_TO_STRING_NOSLASHESCAPE));
-    json_object_object_add(jobj, "transport_header", json_object_new_string(json_string));
+    json_object_object_add(jobj, "transport_header", json_object_get(jobj_tcp));
 
     char *temp2 = (char*)malloc(sizeof(char)*10000); //ARBITRARY
 
@@ -324,17 +315,15 @@ void print_udp_packet(const u_char *Buffer , int Size)
 
     struct udphdr *udph = (struct udphdr*)(Buffer + iphdrlen  + sizeof(struct ethhdr));
 
-    int header_size =  sizeof(struct ethhdr) + iphdrlen + sizeof udph;
+    int header_size =  sizeof(struct ethhdr) + iphdrlen + sizeof(udph);
     int sport = ntohs(udph->source);
     int dport = ntohs(udph->dest);
 
     print_ip_header(Buffer,Size);
 
     char *temp =(char*)malloc(sizeof(char)*50);
-    // sprintf(temp, "%d" , sport);
-    // json_object_object_add(jobj_udp, "sport", json_object_new_string(temp));
-    // sprintf(temp, "%d" , dport);
-    // json_object_object_add(jobj_udp, "dport", json_object_new_string(temp));
+
+
     sprintf(temp, "%d" , sport);
     json_object_object_add(jobj, "port_src", json_object_new_string(temp));
     sprintf(temp, "%d" , dport);
@@ -348,8 +337,7 @@ void print_udp_packet(const u_char *Buffer , int Size)
     json_object_object_add(jobj_udp, "checksum", json_object_new_string(temp));
     free(temp);
 
-    sprintf(json_string, "%s", json_object_to_json_string_ext(jobj_udp, JSON_C_TO_STRING_NOSLASHESCAPE));
-    json_object_object_add(jobj, "transport_header", json_object_new_string(json_string));
+    json_object_object_add(jobj, "transport_header", json_object_get(jobj_udp));
 
 
     if (sport == 53 || dport == 53) {
@@ -488,8 +476,8 @@ void print_udp_packet(const u_char *Buffer , int Size)
       unsigned short auth_count; // number of authority entries
       unsigned short add_count; // number of resource entries*/
       //printf("\n\n\n");
-      sprintf(json_string, "%s", json_object_to_json_string_ext(jobj_dns, JSON_C_TO_STRING_NOSLASHESCAPE));
-      json_object_object_add(jobj, "payload", json_object_new_string(json_string));
+
+      json_object_object_add(jobj, "payload", json_object_get(jobj_dns));
 
     }
     else {
@@ -530,8 +518,8 @@ void print_icmp_packet(const u_char * Buffer , int Size)
     json_object_object_add(jobj_icmp, "checksum", json_object_new_string(temp));
     free(temp);
 
-    sprintf(json_string, "%s", json_object_to_json_string_ext(jobj_icmp, JSON_C_TO_STRING_NOSLASHESCAPE));
-    json_object_object_add(jobj, "transport_header", json_object_new_string(json_string));
+
+    json_object_object_add(jobj, "transport_header", json_object_get(jobj_icmp));
 
     char *temp2 = (char*)malloc(sizeof(char)*10000); //ARBITRARY
 
