@@ -60,6 +60,9 @@ make
 echo "=========== INSTALLING ==========="
 make install
 
+echo "==== CONFIGURE DYNAMIC LIBRARIES ===="
+ldconfig
+
 echo "=========== SETTING PERMISSIONS ==========="
 # Get the current user, and recursively set the permissions
 out="$(who am i)"
