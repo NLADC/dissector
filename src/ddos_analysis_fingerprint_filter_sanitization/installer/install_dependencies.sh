@@ -34,6 +34,10 @@ if [ $(id -u) = 0 ]; then
         brew check-update
         brew -y install git libtool autoconf automake pkg-config flex bison bittwist
         brew -y install --devel bzip2 libpcap
+    elif [ -n "$(command -v port)" ]; then
+        # For macOS-based distributions
+        port check-update
+        port install git libtool autoconf automake pkgconfig flex bison zlib libpcap bittwist
     else 
         echo "Package manager yum, dnf, brew or apt-get not found!"
         exit 1;
