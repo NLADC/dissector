@@ -2,3 +2,4 @@
 .ipynb_checkpoints
 .pyc
 src/ddos_analysis_fingerprint_filter_sanitization/output/*
+src/ddos_analysis_fingerprint_filter_sanitization/input4test/*
