@@ -531,7 +531,7 @@ int print_dns_answer(const u_char* Buffer,int Size, int header_size,int offset) 
     }
     printf("qname len: %d\n", *qname_len);
 
-    qanswer_hdr = (struct ANSWER*)(Buffer + header_size + offset + *qname_len + 3);
+    qanswer_hdr = (struct ANSWER*)(Buffer + header_size + offset + *qname_len + 1);
     int qtype = ntohs(qanswer_hdr->qtype);
     int rdlen = ntohs(qanswer_hdr->rdlen);
 
@@ -571,7 +571,7 @@ int print_dns_answer(const u_char* Buffer,int Size, int header_size,int offset) 
 
         char* cur_char;
         for(int i=0; i<tag_len;i++) {
-          cur_char = Buffer + header_size + offset + *qname_len + 3  + sizeof(struct ANSWER);
+          cur_char = Buffer + header_size + offset + *qname_len + 1  + sizeof(struct ANSWER);
           printf("%c", cur_char[i]);
         }
         printf("\n");

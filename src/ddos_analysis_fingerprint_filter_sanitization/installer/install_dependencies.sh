@@ -31,6 +31,9 @@ if [ $(id -u) = 0 ]; then
         dnf -y install git libtool autoconf automake pkg-config flex bison bzip2-devel libpcap-devel bittwist
     elif [ -n "$(command -v brew)" ]; then
         # For macOS-based distributions
+        #possible solution for mac users not working the bittwist
+        #ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)" < /dev/null 2> /dev/null
+        #then install it
         brew check-update
         brew -y install git libtool autoconf automake pkg-config flex bison bittwist
         brew -y install --devel bzip2 libpcap
