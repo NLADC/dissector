@@ -130,13 +130,13 @@ def analyse_df_pcap(df, debug=False, ttl_variation_threshold = 4):
             # Calculating the number of source IPs involved in the attack
             ips_involved = df_pattern['src_ip'].unique()
 
-#             if len(ips_involved) < 2:
+            if len(ips_involved) < 2:
                 
-#                 if debug: print "\n###################################################################################################################"
-#                 if debug: print "\n###################################################################################################################"
-#                 if debug: print "\n###################################################################################################################"
-#                 if debug: print("\nNO MORE PATTERNS")
-#                 break
+                if debug: print "\n###################################################################################################################"
+                if debug: print "\n###################################################################################################################"
+                if debug: print "\n###################################################################################################################"
+                if debug: print("\nNO MORE PATTERNS")
+                break
             
             if debug: print("\n############################\nPATTERN (ATTACK VECTOR) LABEL "+ "\n############################")
             
@@ -155,8 +155,8 @@ def analyse_df_pcap(df, debug=False, ttl_variation_threshold = 4):
             
             ips_ttl_greater_4 = ttl_variations.groupby(np.where(ttl_variations.index > 4, '>4', ttl_variations.index)).sum()
             
-            if debug: print('\n IPs TTL variation >4')
-            if debug: print(ips_ttl_greater_4)
+#             if debug: print('\n IPs TTL variation >4')
+#             if debug: print(ips_ttl_greater_4)
             
             result["ttl_variation"] = ttl_variations.to_dict()
 

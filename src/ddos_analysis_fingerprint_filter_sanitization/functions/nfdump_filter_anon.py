@@ -31,7 +31,7 @@ def nfdump_filter_anon(input_file, pattern, dst_ip):
     p.communicate()
     p.wait()
     
-    p = subprocess.Popen(["functions/nfdump/bin/nfanon -r output/nfdumptemp -w output/" + filename], shell=True, stdout=subprocess.PIPE)
+    p = subprocess.Popen(["functions/nfdump_modified/bin/nfanon -r output/nfdumptemp -w output/" + filename], shell=True, stdout=subprocess.PIPE)
     p.communicate()
     p.wait()
     
