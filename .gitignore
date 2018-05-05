@@ -1,7 +1,6 @@
-.DS_Store
-.ipynb_checkpoints
+*.DS_Store
+*.ipynb_checkpoints
 *.pyc
 src/ddos_analysis_fingerprint_filter_sanitization/output/*
 src/ddos_analysis_fingerprint_filter_sanitization/input4test/*
 src/ddos_analysis_fingerprint_filter_sanitization/functions/nfdump_modified
-src/ddos_analysis_fingerprint_filter_sanitization/functions/*.pyc
