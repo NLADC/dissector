@@ -1,4 +1,4 @@
 # DDoSDB
 DDoSDB - Collecting Transforming Applaying and Disseminating DDoS Attack Knowledge
 
-More info on (ToDo) tasks at [Trello](https://trello.com/b/S06n5Z4S)
+## The program to analyse DDoS attacks and generate fingerprints is [here!](https://github.com/jjsantanna/ddosdb/blob/master/src/ddos_dissector.py).
