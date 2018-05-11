@@ -28,7 +28,7 @@ def pcap2dataframe_tshark(filename):
         print ('ATTENTION: THE INTERMEDIATED FILE WAS NOT CREATED!')
 
     ###
-    df = pd.read_csv("intermediate_file.csv", sep=';',  low_memory=False, index_col=False)
+    df = pd.read_csv("intermediate_file.csv", sep=';',  low_memory=False)
     ###
     if ('tcp.srcport' in df.columns) & ('udp.srcport' in df.columns) & ('tcp.dstport' in df.columns) & ('udp.dstport' in df.columns):
         ###Combining source and destination ports from tcp and udp

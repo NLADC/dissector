@@ -57,8 +57,9 @@ def analyse_df_pcap_tshark(df, debug=False, ttl_variation_threshold = 4):
     counter = 1
     ############################################################################
     ############################################################################
-    if debug: print(df['_ws.col.Destination'].value_counts())
-    top1_dst_ip = df['_ws.col.Destination'].value_counts().keys()[0]
+    dst_ip_distribution = df['_ws.col.Destination'].value_counts()
+    if debug: print ('\nDISTRIBUTION OF DESTINATION IPs:\n', dst_ip_distribution)
+    top1_dst_ip = dst_ip_distribution.keys()[0]
     ############################################################################
     ############################################################################
     df_remaining = df[df['_ws.col.Destination']==top1_dst_ip]
@@ -68,7 +69,7 @@ def analyse_df_pcap_tshark(df, debug=False, ttl_variation_threshold = 4):
         attack_vector['file_type'] = 'pcap'
         #Analysing the distribution of IP protocols (and defining the top1)
         protocol_distribution = df_remaining['_ws.col.Protocol'].value_counts()
-        if debug: print ('DISTRIBUTION OF PROTOCOLS:', protocol_distribution)
+        if debug: print ('\nDISTRIBUTION OF PROTOCOLS:\n', protocol_distribution)
         top1_protocol = protocol_distribution.keys()[0]
         filter_top_protocol_string = "df_remaining['_ws.col.Protocol']=='"+str(top1_protocol)+"'"
         attack_vector['protocol']=top1_protocol
@@ -76,7 +77,7 @@ def analyse_df_pcap_tshark(df, debug=False, ttl_variation_threshold = 4):
         #Defining if the remaining is based on the top1 source OR destination port
         if top1_protocol == 'IPv4':
             fragmentation_distribution = df_remaining[df_remaining['_ws.col.Protocol']=='IPv4']['fragmentation'].value_counts()
-            if debug: print('FRAGMENTATION DISTRIBUTION',fragmentation_distribution)    
+            if debug: print('\nFRAGMENTATION DISTRIBUTION:\n',fragmentation_distribution)    
             if fragmentation_distribution.keys()[0] == True:
                 filter_fragmentation_string="df_remaining['fragmentation']==True"
                 attackvector_filter_string = '('+str(filter_top_protocol_string)+')&('+str(filter_fragmentation_string)+')'
@@ -85,12 +86,12 @@ def analyse_df_pcap_tshark(df, debug=False, ttl_variation_threshold = 4):
         else:
             ###Analysing the distribution of SOURCE ports AND defining the top1
             port_source_distribution = df_remaining[df_remaining['_ws.col.Protocol']==top1_protocol]['srcport'].value_counts().head()
-            if debug: print('DISTRIBUTION OF SOURCE PORT:', port_source_distribution)
+            if debug: print('\nDISTRIBUTION OF SOURCE PORT:\n', port_source_distribution)
             top1_source_port = math.floor(port_source_distribution.keys()[0])
 
             ###Analysing the distribution of DESTINATION ports AND defining the top1
             port_destination_distribution = df_remaining[df_remaining['_ws.col.Protocol']==top1_protocol]['dstport'].value_counts().head()
-            if debug: print('DISTRIBUTION OF DESTINATION PORTS:',port_destination_distribution)
+            if debug: print('\nDISTRIBUTION OF DESTINATION PORTS:\n',port_destination_distribution)
             top1_destination_port = math.floor(port_destination_distribution.keys()[0])
 
             ###Checking wich port type (source or destination) AND number had most occurrences
@@ -106,7 +107,7 @@ def analyse_df_pcap_tshark(df, debug=False, ttl_variation_threshold = 4):
             ###########
             if top1_protocol == 'ICMP':
                 icmp_type_distribution = df_remaining[df_remaining['_ws.col.Protocol']=='ICMP']['icmp.type'].value_counts()
-                if debug: print('DISTRIBUTION ICMP TYPES:',icmp_type_distribution)
+                if debug: print('\nDISTRIBUTION ICMP TYPES:\n',icmp_type_distribution)
                 top1_icmp_type = icmp_type_distribution.keys()[0]
                 filter_icmp_type = "df_remaining['icmp.type']=='"+str(top1_icmp_type)+"'"
                 attackvector_filter_string = '('+str(filter_top_protocol_string)+')&('+str(filter_icmp_type)+')' 
@@ -125,7 +126,7 @@ def analyse_df_pcap_tshark(df, debug=False, ttl_variation_threshold = 4):
             ###########
             if top1_protocol == 'TCP':
                 tcp_flag_distribution = df_remaining[df_remaining['_ws.col.Protocol']=='TCP']['tcp.flags.str'].value_counts()
-                if debug: print('DISTRIBUTION TCP FLAGS:',tcp_flag_distribution.head())
+                if debug: print('\nDISTRIBUTION TCP FLAGS:\n',tcp_flag_distribution.head())
                 top1_tcp_flag = tcp_flag_distribution.keys()[0]
                 filter_tcp_flag = "df_remaining['tcp.flags.str']=='"+str(top1_tcp_flag)+"'"
                 attackvector_filter_string += '&('+str(filter_tcp_flag)+')'  
@@ -134,13 +135,13 @@ def analyse_df_pcap_tshark(df, debug=False, ttl_variation_threshold = 4):
             ###########
             if top1_protocol == 'DNS':
                 dns_query_distribution = df_remaining[df_remaining['_ws.col.Protocol']=='DNS']['dns.qry.name'].value_counts()
-                if debug: print('DISTRIBUTION DNS QUERIES:',dns_query_distribution.head())
+                if debug: print('\nDISTRIBUTION DNS QUERIES:\n',dns_query_distribution.head())
                 top1_dns_query = dns_query_distribution.keys()[0]
                 filter_dns_query = "df_remaining['dns.qry.name']=='"+str(top1_dns_query)+"'"
                 attackvector_filter_string += '&('+str(filter_dns_query)+')'
 
                 dns_type_distribution = df_remaining[df_remaining['_ws.col.Protocol']=='DNS']['dns.qry.type'].value_counts()
-                if debug: print('DISTRIBUTION DNS TYPES:',dns_type_distribution.head())
+                if debug: print('\nDISTRIBUTION DNS TYPES:\n',dns_type_distribution.head())
                 top1_dns_type = dns_type_distribution .keys()[0]
                 attack_vector['additional'] = {'dns_query': top1_dns_query,
                                        'dns_type': top1_dns_type}
@@ -151,7 +152,7 @@ def analyse_df_pcap_tshark(df, debug=False, ttl_variation_threshold = 4):
         src_ips_attackvector_current = df_attackvector_current['_ws.col.Source'].unique()   
         ###If the number of source IPs involved in this potential attack vector is 1, then it is NOT a DDoS! STOP!
         if len(src_ips_attackvector_current) < 2:
-            if debug: print ('STOP ANALYSIS!!! THERE IS ONLY ONE SOURCE IP RELATED TO THIS ATTACK VECTOR!')
+            if debug: print ('\nSTOP ANALYSIS!!! THERE IS ONLY ONE SOURCE IP RELATED TO THIS ATTACK VECTOR!\n')
             break
         
         ############################################################################
