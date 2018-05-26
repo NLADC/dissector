@@ -12,6 +12,6 @@ def upload(pcap_file, fingerprint, username, password, key):
         "X-Password": password,
         "X-Filename": key
     }
-    r = requests.post("http://localhost:8000/upload-file", files=files, headers=headers)
+    r = requests.post("https://ddosdb.org/upload-file", files=files, headers=headers)
 
     print(r.status_code)
