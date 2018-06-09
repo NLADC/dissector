@@ -9,7 +9,7 @@
 # Make sure the current working directory is the directory this file is located in
 # From https://stackoverflow.com/questions/3349105/how-to-set-current-working-directory-to-the-directory-of-the-script
 # Might be beneficial for rollout
-# cd "${0%/*}"
+cd "${0%/*}"
 
 # Check whether the current user is the root user, exit otherwise
 # From https://askubuntu.com/a/30157/8698
@@ -20,7 +20,8 @@ if [ $(id -u) = 0 ]; then
     if [ -n "$(command -v apt-get)" ]; then
         # For Debian-based distributions
         apt-get update
-        apt-get -y install git libtool autoconf automake pkg-config flex bison libbz2-dev libpcap-dev bittwist
+        apt-get -y install git libtool autoconf automake pkg-config flex bison libbz2-dev libpcap-dev bittwist tshark python python-pip
+        pip install --user pandas tabulate 
     elif [ -n "$(command -v yum)" ]; then
         # For Red Hat-based distributions
         yum check-update
@@ -67,7 +68,7 @@ make
 echo "=========== INSTALLING ==========="
 make install
 
-echo "==== CONFIGURE DYNAMIC LIBRARIES ===="
+echo "=========== CONFIGURE DYNAMIC LIBRARIES ==========="
 ldconfig
 
 echo "=========== SETTING PERMISSIONS ==========="
