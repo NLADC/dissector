@@ -21,31 +21,31 @@ if [ $(id -u) = 0 ]; then
         # For Debian-based distributions
         apt-get update
         apt-get -y install git libtool autoconf automake pkg-config flex bison libbz2-dev libpcap-dev bittwist tshark python python-pip
-        pip install --user pandas tabulate 
     elif [ -n "$(command -v yum)" ]; then
         # For Red Hat-based distributions
         yum check-update
-        yum -y install git libtool autoconf automake pkg-config flex bison bzip2-devel libpcap-devel bittwist
+        yum -y install git libtool autoconf automake pkg-config flex bison bzip2-devel libpcap-devel bittwist tshark python python-pip
     elif [ -n "$(command -v dnf)" ]; then
         # For Fedora-based distributions
         dnf check-update
-        dnf -y install git libtool autoconf automake pkg-config flex bison bzip2-devel libpcap-devel bittwist
+        dnf -y install git libtool autoconf automake pkg-config flex bison bzip2-devel libpcap-devel bittwist tshark python python-pip
     elif [ -n "$(command -v brew)" ]; then
         # For macOS-based distributions
         #possible solution for mac users not working the bittwist
         #ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)" < /dev/null 2> /dev/null
         #then install it
         brew check-update
-        brew -y install git libtool autoconf automake pkg-config flex bison bittwist
+        brew -y install git libtool autoconf automake pkg-config flex bison bittwist tshark python python-pip
         brew -y install --devel bzip2 libpcap
     elif [ -n "$(command -v port)" ]; then
         # For macOS-based distributions
         port check-update
-        port install git libtool autoconf automake pkgconfig flex bison zlib libpcap bittwist
+        port install git libtool autoconf automake pkgconfig flex bison zlib libpcap bittwist tshark python python-pip
     else 
         echo "Package manager yum, dnf, brew or apt-get not found!"
         exit 1;
     fi
+    pip install --user pandas tabulate 
 else
     echo "Skip installing dependencies, because the script has no root access." >&2
 fi
