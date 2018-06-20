@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[ ]:
+# In[1]:
 
 
 import pandas as pd
@@ -12,31 +12,32 @@ from datetime import datetime
 import json
 import hashlib
 import time
+from tabulate import tabulate
 
 import warnings
 warnings.filterwarnings('ignore')
 
 
-# In[ ]:
+# In[2]:
 
 
-from functions.protocolnumber2name import *
-from functions.portnumber2name import *
-from functions.tcpflagletters2names import *
-from functions.pcap2dataframe_tshark import *
+# from functions.protocolnumber2name import *
+# from functions.portnumber2name import *
+# from functions.tcpflagletters2names import *
+# from functions.pcap2dataframe_tshark import *
 
 
-# In[ ]:
+# In[3]:
 
 
-# #FOR TESTING PURPOSE
-# from protocolnumber2name import *
-# from portnumber2name import *
-# from tcpflagletters2names import *
-# from pcap2dataframe_tshark import *
+#FOR TESTING PURPOSE
+from protocolnumber2name import *
+from portnumber2name import *
+from tcpflagletters2names import *
+from pcap2dataframe_tshark import *
 
 
-# In[ ]:
+# In[12]:
 
 
 def analyse_df_pcap_tshark(df, debug=False, ttl_variation_threshold = 4):
@@ -52,7 +53,7 @@ def analyse_df_pcap_tshark(df, debug=False, ttl_variation_threshold = 4):
     fingerprints= []
     attack_vector = {}
     df_attackvectors=[]
-    df_attackvectors_string =[]
+    attackvectors_labels =[]
     attackvectors_source_ips=[]
     counter = 1
     ############################################################################
@@ -146,7 +147,7 @@ def analyse_df_pcap_tshark(df, debug=False, ttl_variation_threshold = 4):
                 attack_vector['additional'] = {'dns_query': top1_dns_query,
                                        'dns_type': top1_dns_type}
         ############################################################################
-        df_attackvectors_string.append(attackvector_filter_string)
+        attackvectors_labels.append(attackvector_filter_string.replace("df_remaining",""))
 
         df_attackvector_current = df_remaining[eval(attackvector_filter_string)]
         src_ips_attackvector_current = df_attackvector_current['_ws.col.Source'].unique()   
@@ -169,12 +170,12 @@ def analyse_df_pcap_tshark(df, debug=False, ttl_variation_threshold = 4):
         attack_vector['src_ips'] = src_ips_attackvector_current.tolist()
         
         if str(df_attackvector_current['srcport'].iloc[0]) != 'nan':
-            attack_vector['src_ports'] = df_attackvector_current['srcport'].unique().tolist()
+            attack_vector['src_ports'] = [int(x) for x in df_attackvector_current['srcport'].unique().tolist() if not math.isnan(x)]
         else:
             attack_vector['src_ports']=[]
         
         if str(df_attackvector_current['dstport'].iloc[0]) != 'nan':
-            attack_vector['dst_ports'] = df_attackvector_current['dstport'].unique().tolist()
+            attack_vector['dst_ports'] = [int(x) for x in df_attackvector_current['dstport'].unique().tolist() if not math.isnan(x)]
         else:
             attack_vector['dst_ports']=[]
 
@@ -196,7 +197,7 @@ def analyse_df_pcap_tshark(df, debug=False, ttl_variation_threshold = 4):
         fingerprints.append(attack_vector)
         ############################################################################
         md5=str(hashlib.md5(str(start_time).encode()).hexdigest())
-        with open('output/'+md5+'.json', 'w+') as outfile:
+        with open('../output/'+md5+'.json', 'w+') as outfile:
             json.dump(attack_vector, outfile)
         ############################################################################
         df_remaining = df_remaining[eval(attackvector_filter_string.replace('==','!=').replace('&','|'))]
@@ -207,20 +208,26 @@ def analyse_df_pcap_tshark(df, debug=False, ttl_variation_threshold = 4):
     matrix_source_ip_intersection = pd.DataFrame()
     for m in range(counter-1):
         for n in range(counter-1):    
-            matrix_source_ip_intersection.set_value(str(m+1),str(n+1),int(len(np.intersect1d(attackvectors_source_ips[m], attackvectors_source_ips[n]))))
+            intersection = len(np.intersect1d(attackvectors_source_ips[m], attackvectors_source_ips[n]))
+            matrix_source_ip_intersection.loc[str(m+1), str(n+1)] = intersection
+        matrix_source_ip_intersection.loc[str(m+1), 'Attack vector'] = str(attackvectors_labels[m])
 
-    print('\nINTERSECTION OF SOURCE IPS IN ATTACK VECTORS:\n',matrix_source_ip_intersection) 
+    
+#     print('\nINTERSECTION OF SOURCE IPS IN ATTACK VECTORS:\n',tabulate(matrix_source_ip_intersection, headers='keys', tablefmt='psql'))
+    print('\nINTERSECTION OF SOURCE IPS IN ATTACK VECTORS:\n',matrix_source_ip_intersection)
+
 
     return top1_dst_ip, fingerprints
 
 
-# In[ ]:
+# In[13]:
 
 
-# #FOR TESTING PURPOSE
-# input_file = '../input4test/1.pcap'
-# df = pcap2dataframe_tshark(input_file)
-# dst_ip, fingerprints =analyse_df_pcap_tshark(df)
+#FOR TESTING PURPOSE
+
+input_file = '../input4test/1.pcap'
+df = pcap2dataframe_tshark(input_file)
+dst_ip, fingerprints =analyse_df_pcap_tshark(df, True)
 
 
 # In[ ]:
