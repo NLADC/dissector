@@ -3,5 +3,5 @@
 *.pyc
 src/output/*
 src/input4test/*
-src/functions/nfdump_modified
+src/nfdump_modified
 src/functions/intermediate_file.csv
