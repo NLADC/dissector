@@ -242,12 +242,10 @@ def analyze_nfdump_dataframe(df_plus):
 
     df = df_plus
 
-    # TODO: Fix number of packets shown
-    total_packets = df.count()
+    total_packets = df["i_packets"].sum()
 
     if debug:
         print("Total number packets: " + str(total_packets))
-        print(total_packets)
         print("IDENTIFYING MAIN CHARACTERISTICS:")
 
     top_dst_ip = df.groupby(by=['dst_ip'])['i_packets'].sum().sort_values().index[-1]
