@@ -8,7 +8,6 @@
 
 # Make sure the current working directory is the directory this file is located in
 # From https://stackoverflow.com/questions/3349105/how-to-set-current-working-directory-to-the-directory-of-the-script
-# Might be beneficial for rollout
 cd "${0%/*}"
 
 # Check whether the current user is the root user, exit otherwise
@@ -20,7 +19,7 @@ if [ $(id -u) = 0 ]; then
     if [ -n "$(command -v apt-get)" ]; then
         # For Debian-based distributions
         apt-get update
-        apt-get -y install git libtool autoconf automake pkg-config flex bison libbz2-dev libpcap-dev bittwist tshark python python-pip
+        apt-get -y install git libtool autoconf automake pkg-config flex bison libbz2-dev libpcap-dev bittwist tshark python3 python3-pip
     elif [ -n "$(command -v yum)" ]; then
         # For Red Hat-based distributions
         yum check-update
@@ -31,9 +30,9 @@ if [ $(id -u) = 0 ]; then
         dnf -y install git libtool autoconf automake pkg-config flex bison bzip2-devel libpcap-devel bittwist tshark python python-pip
     elif [ -n "$(command -v brew)" ]; then
         # For macOS-based distributions
-        #possible solution for mac users not working the bittwist
-        #ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)" < /dev/null 2> /dev/null
-        #then install it
+        # possible solution for mac users not working the bittwist
+        # ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)" < /dev/null 2> /dev/null
+        # then install it
         brew check-update
         brew -y install git libtool autoconf automake pkg-config flex bison bittwist tshark python python-pip
         brew -y install --devel bzip2 libpcap
@@ -45,17 +44,16 @@ if [ $(id -u) = 0 ]; then
         echo "Package manager yum, dnf, brew or apt-get not found!"
         exit 1;
     fi
-    pip install --user pandas tabulate 
+    pip3 install --user pandas tabulate
 else
     echo "Skip installing dependencies, because the script has no root access." >&2
 fi
 
 echo "=========== CLONING REPOSITORY ==========="
-cd "../functions"
-git clone https://github.com/Koenvh1/nfdump.git nfdump_modified
+git clone https://github.com/Koenvh1/nfdump.git ../nfdump_modified
 
 # Going into the just cloned repository
-cd "./nfdump_modified"
+cd "../nfdump_modified"
 echo "=========== GENERATING ==========="
 /bin/sh ./autogen.sh
 
