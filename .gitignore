@@ -1,6 +1,7 @@
 *.DS_Store
 *.ipynb_checkpoints
 *.pyc
+.idea
 src/output/*
 src/input4test/*
 src/nfdump_modified
