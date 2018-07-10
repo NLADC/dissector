@@ -30,18 +30,41 @@ def anonymize_attack_vector(input_file, file_type, victim_ip, fingerprint):
 
 
 def anonymize_pcap(input_file, victim_ip, fingerprint, file_type):
-    if len(fingerprint['src_ports']) == 1 and fingerprint['src_ports'][0] != np.nan:
-        filter_out = "\"ip.dst == " + victim_ip + " and " + str(
-            fingerprint['protocol']).lower() + " and (tcp.srcport == " + str(
-            int(fingerprint["src_ports"][0])) + " or udp.srcport == " + str(int(fingerprint["src_ports"][0])) + ")\""
+    
+    filter_out = "\"ip.dst == " + victim_ip
 
-    elif len(fingerprint['dst_ports']) == 1 and fingerprint['dst_ports'][0] != np.nan:
-        filter_out = "\"ip.dst == " + victim_ip + " and " + str(
-            fingerprint['protocol']).lower() + " and (tcp.dstport == " + str(
-            int(fingerprint["dst_ports"][0])) + " or udp.dstport == " + str(int(fingerprint["dst_ports"][0])) + ")\""
+    if str(fingerprint['protocol']).lower() == 'ipv4':
+        filter_out += " and ip.flags.mf == 1 and ip.frag_offset > 0"
 
     else:
-        filter_out = "\"ip.dst == " + victim_ip + " and " + str(fingerprint['protocol']).lower() + "\""
+        if len(fingerprint['src_ports']) == 1 and fingerprint['src_ports'][0] != np.nan:
+            filter_out += " and (tcp.srcport == " + str(int(fingerprint["src_ports"][0])) + " or udp.srcport == " + str(int(fingerprint["src_ports"][0])) + ")"
+
+        elif len(fingerprint['dst_ports']) == 1 and fingerprint['dst_ports'][0] != np.nan:
+            filter_out += " and (tcp.dstport == " + str(int(fingerprint["dst_ports"][0])) + " or udp.dstport == " + str(int(fingerprint["dst_ports"][0])) + ")"
+
+        else:
+            pass
+
+        filter_out += " and "+str(fingerprint['protocol']).lower()
+
+        if str(fingerprint['protocol']).lower() == 'icmp':
+            filter_out += " and icmp.type== "+str(fingerprint['additional']['icmp_type'])
+
+        # if str(fingerprint['protocol']).lower() == 'udp':
+            
+        if str(fingerprint['protocol']).lower() == 'dns':
+            filter_out += " and dns.qry.name contains " + str(fingerprint['additional']['dns_query'])
+            filter_out += " and dns.qry.type == " + str(fingerprint['additional']['dns_type'])
+            
+        # if str(fingerprint['protocol']).lower() == 'http': 
+            
+        # if str(fingerprint['protocol']).lower() == 'quic':
+
+        if str(fingerprint['protocol']).lower() != 'icmp':
+            filter_out += " and not icmp"
+    
+    filter_out += "\""
 
     print(filter_out)
 
