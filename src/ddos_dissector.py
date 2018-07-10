@@ -1,8 +1,8 @@
 from multiprocessing.pool import Pool
 
-from ddosdb.file_type_parser import *
-from ddosdb.dataframe_analysis import *
-from ddosdb.attack_vector_anonymizer import *
+from functions.file_type_parser import *
+from functions.dataframe_analysis import *
+from functions.attack_vector_anonymizer import *
 
 
 def anonymize(_input_file, _file_type, _victim_ip, _fingerprint):
