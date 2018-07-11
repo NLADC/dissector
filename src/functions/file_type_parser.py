@@ -87,7 +87,6 @@ def convert_pcap_to_dataframe(input_file):
 
     df = pd.read_csv(temporary_file, sep=";", low_memory=False)
 
-
     temporary_file.close()
 
     if ('tcp.srcport' in df.columns) and ('udp.srcport' in df.columns) and ('tcp.dstport' in df.columns) and \
@@ -107,7 +106,7 @@ def convert_pcap_to_dataframe(input_file):
     df = df.fillna(0)
 
     if 'icmp.type' in df.columns:
-        df['icmp.type'] = df['icmp.type'].astype('int32')
+        df['icmp.type'] = [int(x) for x in df['icmp.type'].astype('int32')]
 
     if 'ip.frag_offset' in df.columns:
         df['ip.frag_offset'] = df['ip.frag_offset'].astype(str)
@@ -121,7 +120,6 @@ def convert_pcap_to_dataframe(input_file):
         df.drop(['ip.flags.mf', 'ip.frag_offset'], axis=1, inplace=True)
 
     df['ip.ttl'] = df['ip.ttl'].apply(lambda x: int(x) if str(x).isdigit() else None)
-
 
     return df
 
