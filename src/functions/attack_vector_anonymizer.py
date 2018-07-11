@@ -2,17 +2,15 @@ import hashlib
 import json
 import os
 import platform
-import shutil
 import subprocess
 import tempfile
-from pprint import pprint
 
 import numpy as np
 
 from functions.exceptions.UnsupportedFileTypeError import UnsupportedFileTypeError
 
 
-def anonymize_attack_vector(input_file, file_type, victim_ip, fingerprint):
+def anonymize_attack_vector(input_file, file_type, victim_ip, fingerprint, multivector_key):
     """
     Remove all sensitive information from this attack vector
     :param input_file:
@@ -22,14 +20,14 @@ def anonymize_attack_vector(input_file, file_type, victim_ip, fingerprint):
     :return:
     """
     if file_type == "pcap" or file_type == "pcapng":
-        return anonymize_pcap(input_file, victim_ip, fingerprint, file_type)
+        return anonymize_pcap(input_file, victim_ip, fingerprint, multivector_key, file_type)
     elif file_type == "nfdump":
-        return anonymize_nfdump(input_file, victim_ip, fingerprint, file_type)
+        return anonymize_nfdump(input_file, victim_ip, fingerprint, multivector_key, file_type)
     else:
         raise UnsupportedFileTypeError("The file type " + file_type + " is not supported.")
 
 
-def anonymize_pcap(input_file, victim_ip, fingerprint, file_type):
+def anonymize_pcap(input_file, victim_ip, fingerprint, multivector_key, file_type):
     
     filter_out = "\"ip.dst == " + victim_ip
 
@@ -87,6 +85,8 @@ def anonymize_pcap(input_file, victim_ip, fingerprint, file_type):
         return items
 
     md5 = str(hashlib.md5(str(fingerprint['start_timestamp']).encode()).hexdigest())
+    fingerprint["key"] = md5
+    fingerprint["multivector_key"] = multivector_key
     with open('./output/' + md5 + '.json', 'w+') as outfile:
         fingerprint = filter_fingerprint(fingerprint)
         json.dump(fingerprint, outfile)
@@ -133,7 +133,7 @@ def anonymize_pcap(input_file, victim_ip, fingerprint, file_type):
         pass
 
 
-def anonymize_nfdump(input_file, victim_ip, fingerprint, file_type):
+def anonymize_nfdump(input_file, victim_ip, fingerprint, multivector_key, file_type):
     # Filtering based on host/proto and ports
 
     if len(fingerprint['src_ports']) > 1:

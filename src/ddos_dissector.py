@@ -6,8 +6,8 @@ from functions.attack_vector_anonymizer import *
 from functions.upload_fingerprint import *
 
 
-def anonymize(_input_file, _file_type, _victim_ip, _fingerprint):
-    return anonymize_attack_vector(_input_file, _file_type, _victim_ip, _fingerprint)
+def anonymize(_input_file, _file_type, _victim_ip, _fingerprint, _multivector_key):
+    return anonymize_attack_vector(_input_file, _file_type, _victim_ip, _fingerprint, _multivector_key)
 
 
 def ddos_dissector(input_file):
@@ -22,9 +22,17 @@ def ddos_dissector(input_file):
 
     print('4. Creating annonymized files containing only the attack vectors...\n')
 
+    multivector_key = str(hashlib.md5(str(fingerprints[0]['start_timestamp']).encode()).hexdigest())
+    with open("./output/" + multivector_key + ".log", "w+") as outfile:
+        json.dump({
+            "original_name": input_file,
+            "multivector_key": multivector_key,
+            "key": [str(hashlib.md5(str(x['start_timestamp']).encode()).hexdigest()) for x in fingerprints]
+        }, outfile)
+
     with Pool(len(fingerprints)) as p:
         # Run all fingerprints at the same time
-        items = [(input_file, file_type, victim_ip, x) for x in fingerprints]
+        items = [(input_file, file_type, victim_ip, x, multivector_key) for x in fingerprints]
         p.starmap(anonymize, items)
 
     print('\n\nDONE!!!!!')

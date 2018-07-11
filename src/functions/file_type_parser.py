@@ -106,7 +106,7 @@ def convert_pcap_to_dataframe(input_file):
     df = df.fillna(0)
 
     if 'icmp.type' in df.columns:
-        df['icmp.type'] = [int(x) for x in df['icmp.type'].astype('int32')]
+        df['icmp.type'] = df['icmp.type'].astype(str)
 
     if 'ip.frag_offset' in df.columns:
         df['ip.frag_offset'] = df['ip.frag_offset'].astype(str)
