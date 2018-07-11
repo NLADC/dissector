@@ -6,6 +6,7 @@ from pprint import pprint
 import pandas as pd
 
 from functions.exceptions.UnsupportedFileTypeError import UnsupportedFileTypeError
+#from exceptions.UnsupportedFileTypeError import UnsupportedFileTypeError
 
 
 def determine_file_type(input_file):
@@ -86,6 +87,7 @@ def convert_pcap_to_dataframe(input_file):
 
     df = pd.read_csv(temporary_file, sep=";", low_memory=False)
 
+
     temporary_file.close()
 
     if ('tcp.srcport' in df.columns) and ('udp.srcport' in df.columns) and ('tcp.dstport' in df.columns) and \
@@ -102,9 +104,10 @@ def convert_pcap_to_dataframe(input_file):
 
     # Drop all empty columns (for making the analysis more efficient! less memory.)
     df.dropna(axis=1, how='all', inplace=True)
+    df = df.fillna(0)
 
     if 'icmp.type' in df.columns:
-        df['icmp.type'] = df['icmp.type'].astype(str)
+        df['icmp.type'] = df['icmp.type'].astype('int32')
 
     if 'ip.frag_offset' in df.columns:
         df['ip.frag_offset'] = df['ip.frag_offset'].astype(str)
@@ -118,6 +121,7 @@ def convert_pcap_to_dataframe(input_file):
         df.drop(['ip.flags.mf', 'ip.frag_offset'], axis=1, inplace=True)
 
     df['ip.ttl'] = df['ip.ttl'].apply(lambda x: int(x) if str(x).isdigit() else None)
+
 
     return df
 
@@ -205,3 +209,21 @@ def convert_nfdump_to_dataframe(input_file):
         pass
 
     return df
+
+
+#######################
+#######################
+# if __name__ == '__main__':
+#   import argparse
+#   import os.path
+#   parser = argparse.ArgumentParser(description='')
+#   parser.add_argument('--input', metavar='input_file', required=True,help='Path of a input file')
+#   args = parser.parse_args()
+#   input_file = args.input
+
+#   if os.path.isfile(input_file):
+#       # convert_pcap_to_dataframe(input_file)
+#       df = convert_pcap_to_dataframe(input_file)
+#       print(type(df['icmp.type'][6]),df['icmp.type'][6])
+#   else:
+#       print("We were unable to find the file. Please check the file path!")

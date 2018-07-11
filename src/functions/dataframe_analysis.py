@@ -106,7 +106,7 @@ def analyze_pcap_dataframe(df):
                     'icmp.type'].value_counts()
                 if debug: print('\nDISTRIBUTION ICMP TYPES:\n', icmp_type_distribution)
                 top1_icmp_type = icmp_type_distribution.keys()[0]
-                filter_icmp_type = "df_remaining['icmp.type']=='" + str(top1_icmp_type) + "'"
+                filter_icmp_type = "df_remaining['icmp.type']==" + str(top1_icmp_type)
                 attack_vector_filter_string = '(' + str(filter_top_protocol_string) + ')&(' + str(filter_icmp_type) + ')'
                 attack_vector['additional'] = {'icmp_type': top1_icmp_type}
 

@@ -3,6 +3,7 @@ from multiprocessing.pool import Pool
 from functions.file_type_parser import *
 from functions.dataframe_analysis import *
 from functions.attack_vector_anonymizer import *
+from functions.upload_fingerprint import *
 
 
 def anonymize(_input_file, _file_type, _victim_ip, _fingerprint):
@@ -38,12 +39,8 @@ if __name__ == '__main__':
     parser.add_argument('--input', metavar='input_file', required=True,
                         help='Path of a input file')
 
-    # parser.add_argument('--debug', metavar='debug', required=False, default=False,
-    #                     help='enable debug')
-
     args = parser.parse_args()
     input_file = args.input
-    # debug = args.debug
 
     if os.path.isfile(input_file):
         ddos_dissector(input_file)
