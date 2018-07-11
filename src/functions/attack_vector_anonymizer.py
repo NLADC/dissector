@@ -77,7 +77,7 @@ def anonymize_pcap(input_file, victim_ip, fingerprint, file_type):
                 elif type(value) is dict or type(value) is list:
                     items[key] = filter_fingerprint(value)
         elif type(items) is list:
-            for i in range(items):
+            for i in range(len(items)):
                 value = items[i]
                 if type(value) is np.int64:
                     items[i] = int(value)
