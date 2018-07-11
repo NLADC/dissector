@@ -68,8 +68,27 @@ def anonymize_pcap(input_file, victim_ip, fingerprint, file_type):
 
     print(filter_out)
 
+    # Filter fingerprint Int64
+    def filter_fingerprint(items):
+        if type(items) is dict:
+            for key, value in items.items():
+                if type(value) is np.int64:
+                    items[key] = int(value)
+                elif type(value) is dict or type(value) is list:
+                    items[key] = filter_fingerprint(value)
+        elif type(items) is list:
+            for i in range(items):
+                value = items[i]
+                if type(value) is np.int64:
+                    items[i] = int(value)
+                elif type(value) is dict or type(value) is list:
+                    items[i] = filter_fingerprint(value)
+
+        return items
+
     md5 = str(hashlib.md5(str(fingerprint['start_timestamp']).encode()).hexdigest())
     with open('./output/' + md5 + '.json', 'w+') as outfile:
+        fingerprint = filter_fingerprint(fingerprint)
         json.dump(fingerprint, outfile)
 
     filename = md5 + "." + str(file_type)
