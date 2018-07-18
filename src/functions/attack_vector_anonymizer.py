@@ -8,7 +8,7 @@ import tempfile
 import numpy as np
 
 from functions.exceptions.UnsupportedFileTypeError import UnsupportedFileTypeError
-
+from functions.upload_fingerprint import *
 
 def anonymize_attack_vector(input_file, file_type, victim_ip, fingerprint, multivector_key):
     """
@@ -63,8 +63,6 @@ def anonymize_pcap(input_file, victim_ip, fingerprint, multivector_key, file_typ
             filter_out += " and not icmp"
     
     filter_out += "\""
-
-    print(filter_out)
 
     # Filter fingerprint Int64
     def filter_fingerprint(items):
@@ -132,6 +130,15 @@ def anonymize_pcap(input_file, victim_ip, fingerprint, multivector_key, file_typ
     except IOError:
         pass
 
+    username =''
+    password = ''
+    if username and password:
+        fingerprint_path = './output/'+md5+'.json'
+        key = md5
+        pcap_file = './output/'+md5+'.pcap'
+        upload(pcap_file, fingerprint_path, username, password, key)
+    else:
+        print('The output files were not uploaded to the database.')
 
 def anonymize_nfdump(input_file, victim_ip, fingerprint, multivector_key, file_type):
     # Filtering based on host/proto and ports
