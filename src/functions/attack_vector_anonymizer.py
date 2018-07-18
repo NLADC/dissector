@@ -130,15 +130,15 @@ def anonymize_pcap(input_file, victim_ip, fingerprint, multivector_key, file_typ
     except IOError:
         pass
 
-    username =''
-    password = ''
-    if username and password:
-        fingerprint_path = './output/'+md5+'.json'
-        key = md5
-        pcap_file = './output/'+md5+'.pcap'
-        upload(pcap_file, fingerprint_path, username, password, key)
-    else:
-        print('The output files were not uploaded to the database.')
+    print('Uploading the anonymized .pcap file and fingerprint to the database.')
+    fingerprint_path = './output/'+md5+'.json'
+    key = md5
+    pcap_file = './output/'+md5+'.pcap'
+    try:
+        upload(pcap_file, fingerprint_path, key)
+    except ValueError:
+        print('Fail! The output files were not uploaded to the database.')
+        
 
 def anonymize_nfdump(input_file, victim_ip, fingerprint, multivector_key, file_type):
     # Filtering based on host/proto and ports

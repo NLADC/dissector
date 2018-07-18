@@ -1,8 +1,7 @@
 import json
 import requests
 
-
-def upload(pcap_file, fingerprint_path, username, password, key):
+def upload(pcap_file, fingerprint_path, key):
     """
     Upload a fingerprint and attack vector to DDoSDB
     :param pcap_file: Path to the pcap file
@@ -17,10 +16,11 @@ def upload(pcap_file, fingerprint_path, username, password, key):
         "pcap": open(pcap_file, "rb")
     }
     headers = {
-        "X-Username": username,
-        "X-Password": password,
+        "X-Username": "<USER>",
+        "X-Password": "<PASSWORD>",
         "X-Filename": key
     }
-    r = requests.post("https://ddosdb.org/upload-file", files=files, headers=headers)
+    ddosdb_url = "https://ddosdb.org/"
+    r = requests.post(ddosdb_url+"upload-file", files=files, headers=headers)
 
     print(r.status_code)
