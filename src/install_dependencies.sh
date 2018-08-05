@@ -44,7 +44,7 @@ if [ $(id -u) = 0 ]; then
         echo "Package manager yum, dnf, brew or apt-get not found!"
         exit 1;
     fi
-    pip3 install --user pandas tabulate
+    pip3 install --user pandas requests
 else
     echo "Skip installing dependencies, because the script has no root access." >&2
 fi

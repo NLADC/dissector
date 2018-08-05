@@ -4,8 +4,6 @@ import math
 from datetime import datetime
 from pprint import pprint
 
-from tabulate import tabulate
-
 import numpy as np
 import pandas as pd
 
