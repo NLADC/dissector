@@ -168,6 +168,7 @@ def analyze_pcap_dataframe(df):
         end_time = df_attack_vector_current['frame.time_epoch'].iloc[-1]
 
         attack_vector['src_ips'] = src_ips_attack_vector_current.tolist()
+        attack_vector['total_src_ips'] = len(attack_vector['src_ips'])
 
         if str(df_attack_vector_current['srcport'].iloc[0]) != 'nan':
             attack_vector['src_ports'] = [int(x) for x in df_attack_vector_current['srcport'].unique().tolist() if
@@ -175,15 +176,25 @@ def analyze_pcap_dataframe(df):
         else:
             attack_vector['src_ports'] = []
 
+        attack_vector['total_src_ports'] = len(attack_vector['src_ports'])
+
         if str(df_attack_vector_current['dstport'].iloc[0]) != 'nan':
             attack_vector['dst_ports'] = [int(x) for x in df_attack_vector_current['dstport'].unique().tolist() if
                                           not math.isnan(x)]
         else:
             attack_vector['dst_ports'] = []
+        
+        attack_vector['total_dst_ports'] = len(attack_vector['dst_ports'])
 
         attack_vector['start_timestamp'] = start_time
         attack_vector['start_time'] = datetime.fromtimestamp(start_time).strftime('%Y-%m-%d %H:%M:%S')
         attack_vector['duration_sec'] = end_time - start_time
+        attack_vector['avg_pps'] = len(df_attack_vector_current)/attack_vector['duration_sec']
+        
+        attack_vector_current_size = 0
+        for i in range(0,len(df_attack_vector_current)):
+            attack_vector_current_size += df_attack_vector_current['frame.len'].iloc[i]
+        attack_vector['avg_bps'] = attack_vector_current_size/attack_vector['duration_sec']
 
         start_time_formatted = datetime.fromtimestamp(start_time).strftime('%Y%m%d%H%M%S%f')
 
