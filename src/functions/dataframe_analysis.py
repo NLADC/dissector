@@ -374,20 +374,24 @@ def analyze_nfdump_dataframe(df_plus):
 
             attack_label = attack_label + "\n" + str(len(ips_involved)) + " source IPs"
             result["src_ips"] = ips_involved.tolist()
+            result["total_src_ips"] = len(ips_involved)
 
             # Calculating the number of source IPs involved in the attack
             result["start_timestamp"] = df_pattern['start_time'].min()
             result["end_timestamp"] = df_pattern['start_time'].max()
+            result["avg_pps"] = pattern_packets/(result["end_timestamp"]-result["start_timestamp"])
+            result["avg_bps"] = df_pattern['i_bytes'].sum()/(result["end_timestamp"]-result["start_timestamp"])
 
             # Calculating the distribution of source ports that remains
             percent_src_ports = df_pattern.groupby(by=['src_port'])['i_packets'].sum().sort_values(
                 ascending=False).divide(float(pattern_packets) / 100)
-            result["src_ports"] = percent_src_ports.to_dict()
+            result["total_src_ports"] = len(percent_src_ports)
 
             # Calculating the distribution of destination ports after the first filter
             percent_dst_ports = df_pattern.groupby(by=['dst_port'])['i_packets'].sum().sort_values(
                 ascending=False).divide(float(pattern_packets) / 100)
             result["dst_ports"] = percent_dst_ports.to_dict()
+            result["total_dst_ports"] = len(result["dst_ports"])
 
             # There are 3 possibilities of attacks cases!
             if percent_src_ports.values[0] == 100:
