@@ -24,8 +24,14 @@ def ddos_dissector(input_file):
     victim_ip, fingerprints = analyze_dataframe(df, file_type)
 
     print('4. Creating annonymized files containing only the attack vectors...\n')
-
+    
     multivector_key = str(hashlib.md5(str(fingerprints[0]['start_timestamp']).encode()).hexdigest())
+    #printing key, multivector_key and original filename in the logs file
+    print("original_name = " + input_file)
+    print("multivector_key = " + multivector_key)
+    thekey = [str(hashlib.md5(str(x['start_timestamp']).encode()).hexdigest()) for x in fingerprints]
+    print("key = " + str(thekey))
+
     logfilename = "./output/" + multivector_key + ".log"
     with open(logfilename, "w+") as outfile:
         json.dump({
@@ -33,6 +39,7 @@ def ddos_dissector(input_file):
             "multivector_key": multivector_key,
             "key": [str(hashlib.md5(str(x['start_timestamp']).encode()).hexdigest()) for x in fingerprints]
         }, outfile)
+    
 
     with Pool(len(fingerprints)) as p:
         # Run all fingerprints at the same time
@@ -45,6 +52,7 @@ def ddos_dissector(input_file):
 
     process = subprocess.Popen("clear")
     output, error = process.communicate()
+    
 
     print('DDoS dissector completed task! Please check output folder.\n\n')
 
