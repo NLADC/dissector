@@ -148,7 +148,6 @@ def analyze_pcap_dataframe(df):
                     'dns_query': top1_dns_query,
                     'dns_type': top1_dns_type
                 }
-	'''
             #NTP
             if top1_protocol == "NTP":
                     ntp_mode_distribution = \
@@ -162,7 +161,7 @@ def analyze_pcap_dataframe(df):
 
                     #maybe add number of items as well or request code
 
-            #UDP
+            '''#UDP
             if top1_protocol == "UDP":
                     udp_srcport_distribution = \
                             df_remaining[df_remaining['_ws.col.Protocol'] == 'UDP']['udp.srcport'].value_counts()
@@ -183,10 +182,8 @@ def analyze_pcap_dataframe(df):
                     top1_data_packet = chargen_data_length_distribution.keys()[0]
                     filter_udp_packets = "df_remaining['udp.srcport']=='" + str(top1_data_packet) + "'"
                     attackt_vector_filter_string += '&(' + str(filter_udp_packets) +')'
-                    #maybe add number of length of packets as zip
-            '''
+                    #maybe add number of length of packets as zip'''
         attack_vector_labels.append(attack_vector_filter_string.replace("df_remaining", ""))
-
         df_attack_vector_current = df_remaining[eval(attack_vector_filter_string)]
         src_ips_attack_vector_current = df_attack_vector_current['_ws.col.Source'].unique()
         # If the number of source IPs involved in this potential attack vector is 1, then it is NOT a DDoS!
