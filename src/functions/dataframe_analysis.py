@@ -150,8 +150,10 @@ def analyze_pcap_dataframe(df):
                 }
             #NTP
             if top1_protocol == "NTP":
+                    print('===NTP ENTERED===')
                     ntp_mode_distribution = \
                             df_remaining[df_remaining['_ws.col.Protocol'] == 'NTP']['ntp.priv.monlist.mode'].values_counts()
+                    print('===GOT DISTRIBUTION===')
                     if debug:
                             print("\nNTP_RESPONSE_DISTRIBUTION")
                             print(ntp_response_distribution.head())

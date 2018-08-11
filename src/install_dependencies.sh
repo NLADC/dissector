@@ -13,6 +13,11 @@ cd "${0%/*}"
 # Check whether the current user is the root user, exit otherwise
 # From https://askubuntu.com/a/30157/8698
 
+echo "=========== CREATING OUTPUT FOLDER ==========="
+mkdir -p output
+touch output/logs.log
+echo "=========== CREATED OUTPUT FOLDER ==========="
+
 echo "=========== INSTALLING DEPENDENCIES ==========="
 if [ $(id -u) = 0 ]; then
     # User has root access
@@ -75,5 +80,7 @@ out="$(who am i)"
 # Get the first part only
 name="$(echo $out | cut -d' ' -f1)"
 chown $name:$name ./ -R
+
+echo "Creating output folder."
 
 echo "Done."
