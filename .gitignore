@@ -6,3 +6,7 @@ src/output/*
 src/input4test/*
 src/nfdump_modified
 src/functions/intermediate_file.csv
+src/functions/input4test/ntp1.pcap
+src/functions/input4test/udp1.pcap
+src/functions/input4test/chargen1.pcap
+src/functions/input4test/ssdp1.pcap

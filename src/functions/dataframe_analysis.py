@@ -148,6 +148,43 @@ def analyze_pcap_dataframe(df):
                     'dns_query': top1_dns_query,
                     'dns_type': top1_dns_type
                 }
+	'''
+            #NTP
+            if top1_protocol == "NTP":
+                    ntp_mode_distribution = \
+                            df_remaining[df_remaining['_ws.col.Protocol'] == 'NTP']['ntp.priv.monlist.mode'].values_counts()
+                    if debug:
+                            print("\nNTP_RESPONSE_DISTRIBUTION")
+                            print(ntp_response_distribution.head())
+                    top1_ntp_response = ntp_response_distribution.keys()[0]
+                    filter_ntp_response = "df_remaining['ntp.priv.monlist.mode']=='" + str(top1_ntp_response) +"'"
+                    attact_vector_filter_string += '&(' + str(filter_ntp_response) + ')'
+
+                    #maybe add number of items as well or request code
+
+            #UDP
+            if top1_protocol == "UDP":
+                    udp_srcport_distribution = \
+                            df_remaining[df_remaining['_ws.col.Protocol'] == 'UDP']['udp.srcport'].value_counts()
+                    if debug:
+                            print('\nUDP SOURCE PORT:')
+                            print(udp_srcport_distribution.head())
+                    top1_src_port = udp_srcport_distribution.keys()[0]
+                    filter_udp_port = "df_remaining['udp.srcport']=='" + str(top1_src_port) + "'"
+                    attack_vector_filter_string += '&(' + str(filter_udp_port) + ')'
+
+            #Chargen
+            if top1_protocol == "chargen":
+                    chargen_data_length_distribution = \
+                            df_remaining[df_remaing['_ws.col.Protocol'] == 'chargen']['udp.srcport'].value_counts()
+                    if debug:
+                            print('\CHARGEN DATA LENGTH DISTRIBUTION:')
+                            print(chargen_data_length_distribution)
+                    top1_data_packet = chargen_data_length_distribution.keys()[0]
+                    filter_udp_packets = "df_remaining['udp.srcport']=='" + str(top1_data_packet) + "'"
+                    attackt_vector_filter_string += '&(' + str(filter_udp_packets) +')'
+                    #maybe add number of length of packets as zip
+            '''
         attack_vector_labels.append(attack_vector_filter_string.replace("df_remaining", ""))
 
         df_attack_vector_current = df_remaining[eval(attack_vector_filter_string)]
