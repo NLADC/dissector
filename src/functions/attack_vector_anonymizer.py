@@ -59,6 +59,15 @@ def anonymize_pcap(input_file, victim_ip, fingerprint, multivector_key, file_typ
             
         # if str(fingerprint['protocol']).lower() == 'quic':
 
+        # if str(fingerprint['protocol']).lower() == 'udp':
+
+        # if str(fingerprint['protocol']).lower() == 'ntp':
+
+        # if str(fingerprint['protocol']).lower() == 'chargen:
+
+        # if str(fingerprint['protocol']).lower() == 'ssdp':
+            #to be filled-in later
+
         if str(fingerprint['protocol']).lower() != 'icmp':
             filter_out += " and not icmp"
     

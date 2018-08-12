@@ -14,7 +14,7 @@ cd "${0%/*}"
 # From https://askubuntu.com/a/30157/8698
 
 echo "=========== CREATING OUTPUT FOLDER ==========="
-mkdir -p output
+mkdir -p ./output
 touch output/logs.log
 echo "=========== CREATED OUTPUT FOLDER ==========="
 

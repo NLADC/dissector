@@ -74,7 +74,8 @@ def convert_pcap_to_dataframe(input_file):
                     "-e http.user_agent " \
                     "-e tcp.flags.str " \
                     "-e quic.payload " \
-                    "-e ssl.app_data "
+                    "-e ssl.app_data " \
+                    "-e ntp.priv.monlist.mode "
 
     temporary_file = tempfile.TemporaryFile("r+b")
     p = subprocess.Popen(["tshark -n -r \"" + input_file + "\" -E separator=\;  -E header=y -T fields " + tshark_fields],

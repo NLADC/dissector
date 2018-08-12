@@ -150,16 +150,14 @@ def analyze_pcap_dataframe(df):
                 }
             #NTP
             if top1_protocol == "NTP":
-                    print('===NTP ENTERED===')
                     ntp_mode_distribution = \
-                            df_remaining[df_remaining['_ws.col.Protocol'] == 'NTP']['ntp.priv.monlist.mode'].values_counts()
-                    print('===GOT DISTRIBUTION===')
+                            df_remaining[df_remaining['_ws.col.Protocol'] == 'NTP']['ntp.priv.monlist.mode'].value_counts()
                     if debug:
                             print("\nNTP_RESPONSE_DISTRIBUTION")
-                            print(ntp_response_distribution.head())
-                    top1_ntp_response = ntp_response_distribution.keys()[0]
+                            print(ntp_mode_distribution.head())
+                    top1_ntp_response = ntp_mode_distribution.keys()[0]
                     filter_ntp_response = "df_remaining['ntp.priv.monlist.mode']=='" + str(top1_ntp_response) +"'"
-                    attact_vector_filter_string += '&(' + str(filter_ntp_response) + ')'
+                    attack_vector_filter_string += '&(' + str(filter_ntp_response) + ')'
 
                     #maybe add number of items as well or request code
 
@@ -174,7 +172,7 @@ def analyze_pcap_dataframe(df):
                     filter_udp_port = "df_remaining['udp.srcport']=='" + str(top1_src_port) + "'"
                     attack_vector_filter_string += '&(' + str(filter_udp_port) + ')'
 
-            #Chargen
+            '''#Chargen
             if top1_protocol == "chargen":
                     chargen_data_length_distribution = \
                             df_remaining[df_remaing['_ws.col.Protocol'] == 'chargen']['udp.srcport'].value_counts()
