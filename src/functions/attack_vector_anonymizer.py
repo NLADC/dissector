@@ -10,6 +10,11 @@ import numpy as np
 from functions.exceptions.UnsupportedFileTypeError import UnsupportedFileTypeError
 from functions.upload_fingerprint import *
 
+BITTWISTE = "/usr/local/bin/bittwiste"
+TSHARK = "/usr/local/bin/tshark"
+EDITCAP = "/usr/local/bin/editcap"
+OUTPUT_LOCATION = "output/"
+
 def anonymize_attack_vector(input_file, file_type, victim_ip, fingerprint, multivector_key):
     """
     Remove all sensitive information from this attack vector
@@ -94,7 +99,7 @@ def anonymize_pcap(input_file, victim_ip, fingerprint, multivector_key, file_typ
     md5 = str(hashlib.md5(str(fingerprint['start_timestamp']).encode()).hexdigest())
     fingerprint["key"] = md5
     fingerprint["multivector_key"] = multivector_key
-    with open('./output/' + md5 + '.json', 'w+') as outfile:
+    with open(os.path.join(OUTPUT_LOCATION, md5 + '.json'), 'w+') as outfile:
         fingerprint = filter_fingerprint(fingerprint)
         json.dump(fingerprint, outfile)
 
@@ -103,31 +108,24 @@ def anonymize_pcap(input_file, victim_ip, fingerprint, multivector_key, file_typ
     temporary_pcapng_fd, temporary_pcapng_name = tempfile.mkstemp()
     temporary_pcap_fd, temporary_pcap_name = tempfile.mkstemp()
 
-    p = subprocess.Popen(["tshark -r \"" + input_file + "\" -w \"" + temporary_pcapng_name + "\" -Y " + filter_out],
+    p = subprocess.Popen([TSHARK + " -r \"" + input_file + "\" -w \"" + temporary_pcapng_name + "\" -Y " + filter_out],
                          shell=True, stdout=subprocess.PIPE)
     p.communicate()
     p.wait()
 
-    p = subprocess.Popen(["editcap -F libpcap -T ether \"" +
+    p = subprocess.Popen([EDITCAP + " -F libpcap -T ether \"" +
                           temporary_pcapng_name + "\" \"" + temporary_pcap_name + "\""],
                          shell=True, stdout=subprocess.PIPE)
     p.communicate()
     p.wait()
 
     if os.path.exists(temporary_pcap_name):
-        if platform.system() == 'Darwin':
-            command = "/usr/local/Cellar/bittwist/2.0/bin/bittwiste -I \"" + temporary_pcap_name + "\" " \
-                      "-O output/" + filename + " -T ip -d " + victim_ip + ",127.0.0.1"
-            p = subprocess.Popen([command], shell=True, stdout=subprocess.PIPE)
-            p.communicate()
-            p.wait()
-
-        else:
-            command = "bittwiste -I \"" + temporary_pcap_name + "\" -O output/" + \
-                      filename + " -T ip -d " + victim_ip + ",127.0.0.1"
-            p = subprocess.Popen([command], shell=True, stdout=subprocess.PIPE)
-            p.communicate()
-            p.wait()
+        command = BITTWISTE + " -I \"" + temporary_pcap_name + "\" " \
+                  "-O " + os.path.join(OUTPUT_LOCATION,filename) + " -T ip -d " + victim_ip + ",127.0.0.1"
+        print("Running: " + command)
+        p = subprocess.Popen([command], shell=True, stdout=subprocess.PIPE)
+        p.communicate()
+        p.wait()
 
     try:
         os.remove(temporary_pcap_name)
@@ -140,9 +138,9 @@ def anonymize_pcap(input_file, victim_ip, fingerprint, multivector_key, file_typ
         pass
 
     print('Uploading the anonymized .pcap file and fingerprint to the database.')
-    fingerprint_path = './output/'+md5+'.json'
+    fingerprint_path = os.path.join(OUTPUT_LOCATION,md5+'.json')
     key = md5
-    pcap_file = './output/'+md5+'.pcap'
+    pcap_file = os.path.join(OUTPUT_LOCATION,md5+'.pcap')
     try:
         upload(pcap_file, fingerprint_path, key)
     except ValueError:
@@ -174,7 +172,7 @@ def anonymize_nfdump(input_file, victim_ip, fingerprint, multivector_key, file_t
     p.communicate()
     p.wait()
 
-    p = subprocess.Popen(["nfdump_modified/bin/nfanon -r " + temporary_file_name + " -w output/" + filename],
+    p = subprocess.Popen(["nfdump_modified/bin/nfanon -r " + temporary_file_name + " -w " + os.path.join(OUTPUT_LOCATION,filename)],
                          shell=True, stdout=subprocess.PIPE)
     p.communicate()
     p.wait()
