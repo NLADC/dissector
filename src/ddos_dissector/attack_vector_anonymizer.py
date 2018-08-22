@@ -7,8 +7,8 @@ import tempfile
 
 import numpy as np
 
-from functions.exceptions.UnsupportedFileTypeError import UnsupportedFileTypeError
-from functions.upload_fingerprint import *
+from ddos_dissector.exceptions.UnsupportedFileTypeError import UnsupportedFileTypeError
+from ddos_dissector.upload_fingerprint import *
 
 BITTWISTE = "/usr/local/bin/bittwiste"
 TSHARK = "/usr/local/bin/tshark"

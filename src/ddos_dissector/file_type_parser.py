@@ -5,7 +5,7 @@ from pprint import pprint
 
 import pandas as pd
 
-from functions.exceptions.UnsupportedFileTypeError import UnsupportedFileTypeError
+from ddos_dissector.exceptions.UnsupportedFileTypeError import UnsupportedFileTypeError
 #from exceptions.UnsupportedFileTypeError import UnsupportedFileTypeError
 
 

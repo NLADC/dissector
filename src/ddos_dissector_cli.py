@@ -2,10 +2,8 @@ import sys
 import subprocess
 import os.path
 from multiprocessing.pool import Pool
-from functions.file_type_parser import *
-from functions.dataframe_analysis import *
-from functions.attack_vector_anonymizer import *
-from functions.upload_fingerprint import *
+
+import ddos_dissector as ddd
 
 OUTPUT_LOCATION = "output/"
 
@@ -14,7 +12,7 @@ def check_requirements():
     f = open(os.path.join(OUTPUT_LOCATION, 'logs.log'), 'w')
 
 def anonymize(_input_file, _file_type, _victim_ip, _fingerprint, _multivector_key):
-    return anonymize_attack_vector(_input_file, _file_type, _victim_ip, _fingerprint, _multivector_key)
+    return ddd.anonymize_attack_vector(_input_file, _file_type, _victim_ip, _fingerprint, _multivector_key)
 
 def ddos_dissector(input_file):
     orig_stdout = sys.stdout
@@ -22,10 +20,10 @@ def ddos_dissector(input_file):
     sys.stdout = f
 
     print('1. Analysing the type of input file (e.g., pcap, pcapng, nfdump, netflow, and ipfix)...') 
-    file_type = determine_file_type(input_file)
+    file_type = ddd.determine_file_type(input_file)
     
     print('2. Converting input file to dataframe...') 
-    df = convert_to_dataframe(input_file, file_type) 
+    df = ddd.convert_to_dataframe(input_file, file_type) 
     
     print('3. Analysing the dataframe for finding attack patterns...')
     victim_ip, fingerprints = analyze_dataframe(df, file_type)

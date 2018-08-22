@@ -7,10 +7,10 @@ from pprint import pprint
 import numpy as np
 import pandas as pd
 
-from functions.exceptions.UnsupportedFileTypeError import UnsupportedFileTypeError
-from functions.portnumber2name import portnumber2name
-from functions.protocolnumber2name import protocolnumber2name
-from functions.tcpflagletters2names import tcpflagletters2names
+from ddos_dissector.exceptions.UnsupportedFileTypeError import UnsupportedFileTypeError
+from ddos_dissector.portnumber2name import portnumber2name
+from ddos_dissector.protocolnumber2name import protocolnumber2name
+from ddos_dissector.tcpflagletters2names import tcpflagletters2names
 
 
 def analyze_dataframe(df, file_type):
