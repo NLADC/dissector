@@ -8,7 +8,6 @@ import pandas as pd
 from ddos_dissector.exceptions.UnsupportedFileTypeError import UnsupportedFileTypeError
 #from exceptions.UnsupportedFileTypeError import UnsupportedFileTypeError
 
-
 def determine_file_type(input_file):
     """
     Determine what sort of file the input is.

@@ -2,6 +2,8 @@
 import sys
 import subprocess
 import os.path
+import hashlib
+import json 
 from multiprocessing.pool import Pool
 
 import ddos_dissector as ddd
@@ -27,7 +29,7 @@ def ddos_dissector(input_file):
     df = ddd.convert_to_dataframe(input_file, file_type) 
     
     print('3. Analysing the dataframe for finding attack patterns...')
-    victim_ip, fingerprints = analyze_dataframe(df, file_type)
+    victim_ip, fingerprints = ddd.analyze_dataframe(df, file_type)
 
     print('4. Creating annonymized files containing only the attack vectors...\n')
     
@@ -74,8 +76,8 @@ if __name__ == '__main__':
     input_file = args.input
     
     check_requirements()
-    
+
     if os.path.isfile(input_file):
-        ddos_dissector(input_file)
+    	ddos_dissector(input_file)
     else:
         print("We were unable to find the file. Please check the file path!")
