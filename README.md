@@ -1,5 +1,4 @@
-# DDoSDB
-## Collecting, Transforming, Applying and Disseminating DDoS Attack Knowledge!
+# DDoS Dissector and DDoSDB
 
 ### 1. Before analyse your DDoS attack data, please install the dependencies [here!](https://github.com/jjsantanna/ddosdb/blob/master/src/installer/install_dependencies.sh)
 
