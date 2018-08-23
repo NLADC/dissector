@@ -3,6 +3,8 @@ import subprocess
 import tempfile
 from pprint import pprint
 
+import shutil #check whether a program exists
+
 import pandas as pd
 
 from ddos_dissector.exceptions.UnsupportedFileTypeError import UnsupportedFileTypeError
@@ -77,7 +79,13 @@ def convert_pcap_to_dataframe(input_file):
                     "-e ntp.priv.monlist.mode "
 
     temporary_file = tempfile.TemporaryFile("r+b")
-    p = subprocess.Popen(["tshark -n -r \"" + input_file + "\" -E separator=\;  -E header=y -T fields " + tshark_fields],
+
+    
+
+    # command = 'tshark'
+    # print(shutil.which(command))
+
+    p = subprocess.Popen(["/usr/bin/tshark -n -r \"" + input_file + "\" -E separator=\;  -E header=y -T fields " + tshark_fields],
                          shell=True, stdout=temporary_file)
     p.communicate()
     p.wait()

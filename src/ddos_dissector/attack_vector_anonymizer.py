@@ -10,9 +10,9 @@ import numpy as np
 from ddos_dissector.exceptions.UnsupportedFileTypeError import UnsupportedFileTypeError
 from ddos_dissector.upload_fingerprint import *
 
-BITTWISTE = "/usr/local/bin/bittwiste"
-TSHARK = "/usr/local/bin/tshark"
-EDITCAP = "/usr/local/bin/editcap"
+BITTWISTE = "/usr/bin/bittwiste"
+TSHARK = "/usr/bin/tshark"
+EDITCAP = "/usr/bin/editcap"
 OUTPUT_LOCATION = "output/"
 
 def anonymize_attack_vector(input_file, file_type, victim_ip, fingerprint, multivector_key):
