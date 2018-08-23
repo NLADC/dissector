@@ -1,14 +1,13 @@
 import os
 import subprocess
 import tempfile
-from pprint import pprint
 
 import shutil #check whether a program exists
 
 import pandas as pd
 
 from ddos_dissector.exceptions.UnsupportedFileTypeError import UnsupportedFileTypeError
-#from exceptions.UnsupportedFileTypeError import UnsupportedFileTypeError
+
 
 def determine_file_type(input_file):
     """

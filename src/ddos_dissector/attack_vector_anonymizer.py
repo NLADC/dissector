@@ -15,6 +15,7 @@ TSHARK = "/usr/bin/tshark"
 EDITCAP = "/usr/bin/editcap"
 OUTPUT_LOCATION = "output/"
 
+
 def anonymize_attack_vector(input_file, file_type, victim_ip, fingerprint, multivector_key):
     """
     Remove all sensitive information from this attack vector

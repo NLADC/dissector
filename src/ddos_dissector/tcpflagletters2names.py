@@ -1,11 +1,5 @@
-
-# coding: utf-8
-
-# In[1]:
-
-
 def tcpflagletters2names(tcp_flags_str):
-    tcp_flags=""
+    tcp_flags = ""
     try:
         tcp_flags += ("FIN" if (tcp_flags_str.find('F') != -1) else next)
     except:
@@ -44,7 +38,6 @@ def tcpflagletters2names(tcp_flags_str):
         tcp_flags += ("CWR" if tcp_flags_str.find('C') != -1 else next)
     except:
         next
-
 
     return tcp_flags
 
