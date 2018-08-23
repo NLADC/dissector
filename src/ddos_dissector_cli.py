@@ -5,10 +5,14 @@ import subprocess
 import os.path
 import hashlib
 import json
-from multiprocessing.pool import Pool
 
 import ddos_dissector as ddd
 
+# Circumvent issue macOS High Sierra has with pools
+if platform.system() == "Darwin":
+    from multiprocessing.dummy import Pool
+else:
+    from multiprocessing.pool import Pool
 
 
 OUTPUT_LOCATION = "output/"
