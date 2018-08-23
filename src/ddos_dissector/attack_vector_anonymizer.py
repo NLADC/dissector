@@ -7,13 +7,9 @@ import tempfile
 
 import numpy as np
 
+import settings
 from ddos_dissector.exceptions.UnsupportedFileTypeError import UnsupportedFileTypeError
 from ddos_dissector.upload_fingerprint import *
-
-BITTWISTE = "/usr/bin/bittwiste"
-TSHARK = "/usr/bin/tshark"
-EDITCAP = "/usr/bin/editcap"
-OUTPUT_LOCATION = "output/"
 
 
 def anonymize_attack_vector(input_file, file_type, victim_ip, fingerprint, multivector_key):
@@ -72,7 +68,7 @@ def anonymize_pcap(input_file, victim_ip, fingerprint, multivector_key, file_typ
         # if str(fingerprint['protocol']).lower() == 'chargen:
 
         # if str(fingerprint['protocol']).lower() == 'ssdp':
-            #to be filled-in later
+            # to be filled-in later
 
         if str(fingerprint['protocol']).lower() != 'icmp':
             filter_out += " and not icmp"
@@ -100,7 +96,7 @@ def anonymize_pcap(input_file, victim_ip, fingerprint, multivector_key, file_typ
     md5 = str(hashlib.md5(str(fingerprint['start_timestamp']).encode()).hexdigest())
     fingerprint["key"] = md5
     fingerprint["multivector_key"] = multivector_key
-    with open(os.path.join(OUTPUT_LOCATION, md5 + '.json'), 'w+') as outfile:
+    with open(os.path.join(settings.OUTPUT_LOCATION, md5 + '.json'), 'w+') as outfile:
         fingerprint = filter_fingerprint(fingerprint)
         json.dump(fingerprint, outfile)
 
@@ -109,20 +105,20 @@ def anonymize_pcap(input_file, victim_ip, fingerprint, multivector_key, file_typ
     temporary_pcapng_fd, temporary_pcapng_name = tempfile.mkstemp()
     temporary_pcap_fd, temporary_pcap_name = tempfile.mkstemp()
 
-    p = subprocess.Popen([TSHARK + " -r \"" + input_file + "\" -w \"" + temporary_pcapng_name + "\" -Y " + filter_out],
+    p = subprocess.Popen([settings.TSHARK + " -r \"" + input_file + "\" -w \"" + temporary_pcapng_name + "\" -Y " + filter_out],
                          shell=True, stdout=subprocess.PIPE)
     p.communicate()
     p.wait()
 
-    p = subprocess.Popen([EDITCAP + " -F libpcap -T ether \"" +
+    p = subprocess.Popen([settings.EDITCAP + " -F libpcap -T ether \"" +
                           temporary_pcapng_name + "\" \"" + temporary_pcap_name + "\""],
                          shell=True, stdout=subprocess.PIPE)
     p.communicate()
     p.wait()
 
     if os.path.exists(temporary_pcap_name):
-        command = BITTWISTE + " -I \"" + temporary_pcap_name + "\" " \
-                  "-O " + os.path.join(OUTPUT_LOCATION,filename) + " -T ip -d " + victim_ip + ",127.0.0.1"
+        command = settings.BITTWISTE + " -I \"" + temporary_pcap_name + "\" " \
+                  "-O " + os.path.join(settings.OUTPUT_LOCATION, filename) + " -T ip -d " + victim_ip + ",127.0.0.1"
         print("Running: " + command)
         p = subprocess.Popen([command], shell=True, stdout=subprocess.PIPE)
         p.communicate()
@@ -139,11 +135,11 @@ def anonymize_pcap(input_file, victim_ip, fingerprint, multivector_key, file_typ
         pass
 
     print('Uploading the anonymized .pcap file and fingerprint to the database.')
-    fingerprint_path = os.path.join(OUTPUT_LOCATION,md5+'.json')
+    fingerprint_path = os.path.join(settings.OUTPUT_LOCATION, md5+'.json')
     key = md5
-    pcap_file = os.path.join(OUTPUT_LOCATION,md5+'.pcap')
+    pcap_file = os.path.join(settings.OUTPUT_LOCATION, md5+'.pcap')
     try:
-        upload(pcap_file, fingerprint_path, key)
+        upload(pcap_file, fingerprint_path, settings.USERNAME, settings.PASSWORD, key)
     except ValueError:
         print('Fail! The output files were not uploaded to the database.')
         
@@ -173,7 +169,8 @@ def anonymize_nfdump(input_file, victim_ip, fingerprint, multivector_key, file_t
     p.communicate()
     p.wait()
 
-    p = subprocess.Popen(["nfdump_modified/bin/nfanon -r " + temporary_file_name + " -w " + os.path.join(OUTPUT_LOCATION,filename)],
+    p = subprocess.Popen(["nfdump_modified/bin/nfanon -r " + temporary_file_name + " -w " +
+                          os.path.join(settings.OUTPUT_LOCATION, filename)],
                          shell=True, stdout=subprocess.PIPE)
     p.communicate()
     p.wait()
