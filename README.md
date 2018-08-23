@@ -4,7 +4,7 @@
 
 Or manually do the following:
 
-`pip install -r src/requirements.txt`
+`pip3 install -r src/requirements.txt`
 
 Install the following packages from your local package management system:
 * tshark
