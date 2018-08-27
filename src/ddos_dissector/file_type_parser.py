@@ -72,7 +72,7 @@ def convert_pcap_to_dataframe(input_file):
                     "-e http.response " \
                     "-e http.user_agent " \
                     "-e tcp.flags.str " \
-                    "-e quic.payload " \
+                    "-e quic.protected_payload " \
                     "-e ssl.app_data " \
                     "-e ntp.priv.monlist.mode "
 
