@@ -25,56 +25,57 @@ else:
 
 def check_requirements():
     # dummy function that tries all the stuff you will need
-    f = open(os.path.join(settings.OUTPUT_LOCATION, 'logs.log'), 'w')
+    f = open(os.path.join(settings.OUTPUT_LOCATION, 'temp.log'), 'w')
 
 
-def anonymize(_input_file, _file_type, _victim_ip, _fingerprint, _multivector_key):
-    return ddd.anonymize_attack_vector(_input_file, _file_type, _victim_ip, _fingerprint, _multivector_key)
+#For calling the anonymizer in parallel
+def anonymize(_input_file, _file_type, _victim_ip, _fingerprint):
+    return ddd.anonymize_attack_vector(_input_file, _file_type, _victim_ip, _fingerprint)
 
 
 def ddos_dissector(input_file):
+
+    ## For storing the logs
     orig_stdout = sys.stdout
-    f = open(os.path.join(settings.OUTPUT_LOCATION, 'logs.log'), 'w')
+    f = open(os.path.join(settings.OUTPUT_LOCATION, 'temp.log'), 'w')
     sys.stdout = f
 
-    print('1. Analysing the type of input file (e.g., pcap, pcapng, nfdump, netflow, and ipfix)...') 
+    ## 
+    print('1. Analysing the type of input file (e.g., pcap, pcapng, nfdump, netflow, and ipfix)...\n') 
     file_type = ddd.determine_file_type(input_file)
-    
-    print('2. Converting input file to dataframe...') 
+
+    print('2. Converting input file to dataframe...\n') 
     df = ddd.convert_to_dataframe(input_file, file_type) 
     
-    print('3. Analysing the dataframe for finding attack patterns...')
+    print('3. Analysing the dataframe for finding attack patterns...\n')
     victim_ip, fingerprints = ddd.analyze_dataframe(df, file_type)
 
-    print('4. Creating annonymized files containing only the attack vectors...\n')
-    
-    multivector_key = str(hashlib.md5(str(fingerprints[0]['start_timestamp']).encode()).hexdigest())
-    # printing key, multivector_key and original filename in the logs file
-    print("original_name = " + input_file)
-    print("multivector_key = " + multivector_key)
-    thekey = [str(hashlib.md5(str(x['start_timestamp']).encode()).hexdigest()) for x in fingerprints]
-    print("key = " + str(thekey))
-
-    logfilename = os.path.join(settings.OUTPUT_LOCATION, multivector_key + ".log")
-    with open(logfilename, "w+") as outfile:
-        json.dump({
-            "original_name": input_file,
-            "multivector_key": multivector_key,
-            "key": [str(hashlib.md5(str(x['start_timestamp']).encode()).hexdigest()) for x in fingerprints]
-        }, outfile)
-
+    print('4. Export fingerprints to json files and annonymizing each attack vector...\n') 
     with Pool(settings.POOL_SIZE) as p:
-        # Run all fingerprints at the same time
-        items = [(input_file, file_type, victim_ip, x, multivector_key) for x in fingerprints]
+        items = [(input_file, file_type, victim_ip, x) for x in fingerprints]
         p.starmap(anonymize, items)
 
+    print('5. Uploading the fingerprints and the anonymized .pcap to ddosdb.org...\n')
+    for x in fingerprints:
+        pcap_file = os.path.join(settings.OUTPUT_LOCATION, x['key']+'.pcap')
+        fingerprint_path = os.path.join(settings.OUTPUT_LOCATION, x['key']+'.json')
+        key = x['key']
+        try:
+            ddd.upload(pcap_file, fingerprint_path, settings.USERNAME, settings.PASSWORD, key)
+        except ValueError:
+            print('Fail! The output files were not uploaded to ddosdb.org')
+
+    print("input_file_name:", input_file)
+    print("multivector_key:", fingerprints[0]['multivector_key'])
+    print("attack_vector_keys:", [x['key'] for x in fingerprints])
+
+    ##Closing and renaming the log file
     sys.stdout = orig_stdout
     f.close()
+    os.rename(os.path.join(settings.OUTPUT_LOCATION,"temp.log"), os.path.join(settings.OUTPUT_LOCATION,fingerprints[0]['multivector_key']+".log"))
 
-    process = subprocess.Popen("clear")
-    output, error = process.communicate()
-
-    print('DDoS dissector completed task! Please check output folder.\n\n')
+    ##Informing the user that the attack was analyzed 
+    print('\n\nDDoS dissector completed task! Please check output folder.\n\n')
 
 
 if __name__ == '__main__':
@@ -83,7 +84,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='')
 
     parser.add_argument('--input', metavar='input_file', required=True,
-                        help='Path of a input file')
+    	help='Path of a input file')
 
     args = parser.parse_args()
     input_file = args.input

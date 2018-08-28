@@ -1,9 +1,8 @@
 import math
 from datetime import datetime
-
 import numpy as np
 import pandas as pd
-
+import hashlib
 from ddos_dissector.exceptions.UnsupportedFileTypeError import UnsupportedFileTypeError
 from ddos_dissector.portnumber2name import portnumber2name
 from ddos_dissector.protocolnumber2name import protocolnumber2name
@@ -96,12 +95,13 @@ def analyze_pcap_dataframe(df):
             # Define the conclusion of the analysis (of the remaining traffic)
             attack_vector_filter_string = '(' + str(filter_top_protocol_string) + ')&(' + str(filter_top_port) + ')'
 
+            #Analysis for ICMP
             if top1_protocol == 'ICMP':
                 icmp_type_distribution = df_remaining[df_remaining['_ws.col.Protocol'] == 'ICMP'][
                     'icmp.type'].value_counts()
                 if debug: print('\nDISTRIBUTION ICMP TYPES:\n', icmp_type_distribution)
                 top1_icmp_type = icmp_type_distribution.keys()[0]
-                filter_icmp_type = "df_remaining['icmp.type']==" + str(top1_icmp_type)
+                filter_icmp_type = "df_remaining['icmp.type']=='" + str(top1_icmp_type)+"'"
                 attack_vector_filter_string = '(' + str(filter_top_protocol_string) + ')&(' + str(filter_icmp_type) + ')'
                 attack_vector['additional'] = {'icmp_type': top1_icmp_type}
 
@@ -114,7 +114,9 @@ def analyze_pcap_dataframe(df):
                 #     attack_vector_filter_string += '&('+str(filter_quic)+')'
                 #
                 #     attack_vector['additional'] = {'quic_payload':top1_quic_payload_distribution}
-            elif top1_protocol == 'TCP':
+            
+            #Analysis for TCP
+            if top1_protocol == 'TCP':
                 tcp_flag_distribution = \
                     df_remaining[df_remaining['_ws.col.Protocol'] == 'TCP']['tcp.flags.str'].value_counts()
                 if debug:
@@ -125,6 +127,8 @@ def analyze_pcap_dataframe(df):
                 attack_vector_filter_string += '&(' + str(filter_tcp_flag) + ')'
 
                 attack_vector['additional'] = {'tcp_flag': top1_tcp_flag}
+            
+            #Analysis for DNS
             if top1_protocol == 'DNS':
                 dns_query_distribution = \
                     df_remaining[df_remaining['_ws.col.Protocol'] == 'DNS']['dns.qry.name'].value_counts()
@@ -145,7 +149,8 @@ def analyze_pcap_dataframe(df):
                     'dns_query': top1_dns_query,
                     'dns_type': top1_dns_type
                 }
-            # NTP
+            
+            #Analysis for NTP
             if top1_protocol == "NTP":
                     ntp_mode_distribution = \
                             df_remaining[df_remaining['_ws.col.Protocol'] == 'NTP']['ntp.priv.monlist.mode'].value_counts()
@@ -156,34 +161,13 @@ def analyze_pcap_dataframe(df):
                     filter_ntp_response = "df_remaining['ntp.priv.monlist.mode']=='" + str(top1_ntp_response) +"'"
                     attack_vector_filter_string += '&(' + str(filter_ntp_response) + ')'
 
-                    # maybe add number of items as well or request code
 
-            '''#UDP
-            if top1_protocol == "UDP":
-                    udp_srcport_distribution = \
-                            df_remaining[df_remaining['_ws.col.Protocol'] == 'UDP']['udp.srcport'].value_counts()
-                    if debug:
-                            print('\nUDP SOURCE PORT:')
-                            print(udp_srcport_distribution.head())
-                    top1_src_port = udp_srcport_distribution.keys()[0]
-                    filter_udp_port = "df_remaining['udp.srcport']=='" + str(top1_src_port) + "'"
-                    attack_vector_filter_string += '&(' + str(filter_udp_port) + ')'
-
-            '''
-            # Chargen
-            if top1_protocol == "chargen":
-                    chargen_data_length_distribution = \
-                            df_remaining[df_remaining['_ws.col.Protocol'] == 'chargen']['udp.srcport'].value_counts()
-                    if debug:
-                            print('\CHARGEN DATA LENGTH DISTRIBUTION:')
-                            print(chargen_data_length_distribution)
-                    top1_data_packet = chargen_data_length_distribution.keys()[0]
-                    filter_udp_packets = "df_remaining['udp.srcport']=='" + str(top1_data_packet) + "'"
-                    attack_vector_filter_string += '&(' + str(filter_udp_packets) +')'
-                    # maybe add number of length of packets as zip'''
         attack_vector_labels.append(attack_vector_filter_string.replace("df_remaining", ""))
+
         df_attack_vector_current = df_remaining[eval(attack_vector_filter_string)]
+
         src_ips_attack_vector_current = df_attack_vector_current['_ws.col.Source'].unique()
+
         # If the number of source IPs involved in this potential attack vector is 1, then it is NOT a DDoS!
         if len(src_ips_attack_vector_current) < 2:
             if debug:
@@ -195,9 +179,6 @@ def analyze_pcap_dataframe(df):
 
         # For later comparing the list of IPs
         attack_vector_source_ips.append(src_ips_attack_vector_current)
-
-        start_time = df_attack_vector_current['frame.time_epoch'].iloc[0]
-        end_time = df_attack_vector_current['frame.time_epoch'].iloc[-1]
 
         attack_vector['src_ips'] = src_ips_attack_vector_current.tolist()
         attack_vector['total_src_ips'] = len(attack_vector['src_ips'])
@@ -218,17 +199,16 @@ def analyze_pcap_dataframe(df):
         
         attack_vector['total_dst_ports'] = len(attack_vector['dst_ports'])
 
-        attack_vector['start_timestamp'] = start_time
-        attack_vector['start_time'] = datetime.fromtimestamp(start_time).strftime('%Y-%m-%d %H:%M:%S')
-        attack_vector['duration_sec'] = end_time - start_time
+        attack_vector['start_timestamp'] = df_attack_vector_current['frame.time_epoch'].iloc[0]
+        attack_vector['key'] = str(hashlib.md5(str(attack_vector['start_timestamp']).encode()).hexdigest())
+        attack_vector['start_time'] = datetime.fromtimestamp(attack_vector['start_timestamp']).strftime('%Y-%m-%d %H:%M:%S')
+        attack_vector['duration_sec'] = df_attack_vector_current['frame.time_epoch'].iloc[-1] - attack_vector['start_timestamp']
         attack_vector['avg_pps'] = len(df_attack_vector_current)/attack_vector['duration_sec']
         
         attack_vector_current_size = 0
         for i in range(0,len(df_attack_vector_current)):
             attack_vector_current_size += df_attack_vector_current['frame.len'].iloc[i]
         attack_vector['avg_bps'] = attack_vector_current_size/attack_vector['duration_sec']
-
-        start_time_formatted = datetime.fromtimestamp(start_time).strftime('%Y%m%d%H%M%S%f')
 
         # ttl_variations = \
         #     df_attack_vector_current.groupby(['_ws.col.Source'])['ip.ttl'].agg(np.ptp).value_counts().sort_index()
@@ -249,6 +229,22 @@ def analyze_pcap_dataframe(df):
         counter += 1
         attack_vector = {}
 
+
+    ##Changing keys whether there are attack vectors with the same key   
+    attackvector_keys = [x['key'] for x in fingerprints]
+    for k, i in enumerate(attackvector_keys):
+        repetition_times = attackvector_keys.count(i)
+        if repetition_times >1:
+            attackvector_keys[k]=i+'_'+str(repetition_times)
+            repetition_times -=1   
+    for k, i in enumerate(attackvector_keys):
+        fingerprints[k]['key']=i
+
+    ##Adding the multivector key to each attack vector
+    for x in fingerprints:
+        x['multivector_key']= fingerprints[0]['key']
+
+    ##Comparing the source IPs involved in each attack vector
     matrix_source_ip_intersection = pd.DataFrame()
     for m in range(counter - 1):
         for n in range(counter - 1):
@@ -256,10 +252,8 @@ def analyze_pcap_dataframe(df):
             matrix_source_ip_intersection.loc[str(m + 1), str(n + 1)] = intersection
         matrix_source_ip_intersection.loc[str(m + 1), 'Attack vector'] = str(attack_vector_labels[m])
 
-    # print("INTERSECTION OF SOURCE IPS IN ATTACK VECTORS:")
-    # print(tabulate(matrix_source_ip_intersection, headers='keys', tablefmt='psql'))
     print("\nINTERSECTION OF SOURCE IPS IN ATTACK VECTORS:")
-    print(matrix_source_ip_intersection)
+    print(matrix_source_ip_intersection,'\n')
 
     return top1_dst_ip, fingerprints
 
