@@ -122,7 +122,7 @@ def convert_pcap_to_dataframe(input_file):
         df.drop(['ip.flags.mf', 'ip.frag_offset'], axis=1, inplace=True)
 
     if 'tcp.flags.str' in df.columns:
-        df['tcp.flags.str'] = df['tcp.flags.str'].str.encode('utf8')
+        df['tcp.flags.str'] = df['tcp.flags.str'].str.decode("utf-8")
     print(df['tcp.flags.str'][0],type(df['tcp.flags.str'][0]),type(df['tcp.flags.str'])
     
 
