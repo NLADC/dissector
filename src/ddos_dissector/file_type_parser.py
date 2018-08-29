@@ -121,6 +121,10 @@ def convert_pcap_to_dataframe(input_file):
         df['fragmentation'] = (df['ip.flags.mf'] == '1') | (df['ip.frag_offset'] != '0')
         df.drop(['ip.flags.mf', 'ip.frag_offset'], axis=1, inplace=True)
 
+    if 'tcp.flags.str' in df.columns:
+        df['tcp.flags.str'] = df['tcp.flags.str'].astype(str)
+    
+
     df['ip.ttl'] = df['ip.ttl'].apply(lambda x: int(x) if str(x).isdigit() else None)
 
     return df
