@@ -127,7 +127,7 @@ def convert_pcap_to_dataframe(input_file):
 
     df['ip.ttl'] = df['ip.ttl'].apply(lambda x: int(x) if str(x).isdigit() else None)
 
-    prin(df['tcp.flags.str'])
+    print(df['tcp.flags.str'])
     return df
 
 
