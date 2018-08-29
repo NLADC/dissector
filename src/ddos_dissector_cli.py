@@ -66,9 +66,9 @@ def ddos_dissector(input_file):
             except ValueError:
                 print('Fail! The output files were not uploaded to ddosdb.org')
 
-        print("input_file_name:", input_file)
-        print("multivector_key:", fingerprints[0]['multivector_key'])
-        print("attack_vector_keys:", [x['key'] for x in fingerprints])
+        print(os.path.basename(input_file),fingerprints[0]['multivector_key'], [x['key'] for x in fingerprints], sep='\t')
+
+
 
         ##Closing and renaming the log file
         sys.stdout = orig_stdout
