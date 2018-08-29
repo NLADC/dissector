@@ -88,7 +88,7 @@ def convert_pcap_to_dataframe(input_file):
     # Reset file pointer to start of file
     temporary_file.seek(0)
 
-    df = pd.read_csv(temporary_file, sep=";", low_memory=False)
+    df = pd.read_csv(temporary_file, sep=";", low_memory=False, error_bad_lines=False)
 
     temporary_file.close()
 

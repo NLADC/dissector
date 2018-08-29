@@ -42,7 +42,7 @@ def analyze_pcap_dataframe(df):
     top1_dst_ip = dst_ip_distribution.keys()[0]
     df_remaining = df[df['_ws.col.Destination'] == top1_dst_ip]
 
-    while len(df_remaining) > 1:
+    while len(df_remaining) > 1 :
         attack_vector['file_type'] = 'pcap'
         # Analyse the distribution of IP protocols (and defining the top1)
         protocol_distribution = df_remaining['_ws.col.Protocol'].value_counts()
@@ -223,6 +223,12 @@ def analyze_pcap_dataframe(df):
         print("  - #Src_IPs:" + str(len(src_ips_attack_vector_current)))
 
         fingerprints.append(attack_vector)
+
+        #In case of loop stop
+        if len(fingerprints)>10:
+            if debug:
+                print("STOP ANALYSIS; LOOKS LIKE A LOOP; RE-CHECK THE DISSECTOR SOURCE CODE!!")
+            break
 
         df_remaining = df_remaining[eval(attack_vector_filter_string.replace('==', '!=').replace('&', '|'))]
 

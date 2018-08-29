@@ -50,30 +50,37 @@ def ddos_dissector(input_file):
     print('3. Analysing the dataframe for finding attack patterns...\n')
     victim_ip, fingerprints = ddd.analyze_dataframe(df, file_type)
 
-    print('4. Export fingerprints to json files and annonymizing each attack vector...\n') 
-    with Pool(settings.POOL_SIZE) as p:
-        items = [(input_file, file_type, victim_ip, x) for x in fingerprints]
-        p.starmap(anonymize, items)
+    if len(fingerprints) > 0:
+        print('4. Export fingerprints to json files and annonymizing each attack vector...\n') 
+        with Pool(settings.POOL_SIZE) as p:
+            items = [(input_file, file_type, victim_ip, x) for x in fingerprints]
+            p.starmap(anonymize, items)
 
-    print('5. Uploading the fingerprints and the anonymized .pcap to ddosdb.org...\n')
-    for x in fingerprints:
-        pcap_file = os.path.join(settings.OUTPUT_LOCATION, x['key']+'.pcap')
-        fingerprint_path = os.path.join(settings.OUTPUT_LOCATION, x['key']+'.json')
-        key = x['key']
-        try:
-            ddd.upload(pcap_file, fingerprint_path, settings.USERNAME, settings.PASSWORD, key)
-        except ValueError:
-            print('Fail! The output files were not uploaded to ddosdb.org')
+        print('5. Uploading the fingerprints and the anonymized .pcap to ddosdb.org...\n')
+        for x in fingerprints:
+            pcap_file = os.path.join(settings.OUTPUT_LOCATION, x['key']+'.pcap')
+            fingerprint_path = os.path.join(settings.OUTPUT_LOCATION, x['key']+'.json')
+            key = x['key']
+            try:
+                ddd.upload(pcap_file, fingerprint_path, settings.USERNAME, settings.PASSWORD, key)
+            except ValueError:
+                print('Fail! The output files were not uploaded to ddosdb.org')
 
-    print("input_file_name:", input_file)
-    print("multivector_key:", fingerprints[0]['multivector_key'])
-    print("attack_vector_keys:", [x['key'] for x in fingerprints])
+        print("input_file_name:", input_file)
+        print("multivector_key:", fingerprints[0]['multivector_key'])
+        print("attack_vector_keys:", [x['key'] for x in fingerprints])
 
-    ##Closing and renaming the log file
-    sys.stdout = orig_stdout
-    f.close()
-    os.rename(os.path.join(settings.OUTPUT_LOCATION,"temp.log"), os.path.join(settings.OUTPUT_LOCATION,fingerprints[0]['multivector_key']+".log"))
+        ##Closing and renaming the log file
+        sys.stdout = orig_stdout
+        f.close()
+        os.rename(os.path.join(settings.OUTPUT_LOCATION,"temp.log"), os.path.join(settings.OUTPUT_LOCATION,fingerprints[0]['multivector_key']+".log"))
 
+    else:
+        print('There are NO DDoS attacks in the input traffic. Possibly only a DoS attack!')
+        sys.stdout = orig_stdout
+        f.close()
+        print('\n\nThere are NO DDoS attacks in the input traffic. Possibly only a DoS attack! Please look the log file!')
+    
     ##Informing the user that the attack was analyzed 
     print('\n\nDDoS dissector completed task! Please check output folder.\n\n')
 
