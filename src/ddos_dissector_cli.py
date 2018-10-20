@@ -1,13 +1,11 @@
 #!/usr/bin/env python
+import os.path
 import platform
 import shutil
 import sys
-import subprocess
-import os.path
-import hashlib
-import json
-
 # In case no settings.py is found, use the default one as new settings config
+import tempfile
+
 try:
     import settings
 except ImportError:
@@ -25,7 +23,8 @@ else:
 
 def check_requirements():
     # dummy function that tries all the stuff you will need
-    f = open(os.path.join(settings.OUTPUT_LOCATION, 'temp.log'), 'w')
+    #f = open(os.path.join(settings.OUTPUT_LOCATION, 'temp.log'), 'w')
+    pass
 
 
 #For calling the anonymizer in parallel
@@ -37,7 +36,8 @@ def ddos_dissector(input_file):
 
     ## For storing the logs
     orig_stdout = sys.stdout
-    f = open(os.path.join(settings.OUTPUT_LOCATION, 'temp.log'), 'w')
+    f, f_name = tempfile.mkstemp()
+    f = open(f_name, "w")
     sys.stdout = f
 
     ## 
@@ -73,7 +73,8 @@ def ddos_dissector(input_file):
         ##Closing and renaming the log file
         sys.stdout = orig_stdout
         f.close()
-        os.rename(os.path.join(settings.OUTPUT_LOCATION,"temp.log"), os.path.join(settings.OUTPUT_LOCATION,fingerprints[0]['multivector_key']+".log"))
+        shutil.copy(f_name, os.path.join(settings.OUTPUT_LOCATION,fingerprints[0]['multivector_key']+".log"))
+        os.remove(f_name)
 
     else:
         print('There are NO DDoS attacks in the input traffic. Possibly only a DoS attack!')
