@@ -1,7 +1,7 @@
 """
 Here lives the location configuration for DDoSDB
 
-DDoSDB utilises several other programmes that may only work on Linux or macOS.
+DDoSDB utilises several other programs that may only work on Linux or macOS.
 """
 
 # Path to the file program
