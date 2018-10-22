@@ -9,23 +9,24 @@ from ddos_dissector.protocolnumber2name import protocolnumber2name
 from ddos_dissector.tcpflagletters2names import tcpflagletters2names
 
 
-def analyze_dataframe(df, file_type):
+def analyze_dataframe(df, dst_ip, file_type):
     """
     Analyze a dataframe, and return the fingerprints
     :param df: The Pandas dataframe
+    :param dst_ip: The destination IP (if entered) or False
     :param file_type: The file type string
     :return: The fingerprints
     :raises UnsupportedFileTypeError: If the file type is not supported
     """
     if file_type == "pcap" or file_type == "pcapng":
-        return analyze_pcap_dataframe(df)
+        return analyze_pcap_dataframe(df, dst_ip)
     elif file_type == "nfdump":
-        return analyze_nfdump_dataframe(df)
+        return analyze_nfdump_dataframe(df, dst_ip)
     else:
         raise UnsupportedFileTypeError("The file type " + file_type + " is not supported.")
 
 
-def analyze_pcap_dataframe(df):
+def analyze_pcap_dataframe(df, dst_ip):
     debug = True
     total_packets = len(df)
     fingerprints = []
@@ -39,7 +40,15 @@ def analyze_pcap_dataframe(df):
     if debug:
         print("\nDISTRIBUTION OF DESTINATION IPS:")
         print(dst_ip_distribution)
-    top1_dst_ip = dst_ip_distribution.keys()[0]
+
+    if dst_ip:
+        top1_dst_ip = dst_ip
+    else:
+        top1_dst_ip = dst_ip_distribution.keys()[0]
+
+    print("\nATTACK ADDRESS:")
+    print(top1_dst_ip)
+
     df_remaining = df[df['_ws.col.Destination'] == top1_dst_ip]
 
     while len(df_remaining) > 1 :
@@ -264,7 +273,7 @@ def analyze_pcap_dataframe(df):
     return top1_dst_ip, fingerprints
 
 
-def analyze_nfdump_dataframe(df_plus):
+def analyze_nfdump_dataframe(df_plus, dst_ip):
     """
     Analysis only top traffic stream
     :param df_plus: containing the pcap/pcapng file converted
