@@ -79,15 +79,15 @@ def convert_pcap_to_dataframe(input_file):
 
     # print(shutil.which(command))
 
-    p = subprocess.Popen([settings.TSHARK + " -n -r \"" + input_file + "\" -E separator=\;  -E header=y -T fields " + tshark_fields],
-                         shell=True, stdout=temporary_file)
+    p = subprocess.Popen([settings.TSHARK + " -n -r \"" + input_file + "\" -E separator='\x03'  -E header=y -T fields " + tshark_fields],
+                         shell=True, stdout=temporary_file) #\x03 is ETX
     p.communicate()
     p.wait()
 
     # Reset file pointer to start of file
     temporary_file.seek(0)
 
-    df = pd.read_csv(temporary_file, sep=";", low_memory=False, error_bad_lines=False)
+    df = pd.read_csv(temporary_file, sep="\x03", low_memory=False, error_bad_lines=False)
 
     temporary_file.close()
 
