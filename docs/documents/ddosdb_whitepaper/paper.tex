@@ -1,0 +1,126 @@
+\documentclass[sigconf,natbib=true]{acmart}
+%-------------------------------------------------------------------------------
+% PACKAGES FOR THE TEXT TYPE
+%-------------------------------------------------------------------------------
+\usepackage[english]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+%-------------------------------------------------------------------------------
+% FOR FIGURES AND CAPTIONS
+%-------------------------------------------------------------------------------
+\usepackage{graphicx,graphics,float,subcaption,wrapfig,epstopdf}
+\epstopdfsetup{update}
+\usepackage[labelfont=bf]{caption} 
+%------------------------------------------------------------------------------
+% FOR CHECKMARK
+%-------------------------------------------------------------------------------
+\usepackage{tikz}
+\def\check{\tikz\fill[scale=0.3](0,.35) -- (.25,0) -- (1,.7) -- (.25,.15) -- cycle;} 
+%-------------------------------------------------------------------------------
+% FOR TABLE COLUMNS
+%-------------------------------------------------------------------------------
+\usepackage{array} 
+\newcolumntype{L}[1]{>{\raggedright\let\newline\\\arraybackslash\hspace{0pt}}m{#1}}
+\newcolumntype{C}[1]{>{\centering\let\newline\\\arraybackslash\hspace{0pt}}m{#1}} 
+\newcolumntype{R}[1]{>{\raggedleft\let\newline\\\arraybackslash\hspace{0pt}}m{#1}}
+%\NewDocumentCommand{\rot}{O{80} O{1em} m}{\makebox[#2][l]{\rotatebox{#1}{#3}}}%
+\usepackage{multirow, makecell}
+%\usepackage{booktabs} % To thicken table lines
+%-------------------------------------------------------------------------------
+% PACKAGES FOR URL
+%-------------------------------------------------------------------------------
+%\usepackage[hyphens]{url}
+\usepackage{hyperref}
+\usepackage{breakurl}
+\hypersetup{colorlinks, citecolor=blue, filecolor=blue, linkcolor=blue, urlcolor=blue}
+%-------------------------------------------------------------------------------
+% FOR ACRONYMS 
+%-------------------------------------------------------------------------------
+\newcommand{\eg}{\textit{\mbox{e.g.,~}}} 
+\newcommand{\ie}{\textit{\mbox{i.e.,~}}} 
+\newcommand{\et}{\textit{\mbox{et al.~}}}
+%-------------------------------------------------------------------------------
+% COPYRIGHT
+%-------------------------------------------------------------------------------
+\renewcommand\footnotetextcopyrightpermission[1]{} % removes footnote with conference info
+\setcopyright{none}
+%\setcopyright{acmcopyright}
+%\setcopyright{acmlicensed}
+%\setcopyright{rightsretained}
+%\setcopyright{usgov}
+%\setcopyright{usgovmixed}
+%\setcopyright{cagov}
+%\setcopyright{cagovmixed}
+
+\settopmatter{printacmref=false, printccs=false, printfolios=true}
+
+% DOI
+\acmDOI{}
+
+% ISBN
+\acmISBN{}
+
+%Conference
+%\acmConference[Submitted for review to SIGCOMM]{}
+%\acmYear{2018}
+%\copyrightyear{}
+
+%% {} with no args suppresses printing of the price
+\acmPrice{}
+
+
+\begin{document}
+%------------------------------------------------------------------------------
+% TITLE
+%-------------------------------------------------------------------------------	
+\title{DDoS Attack Fingerprint, DDoSDB, and Their Usage}
+\subtitle{Standing on the shoulders of giants for solving DDoS attack}
+\titlenote{This document was not peer-reviewed.}
+%------------------------------------------------------------------------------
+% AUTHORS
+%-------------------------------------------------------------------------------
+% \author{Paper \# XXX, XXX pages}
+\author{Jair Santanna}
+\affiliation{\institution{University of Twente}  \streetaddress{The Netherlands}}
+\email{j.j.santanna@utwente.nl}
+
+\author{Koen van Hove}
+\affiliation{\institution{University of Twente}	\streetaddress{The Netherlands}}
+\email{k.w.vanhove@student.utwente.nl}
+
+%\author{João Ceron}
+%\affiliation{\institution{University of Twente}	\streetaddress{The Netherlands}}
+%\email{j.m.ceron@utwente.nl}
+
+%\author{Aiko Pras}
+%\affiliation{\institution{University of Twente}	\streetaddress{The Netherlands}}
+%\email{a.pras@utwente.nl}
+
+%\author{Cristian Hesselman}
+%\affiliation{\institution{SIDN Labs}	\streetaddress{The Netherlands}}
+%\email{cristian.hesselman@sidn.nl}
+
+%% The default list of authors is too long for headers}
+%\renewcommand{\shortauthors}{Santanna et al.}
+%------------------------------------------------------------------------------
+% ABSTRACT
+%-------------------------------------------------------------------------------
+\input{sections/00_abstract}
+\maketitle
+%------------------------------------------------------------------------------
+% SECTIONS
+%-------------------------------------------------------------------------------
+\input{sections/01_introduction}
+\input{sections/02_misconceptions}
+\input{sections/03_fingerprint}
+\input{sections/04_ddosdb}
+\input{sections/05_usage}
+\input{sections/06_conclusions}
+%------------------------------------------------------------------------------
+% BIBLIOGRAPHY
+%-------------------------------------------------------------------------------
+%\bibliographystyle{ACM-Reference-Format-num}
+\bibliographystyle{unsrtnat} %abbrvnat OR unsrtnat OR plainnat
+\bibliography{reference}
+%-------------------------------------------------------------------------------
+\end{document}
