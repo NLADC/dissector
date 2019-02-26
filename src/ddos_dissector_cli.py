@@ -24,7 +24,8 @@ else:
 def check_requirements():
     # dummy function that tries all the stuff you will need
     # f = open(os.path.join(settings.OUTPUT_LOCATION, 'temp.log'), 'w')
-    pass
+	if not os.path.isdir('/output'):
+		os.makedirs('output')
 
 
 # For calling the anonymizer in parallel
