@@ -3,35 +3,36 @@ import os.path
 import platform
 import shutil
 import sys
-# In case no settings.py is found, use the default one as new settings config
 import tempfile
-
-try:
-    import settings
-except ImportError:
-    shutil.copy2("settings.example.py", "settings.py")
-    import settings
 
 import ddos_dissector as ddd
 
-# Circumvent issue macOS High Sierra has with pools
-if platform.system() == "Darwin":
-    from multiprocessing.dummy import Pool
-else:
-    from multiprocessing.pool import Pool
-
-
 def check_requirements():
     # dummy function that tries all the stuff you will need
-    # f = open(os.path.join(settings.OUTPUT_LOCATION, 'temp.log'), 'w')
-	if not os.path.isdir('/output'):
-		os.makedirs('output')
 
+    # Tries to create a folder for the output
+    try:
+        os.makedirs("output")
+    except FileExistsError:
+        # directory already exists
+        pass
+
+    # Tries to import the settings for the system (settings.py) if not found then use the default one as new settings config
+    try:
+        import settings
+    except ImportError:
+        shutil.copy2("settings.example.py", "settings.py")
+        import settings
+
+    # Circumvent issue macOS High Sierra has with pools (for parallel processing)
+    if platform.system() == "Darwin":
+        from multiprocessing.dummy import Pool
+    else:
+        from multiprocessing.pool import Pool
 
 # For calling the anonymizer in parallel
 def anonymize(_input_file, _file_type, _victim_ip, _fingerprint):
     return ddd.anonymize_attack_vector(_input_file, _file_type, _victim_ip, _fingerprint)
-
 
 def ddos_dissector(input_file, dst_ip):
     ## For storing the logs
