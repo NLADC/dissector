@@ -5,37 +5,38 @@ import shutil
 import sys
 import tempfile
 
+# Tries to import the settings for the system (settings.py) if not found then use the default one as new settings config
+try:
+    import settings
+except ImportError:
+    shutil.copy2("settings.example.py", "settings.py")
+    import settings
+
 import ddos_dissector as ddd
 
-def check_requirements():
-    # dummy function that tries all the stuff you will need
-
-    # Tries to import the settings for the system (settings.py) if not found then use the default one as new settings config
-    try:
-        import settings
-    except ImportError:
-        shutil.copy2("settings.example.py", "settings.py")
-        import settings
-
-    # Tries to create a folder for the output
-    try:
-        os.makedirs("settings.OUTPUT_LOCATION")
-    except FileExistsError:
-        # directory already exists
-        pass
-
-    # Circumvent issue macOS High Sierra has with pools (for parallel processing)
+# Circumvent issue macOS High Sierra has with pools (for parallel processing)
     if platform.system() == "Darwin":
         from multiprocessing.dummy import Pool
     else:
         from multiprocessing.pool import Pool
+
+
+def check_requirements():
+    # dummy function that tries all the stuff you will need
+
+    # Tries to create a folder for the output
+    try:
+        os.makedirs(settings.OUTPUT_LOCATION)
+    except FileExistsError:
+        # directory already exists
+        pass
 
 # For calling the anonymizer in parallel
 def anonymize(_input_file, _file_type, _victim_ip, _fingerprint):
     return ddd.anonymize_attack_vector(_input_file, _file_type, _victim_ip, _fingerprint)
 
 def ddos_dissector(input_file, dst_ip):
-    ## For storing the logs
+    # For storing the logs
     orig_stdout = sys.stdout
     f, f_name = tempfile.mkstemp()
     f = open(f_name, "w")
@@ -78,7 +79,7 @@ def ddos_dissector(input_file, dst_ip):
         print('There are NO DDoS attacks in the input traffic. Possibly only a DoS attack!')
         sys.stdout = orig_stdout
         f.close()
-        shutil.copy(f_name, "no_attack.log")
+        shutil.copy(f_name, os.path.join(settings.OUTPUT_LOCATION,"failed.log"))
         os.remove(f_name)
 
     ##Informing the user that the attack was analyzed 
