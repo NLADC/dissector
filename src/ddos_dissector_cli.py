@@ -15,10 +15,10 @@ except ImportError:
 import ddos_dissector as ddd
 
 # Circumvent issue macOS High Sierra has with pools (for parallel processing)
-    if platform.system() == "Darwin":
-        from multiprocessing.dummy import Pool
-    else:
-        from multiprocessing.pool import Pool
+if platform.system() == "Darwin":
+    from multiprocessing.dummy import Pool
+else:
+    from multiprocessing.pool import Pool
 
 
 def check_requirements():
