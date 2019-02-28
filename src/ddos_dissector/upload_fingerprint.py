@@ -20,7 +20,6 @@ def upload(pcap, fingerprint, username, password, key):
         "X-Password": password,
         "X-Filename": key
     }
-    ddosdb_url = "https://ddosdb.org/"
-    r = requests.post(ddosdb_url+"upload-file", files=files, headers=headers)
+    r = requests.post(settings.DDOSDB_URL+"upload-file", files=files, headers=headers)
 
     return r.status_code

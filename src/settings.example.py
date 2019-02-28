@@ -17,6 +17,8 @@ OUTPUT_LOCATION = "output/"
 # Amount of concurrent attack vector operations, increase at your own risk
 POOL_SIZE = 4
 
+DDOSDB_URL = "https://ddosdb.org/"
+
 # Username for DDoSDB for uploading the attack vector and fingerprint
 USERNAME = ""
 # Password for DDoSDB for uploading the attack vector and fingerprint

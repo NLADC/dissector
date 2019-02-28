@@ -10,19 +10,19 @@ import ddos_dissector as ddd
 def check_requirements():
     # dummy function that tries all the stuff you will need
 
-    # Tries to create a folder for the output
-    try:
-        os.makedirs("output")
-    except FileExistsError:
-        # directory already exists
-        pass
-
     # Tries to import the settings for the system (settings.py) if not found then use the default one as new settings config
     try:
         import settings
     except ImportError:
         shutil.copy2("settings.example.py", "settings.py")
         import settings
+
+    # Tries to create a folder for the output
+    try:
+        os.makedirs("settings.OUTPUT_LOCATION")
+    except FileExistsError:
+        # directory already exists
+        pass
 
     # Circumvent issue macOS High Sierra has with pools (for parallel processing)
     if platform.system() == "Darwin":
@@ -41,7 +41,6 @@ def ddos_dissector(input_file, dst_ip):
     f = open(f_name, "w")
     sys.stdout = f
 
-    ## 
     print('1. Analysing the type of input file (e.g., pcap, pcapng, nfdump, netflow, and ipfix)...\n')
     file_type = ddd.determine_file_type(input_file)
 
@@ -79,11 +78,11 @@ def ddos_dissector(input_file, dst_ip):
         print('There are NO DDoS attacks in the input traffic. Possibly only a DoS attack!')
         sys.stdout = orig_stdout
         f.close()
-        print(
-            '\n\nThere are NO DDoS attacks in the input traffic. Possibly only a DoS attack! Please look the log file!')
+        shutil.copy(f_name, "no_attack.log")
+        os.remove(f_name)
 
     ##Informing the user that the attack was analyzed 
-    print('\n\nDDoS dissector completed task! Please check output folder.\n\n')
+    print('\n\nDDoS dissector completed task! Please check the log file at the output folder.\n\n')
 
 
 if __name__ == '__main__':
