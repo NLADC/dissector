@@ -73,7 +73,7 @@ def convert_pcap_to_dataframe(input_file):
                     "-e http.user_agent " \
                     "-e tcp.flags.str " \
                     "-e ssl.app_data " \
-                    "-e ntp.priv.monlist.mode "
+                    "-e ntp.priv.reqcode "
 
     temporary_file = tempfile.TemporaryFile("r+b")
 

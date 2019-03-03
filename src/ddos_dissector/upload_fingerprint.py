@@ -1,7 +1,7 @@
 import requests
 
 
-def upload(pcap, fingerprint, username, password, key):
+def upload(pcap, fingerprint, key, ddosdb_url, username, password):
     """
     Upload a fingerprint and attack vector to DDoSDB
     :param pcap: Path to the pcap file
@@ -20,6 +20,7 @@ def upload(pcap, fingerprint, username, password, key):
         "X-Password": password,
         "X-Filename": key
     }
-    r = requests.post(settings.DDOSDB_URL+"upload-file", files=files, headers=headers)
+
+    r = requests.post(ddosdb_url+"upload-file", files=files, headers=headers)
 
     return r.status_code

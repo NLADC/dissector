@@ -35,12 +35,14 @@ def check_requirements():
 def anonymize(_input_file, _file_type, _victim_ip, _fingerprint):
     return ddd.anonymize_attack_vector(_input_file, _file_type, _victim_ip, _fingerprint)
 
-def ddos_dissector(input_file, dst_ip):
+def ddos_dissector(input_file, dst_ip, log):
+
     # For storing the logs
-    orig_stdout = sys.stdout
-    f, f_name = tempfile.mkstemp()
-    f = open(f_name, "w")
-    sys.stdout = f
+    if log == True:
+        orig_stdout = sys.stdout
+        f, f_name = tempfile.mkstemp()
+        f = open(f_name, "w")
+        sys.stdout = f
 
     print('1. Analysing the type of input file (e.g., pcap, pcapng, nfdump, netflow, and ipfix)...\n')
     file_type = ddd.determine_file_type(input_file)
@@ -62,28 +64,44 @@ def ddos_dissector(input_file, dst_ip):
             pcap_file = os.path.join(settings.OUTPUT_LOCATION, x['key'] + '.pcap')
             fingerprint_path = os.path.join(settings.OUTPUT_LOCATION, x['key'] + '.json')
             key = x['key']
+             
             try:
-                ddd.upload(pcap_file, fingerprint_path, settings.USERNAME, settings.PASSWORD, key)
+                http_return = ddd.upload(pcap_file, fingerprint_path, key, settings.DDOSDB_URL, settings.USERNAME, settings.PASSWORD)
+                print("status_code:",http_return, pcap_file)
             except:
                 print('Fail! The output files were not uploaded to ddosdb.org')
 
-        print(os.path.basename(input_file), fingerprints[0]['multivector_key'], [x['key'] for x in fingerprints], sep='\t')
+        # Storing the summary of the execution
+        print("\nSUMMARY:")
+        print(os.path.basename(input_file), 
+            fingerprints[0]['multivector_key'], 
+            [x['key'] for x in fingerprints],
+            [x['vector_filter'] for x in fingerprints],
+            [x['total_src_ips'] for x in fingerprints],
+            sep=';')
 
-        ##Closing and renaming the log file
-        sys.stdout = orig_stdout
-        f.close()
-        shutil.copy(f_name, os.path.join(settings.OUTPUT_LOCATION, fingerprints[0]['multivector_key'] + ".log"))
-        os.remove(f_name)
+        ##defining the name of the log file
+        logfile_name = os.path.join(settings.OUTPUT_LOCATION, fingerprints[0]['multivector_key'] + ".log")
+
+        
 
     else:
-        print('There are NO DDoS attacks in the input traffic. Possibly only a DoS attack!')
+        print("\nTHERE ARE NO DDOS ATTACK IN THE INPUT TRAFFIC. POSSIBLY ONLY A DOS ATTACK!\n")
+        
+        print("\nSUMMARY:")
+        print(os.path.basename(input_file)+";NA;NA;NA;NA")
+        ##defining the name of the log file
+        logfile_name = os.path.join(settings.OUTPUT_LOCATION,os.path.basename(input_file)+".log")
+
+    ##Closing the logfile  
+    if log == True:  
         sys.stdout = orig_stdout
         f.close()
-        shutil.copy(f_name, os.path.join(settings.OUTPUT_LOCATION,"failed.log"))
+        shutil.copy(f_name, logfile_name)
         os.remove(f_name)
 
     ##Informing the user that the attack was analyzed 
-    print('\n\nDDoS dissector completed task! Please check the log file at the output folder.\n\n')
+    print('\nDDoS dissector completed task! Please check:', logfile_name)
 
 
 if __name__ == '__main__':
@@ -93,14 +111,16 @@ if __name__ == '__main__':
 
     parser.add_argument('--input', metavar='input_file', required=True, help='Path of a input file')
     parser.add_argument('--dst-ip', metavar='dst_ip', required=False, help='IP that was attacked')
+    parser.add_argument('--log', metavar='log', required=False, help='Show log at the stdout')
 
     args = parser.parse_args()
     input_file = args.input
     dst_ip = args.dst_ip or False
+    log = args.log or True
 
     check_requirements()
 
     if os.path.isfile(input_file):
-        ddos_dissector(input_file, dst_ip)
+        ddos_dissector(input_file, dst_ip, log)
     else:
         print("We were unable to find the file. Please check the file path!")

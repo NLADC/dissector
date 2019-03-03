@@ -63,7 +63,8 @@ def anonymize_pcap(input_file, victim_ip, fingerprint, file_type):
 
         # if str(fingerprint['protocol']).lower() == 'udp':
 
-        # if str(fingerprint['protocol']).lower() == 'ntp':
+        if str(fingerprint['protocol']).lower() == 'ntp':
+            filter_out += " and ntp.priv.reqcode ==  " + str(fingerprint['additional']['ntp_reqcode'])
 
         # if str(fingerprint['protocol']).lower() == 'chargen:
 
@@ -74,6 +75,8 @@ def anonymize_pcap(input_file, victim_ip, fingerprint, file_type):
             filter_out += " and not icmp"
     
     filter_out += "\""
+
+    print("Tshark filter:",filter_out)
 
     # Filter fingerprint Int64
     def filter_fingerprint(items):

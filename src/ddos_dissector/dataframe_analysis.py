@@ -2,6 +2,8 @@ import math
 from datetime import datetime
 import numpy as np
 import pandas as pd
+pd.set_option('display.max_colwidth', -1)
+pd.set_option('display.max_columns', 100)
 import hashlib
 from ddos_dissector.exceptions.UnsupportedFileTypeError import UnsupportedFileTypeError
 from ddos_dissector.portnumber2name import portnumber2name
@@ -25,39 +27,36 @@ def analyze_dataframe(df, dst_ip, file_type):
     else:
         raise UnsupportedFileTypeError("The file type " + file_type + " is not supported.")
 
-
 def analyze_pcap_dataframe(df, dst_ip):
-    debug = True
     total_packets = len(df)
     fingerprints = []
+    
     attack_vector = {}
+    attack_vector['file_type'] = 'pcap'
+
     df_attackvectors = []
     attack_vector_labels = []
     attack_vector_source_ips = []
     counter = 1
 
-    dst_ip_distribution = df['_ws.col.Destination'].value_counts()
-    if debug:
-        print("\nDISTRIBUTION OF DESTINATION IPS:")
-        print(dst_ip_distribution)
+    
 
     if dst_ip:
+        print("INPUT VICTIM DESTINATION IPS:", dst_ip,"\n", sep="\n")
         top1_dst_ip = dst_ip
     else:
+        dst_ip_distribution = df['_ws.col.Destination'].value_counts().head()
+        print("DISTRIBUTION OF TOP DESTINATION IPS:", dst_ip_distribution,"\n", sep="\n")
         top1_dst_ip = dst_ip_distribution.keys()[0]
-
-    print("\nATTACK ADDRESS:")
-    print(top1_dst_ip)
 
     df_remaining = df[df['_ws.col.Destination'] == top1_dst_ip]
 
     while len(df_remaining) > 1 :
-        attack_vector['file_type'] = 'pcap'
+        
         # Analyse the distribution of IP protocols (and defining the top1)
-        protocol_distribution = df_remaining['_ws.col.Protocol'].value_counts()
-        if debug:
-            print("\nDISTRIBUTION OF PROTOCOLS:")
-            print(protocol_distribution)
+        protocol_distribution = df_remaining['_ws.col.Protocol'].value_counts().head()
+        print("DISTRIBUTION OF TOP PROTOCOLS:",protocol_distribution,"\n",sep="\n")
+        
         top1_protocol = protocol_distribution.keys()[0]
         filter_top_protocol_string = "df_remaining['_ws.col.Protocol']=='" + str(top1_protocol) + "'"
         attack_vector['protocol'] = top1_protocol
@@ -66,11 +65,8 @@ def analyze_pcap_dataframe(df, dst_ip):
 
         # Define if the remaining is based on the top1 source OR destination port
         if top1_protocol == 'IPv4':
-            fragmentation_distribution = \
-                df_remaining[df_remaining['_ws.col.Protocol'] == 'IPv4']['fragmentation'].value_counts()
-            if debug:
-                print("\nFRAGMENTATION DISTRIBUTION:")
-                print(fragmentation_distribution)
+            fragmentation_distribution = df_remaining[df_remaining['_ws.col.Protocol'] == 'IPv4']['fragmentation'].value_counts()
+            print("DISTRIBUTION OF FRAGMENTATION:", fragmentation_distribution,"\n",sep="\n")
 
             if fragmentation_distribution.keys()[0]:
                 filter_fragmentation_string = "df_remaining['fragmentation']==True"
@@ -80,19 +76,13 @@ def analyze_pcap_dataframe(df, dst_ip):
 
         else:
             # Analyse the distribution of SOURCE ports AND define the top1
-            port_source_distribution = \
-                df_remaining[df_remaining['_ws.col.Protocol'] == top1_protocol]['srcport'].value_counts().head()
-            if debug:
-                print("\nDISTRIBUTION OF SOURCE PORT:")
-                print(port_source_distribution)
+            port_source_distribution = df_remaining[df_remaining['_ws.col.Protocol'] == top1_protocol]['srcport'].value_counts().head()
+            print("DISTRIBUTION OF TOP SOURCE PORT:", port_source_distribution,"\n",sep="\n")
             top1_source_port = math.floor(port_source_distribution.keys()[0])
 
             # Analyse the distribution of DESTINATION ports AND define the top1
-            port_destination_distribution = \
-                df_remaining[df_remaining['_ws.col.Protocol'] == top1_protocol]['dstport'].value_counts().head()
-            if debug:
-                print("\nDISTRIBUTION OF DESTINATION PORTS:")
-                print(port_destination_distribution)
+            port_destination_distribution = df_remaining[df_remaining['_ws.col.Protocol'] == top1_protocol]['dstport'].value_counts().head()
+            print("DISTRIBUTION OF TOP DESTINATION PORTS:",port_destination_distribution,"\n",sep="\n")
             top1_destination_port = math.floor(port_destination_distribution.keys()[0])
 
             # Check which port type (source or destination) AND number had most occurrences
@@ -106,9 +96,10 @@ def analyze_pcap_dataframe(df, dst_ip):
 
             #Analysis for ICMP
             if top1_protocol == 'ICMP':
-                icmp_type_distribution = df_remaining[df_remaining['_ws.col.Protocol'] == 'ICMP'][
-                    'icmp.type'].value_counts()
-                if debug: print('\nDISTRIBUTION ICMP TYPES:\n', icmp_type_distribution)
+                
+                icmp_type_distribution = df_remaining[df_remaining['_ws.col.Protocol'] == 'ICMP']['icmp.type'].value_counts()
+                print("DISTRIBUTION OF TOP ICMP TYPES:", icmp_type_distribution,"\n",sep="\n")
+
                 top1_icmp_type = icmp_type_distribution.keys()[0]
                 filter_icmp_type = "df_remaining['icmp.type']=='" + str(top1_icmp_type)+"'"
                 attack_vector_filter_string = '(' + str(filter_top_protocol_string) + ')&(' + str(filter_icmp_type) + ')'
@@ -126,12 +117,10 @@ def analyze_pcap_dataframe(df, dst_ip):
             
             #Analysis for TCP
             if top1_protocol == 'TCP':
-                tcp_flag_distribution = \
-                    df_remaining[df_remaining['_ws.col.Protocol'] == 'TCP']['tcp.flags.str'].value_counts()
-                if debug:
-                    print("\nDISTRIBUTION TCP FLAGS:")
-                    print(tcp_flag_distribution.head())
+                tcp_flag_distribution =  df_remaining[df_remaining['_ws.col.Protocol'] == 'TCP']['tcp.flags.str'].value_counts().head()
+                print("DISTRIBUTION OF TOP TCP FLAGS:",tcp_flag_distribution,"\n",sep="\n")
                 top1_tcp_flag = tcp_flag_distribution.keys()[0]
+                
                 filter_tcp_flag = "df_remaining['tcp.flags.str']=='" + str(top1_tcp_flag) + "'"
                 attack_vector_filter_string += '&(' + str(filter_tcp_flag) + ')'
 
@@ -139,21 +128,17 @@ def analyze_pcap_dataframe(df, dst_ip):
             
             #Analysis for DNS
             if top1_protocol == 'DNS':
-                dns_query_distribution = \
-                    df_remaining[df_remaining['_ws.col.Protocol'] == 'DNS']['dns.qry.name'].value_counts()
-                if debug:
-                    print("\nDISTRIBUTION DNS QUERIES:")
-                    print(dns_query_distribution.head())
+                dns_query_distribution = df_remaining[df_remaining['_ws.col.Protocol'] == 'DNS']['dns.qry.name'].value_counts().head()
+                print("DISTRIBUTION OF TOP DNS QUERIES:",dns_query_distribution,"\n",sep="\n")
                 top1_dns_query = dns_query_distribution.keys()[0]
+
                 filter_dns_query = "df_remaining['dns.qry.name']=='" + str(top1_dns_query) + "'"
                 attack_vector_filter_string += '&(' + str(filter_dns_query) + ')'
 
-                dns_type_distribution = \
-                    df_remaining[df_remaining['_ws.col.Protocol'] == 'DNS']['dns.qry.type'].value_counts()
-                if debug:
-                    print("\nDISTRIBUTION DNS TYPES:")
-                    print(dns_type_distribution.head())
+                dns_type_distribution = df_remaining[df_remaining['_ws.col.Protocol'] == 'DNS']['dns.qry.type'].value_counts().head()
+                print("DISTRIBUTION OF TOP DNS TYPES:",dns_type_distribution,"\n",sep="\n")
                 top1_dns_type = dns_type_distribution.keys()[0]
+                
                 attack_vector['additional'] = {
                     'dns_query': top1_dns_query,
                     'dns_type': top1_dns_type
@@ -161,14 +146,14 @@ def analyze_pcap_dataframe(df, dst_ip):
             
             #Analysis for NTP
             if top1_protocol == "NTP":
-                    ntp_mode_distribution = \
-                            df_remaining[df_remaining['_ws.col.Protocol'] == 'NTP']['ntp.priv.monlist.mode'].value_counts()
-                    if debug:
-                            print("\nNTP_RESPONSE_DISTRIBUTION")
-                            print(ntp_mode_distribution.head())
-                    top1_ntp_response = ntp_mode_distribution.keys()[0]
-                    filter_ntp_response = "df_remaining['ntp.priv.monlist.mode']=='" + str(top1_ntp_response) +"'"
-                    attack_vector_filter_string += '&(' + str(filter_ntp_response) + ')'
+                ntp_mode_distribution = df_remaining[df_remaining['_ws.col.Protocol'] == 'NTP']['ntp.priv.reqcode'].value_counts().head()
+                print("DISTRIBUTION OF TOP NTP RESPONSE:",ntp_mode_distribution,"\n",sep="\n")
+                top1_ntp_response = math.floor(ntp_mode_distribution.keys()[0])
+
+                filter_ntp_response = "df_remaining['ntp.priv.reqcode']==" + str(top1_ntp_response) 
+                attack_vector_filter_string += '&(' + str(filter_ntp_response) + ')'
+
+                attack_vector['additional'] = {'ntp_reqcode': top1_ntp_response}
 
 
         attack_vector_labels.append(attack_vector_filter_string.replace("df_remaining", ""))
@@ -179,12 +164,13 @@ def analyze_pcap_dataframe(df, dst_ip):
 
         # If the number of source IPs involved in this potential attack vector is 1, then it is NOT a DDoS!
         if len(src_ips_attack_vector_current) < 2:
-            if debug:
-                print("STOP ANALYSIS; THERE IS ONLY ONE SOURCE IP RELATED TO THIS ATTACK VECTOR!")
+            print("DISCARTED ATTACK VECTOR " + str(counter) + ": " + str(attack_vector_filter_string).replace("df_remaining", ""))
+            print("  - Packets:" + str(len(df_attack_vector_current)))
+            print("  - #Src_IPs:" + str(len(src_ips_attack_vector_current)))
+            print("\nSTOP ANALYSIS; THERE IS ONLY ONE SOURCE IP RELATED TO THIS ATTACK VECTOR!")
+            print("################################################################################")
+            print("################################################################################\n")
             break
-
-        # SAVE FOR FURTHER ANALYSIS OF THE CURRENT DATAFRAME
-        # df_attackvectors.append(df_attackvector_current)
 
         # For later comparing the list of IPs
         attack_vector_source_ips.append(src_ips_attack_vector_current)
@@ -206,17 +192,18 @@ def analyze_pcap_dataframe(df, dst_ip):
         else:
             attack_vector['dst_ports'] = []
         
-        attack_vector['total_dst_ports'] = len(attack_vector['dst_ports'])
 
+        attack_vector['total_dst_ports'] = len(attack_vector['dst_ports'])
         attack_vector['start_timestamp'] = df_attack_vector_current['frame.time_epoch'].iloc[0]
         attack_vector['key'] = str(hashlib.md5(str(attack_vector['start_timestamp']).encode()).hexdigest())
         attack_vector['start_time'] = datetime.fromtimestamp(attack_vector['start_timestamp']).strftime('%Y-%m-%d %H:%M:%S')
         attack_vector['duration_sec'] = df_attack_vector_current['frame.time_epoch'].iloc[-1] - attack_vector['start_timestamp']
-        attack_vector['avg_pps'] = len(df_attack_vector_current)/attack_vector['duration_sec']
+        attack_vector['total_packets'] = len(df_attack_vector_current)
+        attack_vector['avg_pps'] = attack_vector['total_packets']/attack_vector['duration_sec']
         
         attack_vector_current_size = 0
-        for i in range(0,len(df_attack_vector_current)):
-            attack_vector_current_size += df_attack_vector_current['frame.len'].iloc[i]
+        for i in range(0,attack_vector['total_packets']):
+            attack_vector_current_size += df_attack_vector_current['frame.len'].iloc[i]            
         attack_vector['avg_bps'] = attack_vector_current_size/attack_vector['duration_sec']
 
         # ttl_variations = \
@@ -226,17 +213,21 @@ def analyze_pcap_dataframe(df, dst_ip):
         #     print(ttl_variations)
         #     print("TTL VALUE DISTRIBUTION:")
         #     print(df_attack_vector_current['ip.ttl'].value_counts().head())
+        
+        attack_vector['vector_filter'] = str(attack_vector_filter_string).replace("df_remaining", "")
 
-        print("\nATTACK VECTOR " + str(counter) + ": " + str(attack_vector_filter_string).replace("df_remaining", ""))
-        print("  - Packets:" + str(len(df_attack_vector_current)))
-        print("  - #Src_IPs:" + str(len(src_ips_attack_vector_current)))
+        print("ATTACK VECTOR " + str(counter) + ": " + str(attack_vector['vector_filter']))
+        print("  - Packets:" + str(attack_vector['total_packets']))
+        print("  - #Src_IPs:" + str(attack_vector['total_src_ips']))
 
         fingerprints.append(attack_vector)
 
+        print("################################################################################")
+        print("################################################################################\n")
+
         #In case of loop stop
         if len(fingerprints)>10:
-            if debug:
-                print("STOP ANALYSIS; LOOKS LIKE A LOOP; RE-CHECK THE DISSECTOR SOURCE CODE!!")
+            print("\nSTOP ANALYSIS; LOOKS LIKE A LOOP; RE-CHECK THE DISSECTOR SOURCE CODE!!")
             break
 
         df_remaining = df_remaining[eval(attack_vector_filter_string.replace('==', '!=').replace('&', '|'))]
@@ -266,9 +257,7 @@ def analyze_pcap_dataframe(df, dst_ip):
             intersection = len(np.intersect1d(attack_vector_source_ips[m], attack_vector_source_ips[n]))
             matrix_source_ip_intersection.loc[str(m + 1), str(n + 1)] = intersection
         matrix_source_ip_intersection.loc[str(m + 1), 'Attack vector'] = str(attack_vector_labels[m])
-
-    print("\nINTERSECTION OF SOURCE IPS IN ATTACK VECTORS:")
-    print(matrix_source_ip_intersection,'\n')
+    print("INTERSECTION OF SOURCE IPS IN ATTACK VECTORS:",matrix_source_ip_intersection,"\n",sep="\n")
 
     return top1_dst_ip, fingerprints
 
@@ -279,7 +268,6 @@ def analyze_nfdump_dataframe(df_plus, dst_ip):
     :param df_plus: containing the pcap/pcapng file converted
     :return: (1) print the summary of attack vectors and
     """
-    debug = True
     attack_case = "-1"
     reflection_label = ""
     spoofed_label = ""
@@ -294,15 +282,15 @@ def analyze_nfdump_dataframe(df_plus, dst_ip):
 
     total_packets = df["i_packets"].sum()
 
-    if debug:
-        print("Total number packets: " + str(total_packets))
-        print("IDENTIFYING MAIN CHARACTERISTICS:")
+    
+    print("Total number packets: " + str(total_packets))
+    print("IDENTIFYING MAIN CHARACTERISTICS:")
 
     top_dst_ip = df.groupby(by=['dst_ip'])['i_packets'].sum().sort_values().index[-1]
     all_patterns["dst_ip"] = top_dst_ip
 
-    if debug:
-        print("Target (destination) IP: " + top_dst_ip)
+
+    print("Target (destination) IP: " + top_dst_ip)
 
     # Restrict attacks from outside the network!
     # df_filtered = df[(df['dst_ip'] == top_dst_ip) &
@@ -312,19 +300,18 @@ def analyze_nfdump_dataframe(df_plus, dst_ip):
 
     total_packets_to_target = df_filtered['i_packets'].sum()
 
-    if debug:
-        print("Number of packets: " + str(total_packets_to_target))
+
+    print("Number of packets: " + str(total_packets_to_target))
 
     while len(df_filtered) > 0:
-        if debug:
-            print("---")
+        print("---")
 
         result = {}
 
         top_ip_proto = df_filtered.groupby(by=['ip_proto'])['i_packets'].sum().sort_values().index[-1]
         result['ip_protocol'] = top_ip_proto
 
-        if debug: print("IP protocol used in packets going to target IP: " + str(top_ip_proto))
+        print("IP protocol used in packets going to target IP: " + str(top_ip_proto))
 
         df_filtered = df_filtered[df_filtered['ip_proto'] == top_ip_proto]
 
@@ -334,8 +321,7 @@ def analyze_nfdump_dataframe(df_plus, dst_ip):
         # Calculating the number of packets after the first filter
         total_packets_filtered = df_filtered['i_packets'].sum()
 
-        if debug:
-            print("Number of packets: " + str(total_packets_filtered))
+        print("Number of packets: " + str(total_packets_filtered))
 
         result["total_nr_packets"] = total_packets_filtered
 
@@ -346,43 +332,35 @@ def analyze_nfdump_dataframe(df_plus, dst_ip):
         # For attacks based on TCP or UDP, which have source and destination ports
         if (top_ip_proto == 'TCP') or (top_ip_proto == 'UDP'):
 
-            if debug:
-                print("PORT FREQUENCY OF REMAINING PACKETS")
+            print("PORT FREQUENCY OF REMAINING PACKETS")
 
             # Calculate the distribution of source ports based on the first filter
             percent_src_ports = df_filtered.groupby(by=['src_port'])['i_packets'].sum().sort_values(
                 ascending=False).divide(float(total_packets_filtered) / 100)
 
-            if debug:
-                print("SOURCE ports frequency")
-                print(percent_src_ports.head())
+            print("SOURCE ports frequency",percent_src_ports.head())
 
             # Calculate the distribution of destination ports after the first filter
             percent_dst_ports = df_filtered.groupby(by=['dst_port'])['i_packets'].sum().sort_values(
                 ascending=False).divide(float(total_packets_filtered) / 100)
 
-            if debug:
-                print("\nDESTINATION ports frequency")
-                print(percent_dst_ports.head())
+            print("\nDESTINATION ports frequency",percent_dst_ports.head())
 
             # WARNING packets are filtered here again
             # Using the top 1 (source or destination) port to analyse a pattern of packets
             if (len(percent_src_ports) > 0) and (len(percent_dst_ports) > 0):
                 if percent_src_ports.values[0] > percent_dst_ports.values[0]:
-                    if debug:
-                        print("\nUsing top source port: ", percent_src_ports.keys()[0])
+                    print("\nUsing top source port: ", percent_src_ports.keys()[0])
 
                     df_pattern = df_filtered[df_filtered['src_port'] == percent_src_ports.keys()[0]]
                     result["selected_port"] = "src" + str(percent_src_ports.keys()[0])
                 else:
-                    if debug:
-                        print("\nUsing top dest port: ", percent_dst_ports.keys()[0])
+                    print("\nUsing top dest port: ", percent_dst_ports.keys()[0])
 
                     df_pattern = df_filtered[df_filtered['dst_port'] == percent_dst_ports.keys()[0]]
                     result["selected_port"] = "dst" + str(percent_dst_ports.keys()[0])
             else:
-                if debug:
-                    print('No top source/destination port')
+                print('No top source/destination port')
 
                 return None
 
@@ -406,12 +384,10 @@ def analyze_nfdump_dataframe(df_plus, dst_ip):
             # Calculating the number of source IPs involved in the attack
             ips_involved = df_pattern['src_ip'].unique()
             if len(ips_involved) < 2:
-                if debug:
-                    print("\nNO MORE PATTERNS")
+                print("\nNO MORE PATTERNS")
                 break
 
-            if debug:
-                print("\nPATTERN (ATTACK VECTOR) LABEL")
+            print("\nPATTERN (ATTACK VECTOR) LABEL")
 
             attack_label = attack_label + "\n" + str(len(ips_involved)) + " source IPs"
             result["src_ips"] = ips_involved.tolist()
@@ -438,12 +414,12 @@ def analyze_nfdump_dataframe(df_plus, dst_ip):
             if percent_src_ports.values[0] == 100:
                 df_filtered = df_filtered[df_filtered['src_port'].isin(percent_src_ports.keys()) == False]
                 if len(percent_dst_ports) == 1:
-                    # if debug: print("\nCASE 1: 1 source port to 1 destination port") if debug else next
+                    # print("\nCASE 1: 1 source port to 1 destination port") if debug else next
                     port_label = "From " + portnumber2name(
                         percent_src_ports.keys()[0]) + "\n   - Against " + portnumber2name(
                         percent_dst_ports.keys()[0]) + "[" + '%.1f' % percent_dst_ports.values[0] + "%]"
                 else:
-                    # if debug: print("\nCASE 2: 1 source port to a set of destination ports") if debug else next
+                    # print("\nCASE 2: 1 source port to a set of destination ports") if debug else next
                     if percent_dst_ports.values[0] >= 50:
                         port_label = "From " + portnumber2name(
                             percent_src_ports.keys()[0]) + "\n   - Against a set of (" + str(
@@ -477,14 +453,14 @@ def analyze_nfdump_dataframe(df_plus, dst_ip):
                 if len(percent_src_ports) == 1:
                     df_filtered = df_filtered[df_filtered['src_port'].isin(percent_src_ports.keys()) == False]
 
-                    # if debug: print("\nCASE 1: 1 source port to 1 destination port") if debug else next
+                    # print("\nCASE 1: 1 source port to 1 destination port") if debug else next
                     port_label = "Using " + portnumber2name(percent_src_ports.keys()[0]) + "[" + '%.1f' % \
                                  percent_src_ports.values[
                                      0] + "%]" + "\n   - Against " + portnumber2name(
                         percent_dst_ports.keys()[0]) + "[" + '%.1f' % percent_dst_ports.values[0] + "%]"
 
                 else:
-                    # if debug: print("\nCASE 3: 1 source port to a set of destination ports") if debug else next
+                    # print("\nCASE 3: 1 source port to a set of destination ports") if debug else next
                     df_filtered = df_filtered[df_filtered['src_port'].isin(percent_src_ports.keys()) == False]
 
                     if percent_src_ports.values[0] >= 50:
