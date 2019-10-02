@@ -13,3 +13,6 @@ For testing the DDoS Dissector tool you must have a network trace that contains 
 `python3 ddos_dissector_cli.py --input <attack_trace_path.pcap>`
 
 The output (fingerprints, anonymized filtered attack vectors, and a log file) will be available in the folder 'output'
+
+### Would you like to contribute with data?
+For contributing with data (output from DDoS Dissector tool), you must first ask an authorization to the admins of ddosdb. After you receive the confirmation that your account is authorized to upload data, you must edit `settings.py` for adding your `USERNAME` and `PASSWORD`.
