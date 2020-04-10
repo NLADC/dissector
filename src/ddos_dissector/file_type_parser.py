@@ -21,6 +21,8 @@ def determine_file_type(input_file):
 
     if file_type == "tcpdump":
         return "pcap"
+    if file_type == "pcap":
+        return "pcap"
     elif file_type == "pcap-ng":
         return "pcapng"
     elif file_type == "data" and (b"nfdump" in file_info or b"nfcapd" in file_info):
