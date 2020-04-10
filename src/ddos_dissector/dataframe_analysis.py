@@ -2,7 +2,7 @@ import math
 from datetime import datetime
 import numpy as np
 import pandas as pd
-pd.set_option('display.max_colwidth', -1)
+pd.set_option('display.max_colwidth', None)
 pd.set_option('display.max_columns', 100)
 import hashlib
 from ddos_dissector.exceptions.UnsupportedFileTypeError import UnsupportedFileTypeError
