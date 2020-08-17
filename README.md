@@ -1,5 +1,6 @@
  # <img src="https://github.com/ddos-clearing-house/dddosdb-in-a-box/blob/master/imgs/dch-dissector.png" width="40%" height="20%"  border=1>
 dch-dissector.png
+
 This repository contains the development of the DDoS Dissector tool ([ddos_dissector_cli](https://github.com/jjsantanna/ddosdb/blob/master/src/ddos_dissector_cli.py)). This tools is intended to analyse post-mortem network traces that contain one or multiple DDoS attacks. The tool dissects the input network traffic (pcap, pcapng, netflow v5, v9, IPFIX\*, and Sflow\*) for extracting a summary of the main characteristics of each attack vector, called DDoS attack fingerprints. Each fingerprint is a .json format file. 
 
 In addition to output DDoS attack fingerprint, the DDoS dissector also outputs per attack vector the filtered and anonymised network trace (containing ONLY the attack vector).
