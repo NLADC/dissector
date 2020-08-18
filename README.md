@@ -1,19 +1,117 @@
- # <img src="https://github.com/ddos-clearing-house/dddosdb-in-a-box/blob/master/imgs/dch-dissector.png" width="40%" height="20%"  border=1>
-dch-dissector.png
+<p align="center"><img width=30.5% src="https://github.com/joaoceron/new_dissector/blob/master/media/header.png"></p>
 
-This repository contains the development of the DDoS Dissector tool ([ddos_dissector_cli](https://github.com/jjsantanna/ddosdb/blob/master/src/ddos_dissector_cli.py)). This tools is intended to analyse post-mortem network traces that contain one or multiple DDoS attacks. The tool dissects the input network traffic (pcap, pcapng, netflow v5, v9, IPFIX\*, and Sflow\*) for extracting a summary of the main characteristics of each attack vector, called DDoS attack fingerprints. Each fingerprint is a .json format file. 
 
-In addition to output DDoS attack fingerprint, the DDoS dissector also outputs per attack vector the filtered and anonymised network trace (containing ONLY the attack vector).
 
-### Dependencies 
-The list of dependencies and a bash-script can be found [here!](https://github.com/jjsantanna/ddosdb/blob/master/src/install_dependencies.sh). Instead of using the bash-script, you can manually install the python libraries (with `pip3 install -r src/requirements.txt`), [Tshark](https://www.wireshark.org/download.html), and [Bit-Twist](https://sourceforge.net/projects/bittwist).
 
-### How to use it?
-For testing the DDoS Dissector tool you must have a network trace that contains a DDoS attack (.pcap, .pcapng, netflow, ...). There are some attack traces made publicly available by [SimpleWeb](https://www.simpleweb.org/wiki/index.php/Traces#Booters_-_An_analysis_of_DDoS-as-a-Service_Attacks), by [The Centre for Research on Cryptography and Security of the Masaryk University](https://github.com/crocs-muni/ddos-vault/blob/master/DDoSaaSTraces),  by [CAIDA](https://www.caida.org/data/passive/ddos-20070804_dataset.xml), and others. You can also download any .pcap file from [ddosdb.org](http://ddosdb.org).
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+![Python](https://img.shields.io/badge/python-v3.6+-blue.svg)
+[![Build Status](https://api.travis-ci.com/joaoceron/new_dissector.svg?token=8TMUECLCUVrxas7wXfVY&branch=master)](https://travis-ci.com/github/joaoceron/new_dissector)
+![Dependencies](https://img.shields.io/badge/dependencies-up%20to%20date-brightgreen.svg)
+[![GitHub Issues](https://img.shields.io/github/issues/anfederico/Clairvoyant.svg)](https://github.com/anfederico/Clairvoyant/issues)
+![Contributions welcome](https://img.shields.io/badge/contributions-welcome-orange.svg)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-`python3 ddos_dissector_cli.py --input <attack_trace_path.pcap>`
 
-The output (fingerprints, anonymized filtered attack vectors, and a log file) will be available in the folder 'output'
+## Basic Overview
 
-### Would you like to contribute with data?
-For contributing with data (output from DDoS Dissector tool), you must first ask an authorization to the admins of ddosdb. After you receive the confirmation that your account is authorized to upload data, you must edit `settings.py` for adding your `USERNAME` and `PASSWORD`.
+The software is responsible for summarizing the DDoS attack traffic. The key point of this module is to develop a heuristic/algorithm that can find similarities among different types of attacks. Performance and information granularity is a trade-off that should be investigated by considering attacks type. For example, DNS reflection attacks should consider DNS queries fields while TCP SYN flood attack might not require evaluate the TCP packet payload.
+
+<details>
+  <summary>Input [PCAP]</summary>
+  
+  #### Network file PCAP
+  https://www.simpleweb.org/wiki/index.php/Traces#Datasets_for_Booter_attacks
+  
+</details>
+
+<details>
+  <summary>Output [Fingerprint]</summary>
+  
+  #### Fingerprint generated
+     
+```json
+  "ip_proto": [
+    17
+  ],
+  "highest_protocol": [
+    "DNS"
+  ],
+  "dns_qry_name": [
+    "anonsc.com"
+  ],
+  "eth_type": [
+    "0x00000800"
+  ],
+  "frame_len": [
+    397
+  ],
+  "srcport": [
+    53
+  ],
+  "fragmentation": [
+    true
+  ],
+  "amplifiers": [
+    "109.93.47.83",
+  ],
+  "start_time": "2020-08-08 21:36:23"
+}
+```
+</details>
+
+
+<!-- <p align="center"><img width=95% src="https://github.com/anfederico/Waldo/blob/master/media/Schematic.png"></p> -->
+
+<br>
+
+## Usage
+
+<!-- <img src="https://github.com/anfederico/Clairvoyant/blob/master/media/Learning.gif" width=40%> -->
+
+````
+
+ _____  _____        _____ _____  ____
+|  __ \|  __ \      / ____|  __ \|  _ \
+| |  | | |  | | ___| (___ | |  | | |_) |
+| |  | | |  | |/ _ \___ \| |  | |  _ <
+| |__| | |__| | (_) |___) | |__| | |_) |
+|_____/|_____/ \___/_____/|_____/|____/
+
+usage: new_dissector.py [options]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --version             print version and exit
+  -v, --verbose         print info msg
+  -d, --debug           print debug info
+  -q, --quiet           ignore animation
+  -s, --status          ignore animation
+  -g, --graph           build dot file (graphviz). It can be used to plot a visual representation of the attack using the tool graphviz. When this option is set, you will
+                        received information how to convert the generate file (.dot) to image (.png).
+  -f [FILENAME], --filename [FILENAME]
+````
+
+## Examples
+
+<details>
+  <summary>Generating fingerprints</summary>
+ 
+   <p align="center"><img width=80% src="https://github.com/joaoceron/new_dissector/blob/master/media/dissector.gif"></p>
+
+     
+</details>
+
+
+
+<details>
+  <summary>Graphical visualization</summary>
+  
+- Green: benign traffic
+- Red:  malicious traffic 
+ 
+<p align="center"><img width=50% src="https://github.com/joaoceron/new_dissector/blob/master/media/booter6-chargen.jpg"></p>
+
+</details>
+
+
+
