@@ -77,18 +77,25 @@ The software is responsible for summarizing the DDoS attack traffic. The key poi
 | |__| | |__| | (_) |___) | |__| | |_) |
 |_____/|_____/ \___/_____/|_____/|____/
 
-usage: new_dissector.py [options]
-
 optional arguments:
   -h, --help            show this help message and exit
   --version             print version and exit
   -v, --verbose         print info msg
   -d, --debug           print debug info
   -q, --quiet           ignore animation
-  -s, --status          ignore animation
-  -g, --graph           build dot file (graphviz). It can be used to plot a visual representation of the attack using the tool graphviz. When this option is set, you will
-                        received information how to convert the generate file (.dot) to image (.png).
+  --status              ignore animation
+  -s, --summary         ignore animation
+  -u, --upload          upload to the selected repository
+  --log [LOG]           Log filename. Default =./log.txt"
+  --config [CONFIG]     Configuration File. Default =./log.txt"
+  -g, --graph           build dot file (graphviz). It can be used to plot a visual representation
+                         of the attack using the tool graphviz. When this option is set, youn will
+                         received information how to convert the generate file (.dot) to image (.png).
   -f [FILENAME], --filename [FILENAME]
+
+Example: ./new_dissector.py -f attack.pcap --summary --upload
+
+Input file not provided. Use '-f' for that.
 ````
 
 ## Examples
