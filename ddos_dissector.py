@@ -196,6 +196,7 @@ def upload(pcap, fingerprint, labels, df_fingerprint, config):
 
     if (r.status_code==403 or r.status_code==500):
         print ("Invalid credentials or no permission to upload fingerprints:")
+
     elif (r.status_code==201):
         print ("Upload success: \n\tHTTP CODE [{}] \n\tFingerprint ID [{}]".format(r.status_code,key))
     return r.status_code
@@ -904,11 +905,6 @@ if __name__ == '__main__':
             config = import_logfile(args)
             # upload to the repository
             ret = upload(args.filename, fingerprint, labels, df_fingerprint, config)
-#        if (rate<80):
-#            logger.info("try harder")
-#            fingerprint = inspect_harder(df_filtered,df)
-#            rate = evaluate_fingerprint(df,fingerprint,similarity)
-#            print (rate)
 
     sys.exit(0)
 
