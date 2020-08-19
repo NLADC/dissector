@@ -194,9 +194,10 @@ def upload(pcap, fingerprint, labels, df_fingerprint, config):
         print (e)
         return None
 
-    if (r.status_code==403 or r.status_code==500):
+    if (r.status_code==403):
         print ("Invalid credentials or no permission to upload fingerprints:")
-
+    elif (r.status_code==500):
+        print ("Internal Server Error. Check repository Django logs.")
     elif (r.status_code==201):
         print ("Upload success: \n\tHTTP CODE [{}] \n\tFingerprint ID [{}]".format(r.status_code,key))
     return r.status_code
