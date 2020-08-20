@@ -166,8 +166,10 @@ def upload(pcap, fingerprint, labels, df_fingerprint, config):
     # set field name based on label 
     if ("AMPLIFICATION" in labels):
        fingerprint.update( {"amplifiers": df_fingerprint['ip_src'].unique().tolist()} )
+       fingerprint.update( {"src_ips": df_fingerprint['ip_src'].unique().tolist()} )
     else:
        fingerprint.update( {"attackers": df_fingerprint['ip_src'].unique().tolist()} )
+       fingerprint.update( {"src_ips": df_fingerprint['ip_src'].unique().tolist()} )
 
     # save fingerprint to local file in order to enable the upload via POST
     json_file = "{}.json".format(key)
