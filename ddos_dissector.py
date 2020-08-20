@@ -29,7 +29,7 @@ import json
 from datetime import datetime
 import configparser
 from argparse import RawTextHelpFormatter
-
+import shutil
 from pygments import highlight
 from pygments.lexers import JsonLexer
 from pygments.formatters import TerminalFormatter
@@ -207,7 +207,10 @@ def upload(pcap, fingerprint, labels, df_fingerprint, config):
 #------------------------------------------------------------------------------
 def prepare_tshark_cmd(input_path):
     """Prepare the tshark command that converts a PCAP to a CSV."""
-    cmd = ['/usr/local/bin/tshark', '-r', input_path, '-T', 'fields']
+    tshark =  shutil.which("tshark")
+    if not tshark:
+        logger.critical("Tshark software not found")
+    cmd = [tshark, '-r', input_path, '-T', 'fields']
 
     # fields included in the csv
     fields = [
