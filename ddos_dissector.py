@@ -709,39 +709,34 @@ def check_repository(config):
     row_format ="{:>15}" * (table_column)
     print(row_format.format("Server", "Status"))
     print ("--"*18)
+
     for server in servers:
         try:
-            code = requests.get(server).status_code
+            code = requests.get(server, timeout=2).status_code
         except: 
             code = "OFFLINE"
-        if (code ==200): code = "ONLINE"
+
+        if (code ==200): 
+            code = "ONLINE"
+
+            # check credentials
+            headers = {
+                "X-Username": config['repository']['user'],
+                "X-Password": config['repository']['passwd'],
+            }
+        
+            ddosdb_url = (config['repository']['host'])
+            try:
+                r = requests.post(ddosdb_url+"/my-permissions", headers=headers,verify=True)
+            except requests.exceptions.RequestException as e:  
+                logger.critical("Cannot connect to the server to upload fingerprint")
+                logger.debug("Cannot connect to the server to upload fingerprint: {}".format(e))
+                print (e)
+
+            if (r.status_code==403):
+                 print ("Invalid credentials or no permission to upload fingerprints:")
+ 
         print(row_format.format(server, code))
-
-    headers = {
-        "X-Username": config['repository']['user'],
-        "X-Password": config['repository']['passwd'],
-        "X-Filename": key
-    }
-
-    ddosdb_url = (config['repository']['host'])
-    try:
-        r = requests.post(ddosdb_url+"/my-permissions", headers=headers,verify=True)
-    except requests.exceptions.RequestException as e:  
-        logger.critical("Cannot connect to the server to upload fingerprint")
-        logger.debug("Cannot connect to the server to upload fingerprint: {}".format(e))
-        print (e)
-        return None
-
-    if (r.status_code==403):
-        print ("Invalid credentials or no permission to upload fingerprints:")
-    elif (r.status_code==500):
-        print ("Internal Server Error. Check repository Django logs.")
-    elif (r.status_code==201):
-        print ("Upload success: \n\tHTTP CODE [{}] \n\tFingerprint ID [{}]".format(r.status_code,key))
-    return r.status_code
-
-
-
     sys.exit(0)
 
 #------------------------------------------------------------------------------
