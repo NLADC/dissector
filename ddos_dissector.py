@@ -33,7 +33,7 @@ import shutil
 from pygments import highlight
 from pygments.lexers import JsonLexer
 from pygments.formatters import TerminalFormatter
-
+import subprocess
 ###############################################################################
 ### Program settings
 verbose = False
@@ -227,7 +227,7 @@ def prepare_tshark_cmd(input_path):
         cmd.append(f)
 
     # field options
-    options = ['header=y', 'separator=,', 'quote=d', 'occurrence=f']
+    options = ['header=y', 'separator=,', 'quote=d', 'occurrence=f' ]
     for o in options:
         cmd.append('-E')
         cmd.append(o)
@@ -238,7 +238,7 @@ def pcap_to_df(ret,filename):
     """Convert PCAP file to DataFrame."""
 
     cmd = prepare_tshark_cmd(filename)
-    data = check_output(cmd, stderr=STDOUT)
+    data = check_output(cmd, stderr=subprocess.DEVNULL)
     data = str(data, 'utf-8')
     data = StringIO(data)
 
