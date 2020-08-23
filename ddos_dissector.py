@@ -724,10 +724,10 @@ def check_repository(config):
                 "X-Username": config['repository']['user'],
                 "X-Password": config['repository']['passwd'],
             }
-        
+
             ddosdb_url = (config['repository']['host'])
             try:
-                r = requests.post(ddosdb_url+"/my-permissions", headers=headers,verify=True)
+                r = requests.post(server+"/my-permissions", headers=headers,verify=False)
             except requests.exceptions.RequestException as e:  
                 logger.critical("Cannot connect to the server to upload fingerprint")
                 logger.debug("Cannot connect to the server to upload fingerprint: {}".format(e))
