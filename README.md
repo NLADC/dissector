@@ -11,9 +11,11 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 <img alt="GitHub commits since tagged version" src="https://img.shields.io/github/commits-since/ddos-clearing-house/ddos_dissector/3.0.0">
 
-## Basic Overview
+## Overview
 
-The software is responsible for summarizing the DDoS attack traffic. The key point of this module is to develop a heuristic/algorithm that can find similarities among different types of attacks. Performance and information granularity is a trade-off that should be investigated by considering attacks type. For example, DNS reflection attacks should consider DNS queries fields while TCP SYN flood attack might not require evaluate the TCP packet payload.
+DDos_Dissector is responsible for summarizing DDoS attack traffic from stored traffic (pcap/flows). The key point is to build a heuristic/algorithm that can find similarities in the analyzed network traffic. 
+
+In order to improve software efficiency, we are working on software components that can parse specific DDoS attacks, such as amplification and TCP Syn flood attacks. 
 
 <details>
   <summary>Input [PCAP]</summary>
