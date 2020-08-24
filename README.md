@@ -17,20 +17,29 @@ DDos_Dissector is responsible for summarizing DDoS attack traffic from stored tr
 
 In order to improve software efficiency, we are working on software components that can parse specific DDoS attacks, such as amplification and TCP Syn flood attacks. 
 
-<details>
-  <summary>Input [PCAP]</summary>
-  
-  #### Network file PCAP
-  https://www.simpleweb.org/wiki/index.php/Traces#Datasets_for_Booter_attacks
-  
-</details>
+## How to start?
 
-<details>
-  <summary>Output [Fingerprint]</summary>
-  
-  #### Fingerprint generated
+1. Install the dissector
+
+```bash
+git clone https://github.com/ddos-clearing-house/ddos_dissector
+pip install -r requirements.txt
+```
+
+2. Provide a pcap to be analized
+
+We do provide some pcap samples. Check the directory *pcap_samples*. Note, you can provide any type of cap and the size of pcap will influence the processing time. We encourage the use of a  medium-size file (25Mbytes to 50Mbytes). You can find other pcap samples online, such as in the this <a href="https://www.simpleweb.org/wiki/index.php/Traces#Datasets_for_Booter_attacks">repository</a>.
+
+3. Run the software
+```
+./ddos_dissector.py -f pcap_samples/sample1.pcap --summary
+```
+
+4. Check the generated fingerprint (json file). 
+
      
 ```json
+<snip>
   "ip_proto": [
     17
   ],
@@ -57,8 +66,11 @@ In order to improve software efficiency, we are working on software components t
   ],
   "start_time": "2020-08-08 21:36:23"
 }
+</snip>
 ```
-</details>
+
+   <p align="center"><img width=80% src="https://github.com/joaoceron/new_dissector/blob/master/media/dissector.gif"></p>
+
 
 
 <!-- <p align="center"><img width=95% src="https://github.com/anfederico/Waldo/blob/master/media/Schematic.png"></p> -->
@@ -104,7 +116,6 @@ Input file not provided. Use '-f' for that.
 <details>
   <summary>Generating fingerprints</summary>
  
-   <p align="center"><img width=80% src="https://github.com/joaoceron/new_dissector/blob/master/media/dissector.gif"></p>
 
      
 </details>
