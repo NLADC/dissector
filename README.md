@@ -106,22 +106,18 @@ optional arguments:
                          received information how to convert the generate file (.dot) to image (.png).
   -f [FILENAME], --filename [FILENAME]
 
-Example: ./new_dissector.py -f attack.pcap --summary --upload
+Example: ./ddos_dissector.py -f attack.pcap --summary --upload
 
 Input file not provided. Use '-f' for that.
 ````
 
 ## Examples
 
-<details>
-  <summary>Generating fingerprints</summary>
- 
-
-     
-</details>
-
-
-
+```
+./ddos_dissector.py -f pcap_samples/sample1.pcap --summary [process file and show evaluation function]
+./ddos_dissector.py -f pcap_samples/sample1.pcap --verbose [provide details about the pcap processing]
+./ddos_dissector.py -f pcap_samples/sample1.pcap -g        [generate a .dot file used to represent a graphical visualization]
+```
 <details>
   <summary>Graphical visualization</summary>
   
