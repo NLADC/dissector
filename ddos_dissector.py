@@ -166,10 +166,13 @@ def upload(pcap, fingerprint, labels, df_fingerprint, config):
     # set field name based on label 
     if ("AMPLIFICATION" in labels):
        fingerprint.update( {"amplifiers": df_fingerprint['ip_src'].unique().tolist()} )
-       fingerprint.update( {"src_ips": df_fingerprint['ip_src'].unique().tolist()} )
+       src_ip_dic = dict(zip(df_fingerprint.ip_src, df_fingerprint.ip_src))
+       fingerprint.update( {"src_ips": src_ip_dic} )
+
     else:
        fingerprint.update( {"attackers": df_fingerprint['ip_src'].unique().tolist()} )
-       fingerprint.update( {"src_ips": df_fingerprint['ip_src'].unique().tolist()} )
+       src_ip_dic = dict(zip(df_fingerprint.ip_src, df_fingerprint.ip_src))
+       fingerprint.update( {"src_ips": src_ip_dic} )
 
     # save fingerprint to local file in order to enable the upload via POST
     json_file = "{}.json".format(key)
@@ -705,10 +708,11 @@ def check_repository(config):
     response = requests.get(url)
     servers = response.content.decode("utf-8").split()
 
-    table_column = 2
-    row_format ="{:>15}" * (table_column)
-    print(row_format.format("Server", "Status"))
-    print ("--"*18)
+    login = ""
+    table_column = 3
+    row_format ="{:>22}" * (table_column)
+    print(row_format.format("\nServer", "Status", "Credentials"))
+    print ("--"*25)
 
     for server in servers:
         try:
@@ -726,17 +730,37 @@ def check_repository(config):
             }
 
             ddosdb_url = (config['repository']['host'])
+            server_config = re.search('https?://(.*)/?', server).group(1)
+
+            # check if the configuration file has credentials for the online server
+            if (server_config in config.sections()):
+                 if (config[server_config]):
+                    headers = {
+                        "X-Username": config[server_config]['user'],
+                        "X-Password": config[server_config]['passwd'],
+                    }
+
+            else:
+                logger.info("Credentials from {} is not available in the configuration file [ddosdb.conf]")
+                login = "NOT_OK"
+
             try:
-                r = requests.post(server+"/my-permissions", headers=headers,verify=False)
+                r = requests.get(server+"/my-permissions", headers=headers,verify=False)
+
             except requests.exceptions.RequestException as e:  
-                logger.critical("Cannot connect to the server to upload fingerprint")
-                logger.debug("Cannot connect to the server to upload fingerprint: {}".format(e))
+                logger.critical("Cannot connect to the server to check credentials")
+                logger.debug("{}".format(e))
                 print (e)
 
             if (r.status_code==403):
                  print ("Invalid credentials or no permission to upload fingerprints:")
+                 login = "NOT_OK"
+
+            elif (r.status_code==200):
+                 login = "SUCCESS"
  
-        print(row_format.format(server, code))
+        row_format ="{:>15}" * (table_column)
+        print(row_format.format(server, code, login))
     sys.exit(0)
 
 #------------------------------------------------------------------------------
