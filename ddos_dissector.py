@@ -59,7 +59,7 @@ def parser_args ():
     parser.add_argument("-s","--summary", help="present fingerprint evaluation summary", action="store_true")
     parser.add_argument("-u","--upload", help="upload to the selected repository", action="store_true")
     parser.add_argument("--log", default='log.txt', nargs='?',help="Log filename. Default =./log.txt\"")
-    parser.add_argument("--config", default='ddosdb.conf', nargs='?',help="Configuration File. Default =./log.txt\"")
+    parser.add_argument("--config", default='ddosdb.conf', nargs='?',help="Configuration File. Default =./ddosdb.conf\"")
     parser.add_argument("-g","--graph", help="build dot file (graphviz). It can be used to plot a visual representation\n of the attack using the tool graphviz. When this option is set, youn will\n received information how to convert the generate file (.dot) to image (.png).", action="store_true")
 
     parser.add_argument('-f','--filename', nargs='?', required=False, help="")
@@ -116,7 +116,7 @@ def logger(args):
     console_handler = logging.StreamHandler()
     file_handler = logging.FileHandler(args.log)
     #console_handler.setLevel(logging.DEBUG)
-    #file_handler.setLevel(logging.INFO)
+    file_handler.setLevel(logging.INFO)
 
     # add custom formater
     my_formatter = CustomConsoleFormatter()
