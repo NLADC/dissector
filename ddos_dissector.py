@@ -204,19 +204,7 @@ def upload(pcap, fingerprint, labels, df_fingerprint, config):
         else:
             logger.critical("Could not find repository configuration for {}. Check configuration file [dddosdb.conf].".format(args.host))
 
-#            ddosdb_url = (config['repository']['host'])
-#            server_config = re.search('https?://(.*)/?', server).group(1)
-#
-#            # check if the configuration file has credentials for the online server
-#            if (server_config in config.sections()):
-#                 if (config[server_config]):
-#                    headers = {
-#                        "X-Username": config[server_config]['user'],
-#                        "X-Password": config[server_config]['passwd'],
-#                    }
-#
-
-
+    # build headers for repo fingerprint submission
     headers = {
         "X-Username": user,
         "X-Password": passw,
