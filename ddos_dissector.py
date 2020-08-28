@@ -48,7 +48,7 @@ NONE = -1
 ###############################################################################
 ### Subrotines
 #------------------------------------------------------------------------------
-def parser_args ():
+def parser_args():
 
     parser = argparse.ArgumentParser(prog=program_name, usage='%(prog)s [options]', epilog="Example: ./%(prog)s -f attack.pcap --summary --upload ", formatter_class=RawTextHelpFormatter)
     parser.add_argument("--version", help="print version and exit", action="store_true")
@@ -60,6 +60,7 @@ def parser_args ():
     parser.add_argument("-u","--upload", help="upload to the selected repository", action="store_true")
     parser.add_argument("--log", default='log.txt', nargs='?',help="Log filename. Default =./log.txt\"")
     parser.add_argument("--config", default='ddosdb.conf', nargs='?',help="Configuration File. Default =./ddosdb.conf\"")
+    parser.add_argument("--host", nargs='?',help="Upload host. ")
     parser.add_argument("-g","--graph", help="build dot file (graphviz). It can be used to plot a visual representation\n of the attack using the tool graphviz. When this option is set, youn will\n received information how to convert the generate file (.dot) to image (.png).", action="store_true")
 
     parser.add_argument('-f','--filename', nargs='?', required=False, help="")
@@ -180,15 +181,50 @@ def upload(pcap, fingerprint, labels, df_fingerprint, config):
         # ignoring pcap file upload for now
         "pcap": open(json_file, "rb"),
     }
+
+
+    # FIND repository to upload
+    if not (args.host):
+        logger.info("Upload host not defined. Pick the first one on the configuration file.")
+        config_host =  config.sections()[0]
+        if not (config_host):
+            logger.critical("Could not find repository configuration. Check configuration file [dddosdb.conf].")
+        else: 
+            logger.info("Assumming configuration section [{}].".format(config_host))
+            user  = config[config_host]['user']
+            passw = config[config_host]['passwd']
+            host  = config[config_host]['host']
+    else:
+        # host defined as cmd line parameter
+        if args.host in config.sections():
+            logger.info("Using configuration section [{}].".format(args.host))
+            user = config[args.host]['user']
+            passw = config[args.host]['passwd']
+            host = config[args.host]['host']
+        else:
+            logger.critical("Could not find repository configuration for {}. Check configuration file [dddosdb.conf].".format(args.host))
+
+#            ddosdb_url = (config['repository']['host'])
+#            server_config = re.search('https?://(.*)/?', server).group(1)
+#
+#            # check if the configuration file has credentials for the online server
+#            if (server_config in config.sections()):
+#                 if (config[server_config]):
+#                    headers = {
+#                        "X-Username": config[server_config]['user'],
+#                        "X-Password": config[server_config]['passwd'],
+#                    }
+#
+
+
     headers = {
-        "X-Username": config['repository']['user'],
-        "X-Password": config['repository']['passwd'],
+        "X-Username": user,
+        "X-Password": passw,
         "X-Filename": key
     }
 
-    ddosdb_url = (config['repository']['host'])
     try:
-        r = requests.post(ddosdb_url+"upload-file", files=files, headers=headers,verify=True)
+        r = requests.post(host+"upload-file", files=files, headers=headers,verify=True)
     except requests.exceptions.RequestException as e:  
         logger.critical("Cannot connect to the server to upload fingerprint")
         logger.debug("Cannot connect to the server to upload fingerprint: {}".format(e))
