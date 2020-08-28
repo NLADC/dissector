@@ -166,11 +166,11 @@ def upload(pcap, fingerprint, labels, df_fingerprint, config):
     # set field name based on label 
     if ("AMPLIFICATION" in labels):
        fingerprint.update( {"amplifiers": df_fingerprint['ip_src'].unique().tolist()} )
-       fingerprint.update( {"amplifiers_size": len(df_fingerprint['ip_src'].unique().tolist()).astype(int)})
+       fingerprint.update( {"amplifiers_size": len(df_fingerprint['ip_src'].unique().tolist())})
 
     else:
        fingerprint.update( {"attackers": df_fingerprint['ip_src'].unique().tolist()} )
-       fingerprint.update( {"amplifiers_size": len(df_fingerprint['ip_src'].unique().tolist()).astype(int)})
+       fingerprint.update( {"amplifiers_size": len(df_fingerprint['ip_src'].unique().tolist())})
        #src_ip_dic = dict(zip(df_fingerprint.ip_src, df_fingerprint.ip_src))
        #fingerprint.update( {"src_ips": src_ip_dic} )
 
