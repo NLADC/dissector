@@ -824,24 +824,32 @@ def bar(row):
 #------------------------------------------------------------------------------
 def add_label(fingerprint):
     label = []
+
+    amplification_ports = [ 1194, 1434, 1900, 3074, 3283, 3702, 5683, 11211, 17185, 20800, 27015, 30718, 33848, 37810, 47808, 53, 25, 123 ]
+
+    try:
+
+        for port in  amplification_ports:
+            if (fingerprint['srcport'] == [port]):
+                label.append("AMPLIFICATION")
+    except:
+       pass
+
     try:
         if (fingerprint['srcport'] == [53]) and ('dns_qry_name' in fingerprint) :
             label.append("DNS")
-            label.append("AMPLIFICATION")
     except:
        pass
 
     try:
         if (fingerprint['srcport'] == [25]):
             label.append("SMTP")
-            label.append("AMPLIFICATION")
     except:
        pass
 
     try:
         if (fingerprint['srcport'] == [123]):
             label.append("NTP")
-            label.append("AMPLIFICATION")
     except:
        pass
     return (label)
@@ -871,7 +879,6 @@ def import_logfile(args):
         else: 
             print ("Configuration file provided [{}] not found ".format(args.config))
             return None
-
 
 ###############################################################################
 ### Main Process
@@ -941,6 +948,8 @@ if __name__ == '__main__':
 
         # protocol used to find the fingerprint
         attack_protocol = df_filtered['highest_protocol'].iloc[0]
+
+        #check_amplification_protocols(df_filtered)
 
         if (attack_protocol == "DNS"):
             logger.info("ATTACK TYPE: DNS")
