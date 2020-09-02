@@ -239,7 +239,7 @@ def prepare_tshark_cmd(input_path):
     fields = [
                 'dns.qry.type', 'ip.dst','ip.flags.mf', 'tcp.flags', 'ip.proto',
                 'ip.src', '_ws.col.Destination', '_ws.col.Protocol', '_ws.col.Source',
-                'dns.qry.name', 'eth.type', 'frame.len',  '_ws.col.Info',
+                'dns.qry.name', 'eth.type', 'frame.len',  '_ws.col.Info', 'udp.length',
                 'http.request', 'http.response', 'http.user_agent', 'icmp.type',
                 'ip.frag_offset', 'ip.ttl', 'ntp.priv.reqcode', 'tcp.dstport',
                 'tcp.srcport', 'udp.dstport', 'udp.srcport', 'frame.time_epoch',
@@ -287,6 +287,7 @@ def pcap_to_df(ret,filename):
 
     df['ip.ttl'] = df['ip.ttl'].fillna(NONE).astype(float).astype(int)
     df['ip.proto'] = df['ip.proto'].fillna(NONE).astype(float).astype(int)
+    df['udp.length'] = df['udp.length'].fillna(NONE).astype(float).astype(int)
     df['ntp.priv.reqcode'] = df['ntp.priv.reqcode'].fillna(NONE).astype(float).astype(int)
 
     # timestamp 
@@ -805,7 +806,7 @@ def inspect_generic(df):
     return (fingerprint)
 
 #------------------------------------------------------------------------------
-# plot the graph
+# plot ascii stats bar
 def bar(row):
     percent = int(row['percent'])
     bar_chunks, remainder = divmod(int(percent * 8 / increment), 8)
@@ -822,18 +823,39 @@ def bar(row):
     return ()
 
 #------------------------------------------------------------------------------
-def add_label(fingerprint):
+def add_label(fingerprint,df):
     label = []
 
-    amplification_ports = [ 1194, 1434, 1900, 3074, 3283, 3702, 5683, 11211, 17185, 20800, 27015, 30718, 33848, 37810, 47808, 53, 25, 123 ]
 
-    try:
+    # Based on FBI Flash Report MU-000132-DD
+    df_length = (df.groupby(['srcport'])['udp_length'].max()).reset_index()
+    if (len(df_length.udp_length>468)):
+        label.append("UDP_SUSPECT_LENGTH")
 
-        for port in  amplification_ports:
-            if (fingerprint['srcport'] == [port]):
-                label.append("AMPLIFICATION")
-    except:
-       pass
+    my_dict = {
+        1121: 'Memcached',
+        1194: 'OpenVPN', 
+        123:  'NTP',
+        1434: 'SQL server',
+        1718: 'H323',
+        1900: 'SSDP', 
+        20800: 'Game Server',
+        25:   'SMTP',
+        27015: 'Game Server',
+        30718: 'IoT Lantronix',
+        3074: 'Game Server',
+        3283: 'Apple Remote Desktop',
+        33848: 'Jenkins Server',
+        3702: 'WSD - Web Services Discovery', 
+        37810: 'DVR DHCPDiscover',
+        47808: 'BACnet', 
+        5683: 'CoAP',
+    }
+
+    for port in my_dict:
+        if (fingerprint['srcport'] == [port]):
+            label.append("AMPLIFICATION")
+            label.append(my_dict[port])
 
     try:
         if (fingerprint['srcport'] == [53]) and ('dns_qry_name' in fingerprint) :
@@ -841,17 +863,6 @@ def add_label(fingerprint):
     except:
        pass
 
-    try:
-        if (fingerprint['srcport'] == [25]):
-            label.append("SMTP")
-    except:
-       pass
-
-    try:
-        if (fingerprint['srcport'] == [123]):
-            label.append("NTP")
-    except:
-       pass
     return (label)
 
 #------------------------------------------------------------------------------
@@ -949,7 +960,6 @@ if __name__ == '__main__':
         # protocol used to find the fingerprint
         attack_protocol = df_filtered['highest_protocol'].iloc[0]
 
-        #check_amplification_protocols(df_filtered)
 
         if (attack_protocol == "DNS"):
             logger.info("ATTACK TYPE: DNS")
@@ -970,7 +980,7 @@ if __name__ == '__main__':
         df_fingerprint = filter_fingerprint(df,fingerprint,similarity)
 
         # infer tags based on the generated fingerprint
-        labels = add_label(fingerprint)
+        labels = add_label(fingerprint,df_fingerprint)
         fingerprint.update( {"tags": labels} )
 
         print ("Generated fingerprint: ")
