@@ -50,7 +50,7 @@ NONE = -1
 #------------------------------------------------------------------------------
 def parser_args():
 
-    parser = argparse.ArgumentParser(prog=program_name, usage='%(prog)s [options]', epilog="Example: ./%(prog)s -f attack.pcap --summary --upload ", formatter_class=RawTextHelpFormatter)
+    parser = argparse.ArgumentParser(prog=program_name, usage='%(prog)s [options]', epilog="Example: ./%(prog)s -f ./pcap_samples/sample1.pcap --summary --upload ", formatter_class=RawTextHelpFormatter)
     parser.add_argument("--version", help="print version and exit", action="store_true")
     parser.add_argument("-v","--verbose", help="print info msg", action="store_true")
     parser.add_argument("-d","--debug", help="print debug info", action="store_true")
@@ -61,6 +61,8 @@ def parser_args():
     parser.add_argument("--log", default='log.txt', nargs='?',help="Log filename. Default =./log.txt\"")
     parser.add_argument("--config", default='ddosdb.conf', nargs='?',help="Configuration File. Default =./ddosdb.conf\"")
     parser.add_argument("--host", nargs='?',help="Upload host. ")
+    parser.add_argument("--user", nargs='?',help="repository user. ")
+    parser.add_argument("--passwd", nargs='?',help="repository password. ")
     parser.add_argument("-g","--graph", help="build dot file (graphviz). It can be used to plot a visual representation\n of the attack using the tool graphviz. When this option is set, youn will\n received information how to convert the generate file (.dot) to image (.png).", action="store_true")
 
     parser.add_argument('-f','--filename', nargs='?', required=False, help="")
@@ -104,7 +106,11 @@ class CustomConsoleFormatter(logging.Formatter):
 
 #------------------------------------------------------------------------------
 def logger(args):
-
+    """
+    Instanciate logging facility. By default, info logs are also
+    stored in the logfile.
+    param: cmd line args
+    """
     logger = logging.getLogger(__name__)
 
     # root logging
@@ -133,7 +139,7 @@ def logger(args):
     return logger
 
 #------------------------------------------------------------------------------
-def upload(pcap, fingerprint, labels, df_fingerprint, config):
+def upload(pcap, fingerprint, labels, df_fingerprint, user,passw,host):
     """
     Upload a fingerprint and attack vector to DDoSDB
     :param pcap: Path to the pcap file
@@ -143,8 +149,6 @@ def upload(pcap, fingerprint, labels, df_fingerprint, config):
     :param key: ID to identify this attack, also the filename of the pcap_file.
     :return:
     """
-    #timestamp = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-
     # timestamp fields
     initial_timestamp  = df_fingerprint['frame_time_epoch'].min()
     initial_timestamp = datetime.utcfromtimestamp(initial_timestamp).strftime('%Y-%m-%d %H:%M:%S')
@@ -182,28 +186,6 @@ def upload(pcap, fingerprint, labels, df_fingerprint, config):
         "pcap": open(json_file, "rb"),
     }
 
-
-    # FIND repository to upload
-    if not (args.host):
-        logger.info("Upload host not defined. Pick the first one on the configuration file.")
-        config_host =  config.sections()[0]
-        if not (config_host):
-            logger.critical("Could not find repository configuration. Check configuration file [dddosdb.conf].")
-        else: 
-            logger.info("Assumming configuration section [{}].".format(config_host))
-            user  = config[config_host]['user']
-            passw = config[config_host]['passwd']
-            host  = config[config_host]['host']
-    else:
-        # host defined as cmd line parameter
-        if args.host in config.sections():
-            logger.info("Using configuration section [{}].".format(args.host))
-            user = config[args.host]['user']
-            passw = config[args.host]['passwd']
-            host = config[args.host]['host']
-        else:
-            logger.critical("Could not find repository configuration for {}. Check configuration file [dddosdb.conf].".format(args.host))
-
     # build headers for repo fingerprint submission
     headers = {
         "X-Username": user,
@@ -226,6 +208,43 @@ def upload(pcap, fingerprint, labels, df_fingerprint, config):
     elif (r.status_code==201):
         print ("Upload success: \n\tHTTP CODE [{}] \n\tFingerprint ID [{}]".format(r.status_code,key))
     return r.status_code
+
+#------------------------------------------------------------------------------
+def get_repository(args,config):
+   
+    user,passw,host = (None,)*3
+
+    # look for the repository to upload
+    if not (args.host):
+        logger.info("Upload host not defined. Pick the first one in the configuration file.")
+        config_host =  config.sections()[0]
+        if not (config_host):
+            logger.critical("Could not find repository configuration. Check configuration file [dddosdb.conf].")
+        else: 
+            logger.info("Assumming configuration section [{}].".format(config_host))
+            user  = config[config_host]['user']
+            passw = config[config_host]['passwd']
+            host  = config[config_host]['host']
+
+    elif args.host:
+        host = args.host
+        if (args.user and args.passwd):
+            user = args.user
+            passw = args.passwd
+        # user/pass not defined by cmd line
+        else:
+            # try to find in the configuration file
+            if args.host in config.sections():
+                logger.info("Host found in the configuration file")
+                user = config[args.host]['user']
+                passw = config[args.host]['passwd']
+            else:    
+                logger.critical("Credentials not found for [{}].".format(args.host))
+    else:
+        logger.critical("Cannot find repository {} credentials. You should define in the cmd line or configuration file [dddosdb.conf].".format(args.host))
+        return None
+
+    return (user,passw,host)
 
 #------------------------------------------------------------------------------
 def prepare_tshark_cmd(input_path):
@@ -826,7 +845,6 @@ def bar(row):
 def add_label(fingerprint,df):
     label = []
 
-
     # Based on FBI Flash Report MU-000132-DD
     df_length = (df.groupby(['srcport'])['udp_length'].max()).reset_index()
     if (len(df_length.udp_length>468)):
@@ -856,7 +874,6 @@ def add_label(fingerprint,df):
         if (fingerprint['srcport'] == [port]):
             label.append("AMPLIFICATION")
             label.append(my_dict[port])
-
     try:
         if (fingerprint['srcport'] == [53]) and ('dns_qry_name' in fingerprint) :
             label.append("DNS")
@@ -900,15 +917,16 @@ if __name__ == '__main__':
     parser = parser_args()
     args = parser.parse_args()
     logger = logger(args)
+    config = import_logfile(args)
 
     if (args.version):
         print ("version: {}".format(version))
         sys.exit(0)
 
     if (args.status):
-        config = import_logfile(args)
         check_repository(config)
 
+    
     if (not args.filename):
         parser.print_help()
         sys.exit(IOError("\nInput file not provided. Use '-f' for that."))
@@ -992,9 +1010,9 @@ if __name__ == '__main__':
             accuracy_ratio = evaluate_fingerprint(df,df_fingerprint,fingerprint)
 
         if (args.upload):
-            config = import_logfile(args)
+            (user,passw,host) = get_repository(args,config)
             # upload to the repository
-            ret = upload(args.filename, fingerprint, labels, df_fingerprint, config)
+            ret = upload(args.filename, fingerprint, labels, df_fingerprint, user,passw,host)
 
     sys.exit(0)
 
