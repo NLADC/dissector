@@ -211,7 +211,11 @@ def upload(pcap, fingerprint, labels, df_fingerprint, user,passw,host):
 
 #------------------------------------------------------------------------------
 def get_repository(args,config):
-   
+    """
+    Check credentials and repository based on configuration file or cmd line args
+    param args cmd args
+    param config configuration file
+    """
     user,passw,host = (None,)*3
 
     # look for the repository to upload
@@ -743,6 +747,7 @@ def evaluate_fingerprint(df,df_fingerprint,fingerprint):
 
 #------------------------------------------------------------------------------
 def check_repository(config):
+
     logger.info("Checking repository")
     url = "https://raw.githubusercontent.com/ddos-clearing-house/ddos_dissector/2.0/repository.txt"
     response = requests.get(url)
@@ -925,7 +930,6 @@ if __name__ == '__main__':
 
     if (args.status):
         check_repository(config)
-
     
     if (not args.filename):
         parser.print_help()
