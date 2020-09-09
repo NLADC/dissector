@@ -1,4 +1,4 @@
-<p align="center"><img width=30.5% src="https://github.com/joaoceron/new_dissector/blob/master/media/header.png"></p>
+<p align="center"><img width=30.5% src="https://github.com/ddos-clearing-house/ddos_dissector/blob/3.0/media/header.png?raw=true"></p>
 
 
 
