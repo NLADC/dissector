@@ -207,6 +207,7 @@ def upload(pcap, fingerprint, labels, df_fingerprint, user,passw,host):
         print ("Internal Server Error. Check repository Django logs.")
     elif (r.status_code==201):
         print ("Upload success: \n\tHTTP CODE [{}] \n\tFingerprint ID [{}]".format(r.status_code,key))
+        print ("\tURL: {}query?q={}".format(host,key))
     return r.status_code
 
 #------------------------------------------------------------------------------
