@@ -389,7 +389,10 @@ def infer_target_ip (df):
     """
     outlier = find_outlier(df['ip_dst'])
 
-    if (len(outlier) ==0):
+    if not outlier:
+        logger.info("We cannot find the DDoS target IP address. Not enought info to find the outlier.") 
+
+    elif (len(outlier)==0):
         return (list(df['ip_dst'].value_counts().keys()[0]))
     else:
         return (outlier)
@@ -417,7 +420,8 @@ def find_outlier(df):
     if (data.empty):
         return None
     data = data[(data['percent']> SIMILARITY_THRESHOLD) | (data['zscore']>2)]
-    if (len(data)==0):
+
+    if (data.size==0):
         return None
 
     logger.debug("Finding outlier for .:{}:.\n {}" .format(data.columns[0], data.head(5).to_string(index=False) ))
@@ -944,6 +948,10 @@ if __name__ == '__main__':
 
     # usually is only one target, but on anycast/load balanced networksit  might have more
     target_ip_list = infer_target_ip(df)
+    if not target_ip_list:
+        print ("Target IP could not be infered.") 
+        sys.exit(0)
+
     logger.info("Attack target(s): {}".format(target_ip_list))
 
     # for each target IP
