@@ -9,7 +9,7 @@
 [![GitHub Issues](https://img.shields.io/github/issues/ddos-clearing-house/ddos_dissector)](https://github.com/ddos-clearing-house/ddos_dissector/issues)
 ![Contributions welcome](https://img.shields.io/badge/contributions-welcome-orange.svg)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-<img alt="GitHub commits since tagged version" src="https://img.shields.io/github/commit-activity/m/ddos-clearing-house/dddosdb-in-a-box">
+<img alt="GitHub commits since tagged version" src="https://img.shields.io/github/commit-activity/m/ddos_dissector/dddosdb-in-a-box">
 
 
 ## Overview
