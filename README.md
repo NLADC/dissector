@@ -126,15 +126,12 @@ Input file not provided. Use '-f' for that.
 ./ddos_dissector.py -f pcap_samples/sample1.pcap --verbose [provide details about the pcap processing]
 ./ddos_dissector.py -f pcap_samples/sample1.pcap -g        [generate a .dot file used to represent a graphical visualization]
 ```
-<details>
-  <summary>Graphical visualization</summary>
-  
+
+<p align="center"><img width=80% border=2 src="https://github.com/ddos-clearing-house/ddos_dissector/blob/3.0/media/dot2.gif?raw=true"></p>
+
 - Green: benign traffic
 - Red:  malicious traffic 
  
-<p align="center"><img width=50% src="https://github.com/joaoceron/new_dissector/blob/master/media/booter6-chargen.jpg"></p>
-
-</details>
 
 
 
