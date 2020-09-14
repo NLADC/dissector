@@ -127,7 +127,7 @@ Input file not provided. Use '-f' for that.
 ./ddos_dissector.py -f pcap_samples/sample1.pcap -g        [generate a .dot file used to represent a graphical visualization]
 ```
 
-<p align="center"><img width=80% border=1 src="https://github.com/ddos-clearing-house/ddos_dissector/blob/3.0/media/dot.gif?raw=true"></p>
+<p align="center"><img width=80% border=2 src="https://github.com/ddos-clearing-house/ddos_dissector/blob/3.0/media/dot2.gif?raw=true"></p>
 
 - Green: benign traffic
 - Red:  malicious traffic 
