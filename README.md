@@ -129,15 +129,9 @@ Input file not provided. Use '-f' for that.
 
 <p align="center"><img width=80% border=1 src="https://github.com/ddos-clearing-house/ddos_dissector/blob/3.0/media/dot.gif?raw=true"></p>
 
-<details>
-  <summary>Graphical visualization</summary>
-  
 - Green: benign traffic
 - Red:  malicious traffic 
  
-<p align="center"><img width=50% src="https://github.com/ddos-clearing-house/ddos_dissector/blob/3.0/media/dot.gifg"></p>
-
-</details>
 
 
 
