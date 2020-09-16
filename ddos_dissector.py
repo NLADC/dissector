@@ -874,39 +874,42 @@ def add_label(fingerprint,df):
        Add labels to fingerprint generated
     """
     label = []
-
+    
     # Based on FBI Flash Report MU-000132-DD
     df_length = (df.groupby(['srcport'])['udp_length'].max()).reset_index()
     if (len(df_length.udp_length>468)):
         label.append("UDP_SUSPECT_LENGTH")
 
     my_dict = {
-        1121: 'Memcached',
-        1194: 'OpenVPN', 
-        123:  'NTP',
-        1434: 'SQL server',
-        1718: 'H323',
-        1900: 'SSDP', 
+        25:    'SMTP',
+        123:   'NTP',
+        1121:  'Memcached',
+        1194:  'OpenVPN', 
+        1434:  'SQL server',
+        1718:  'H323',
+        1900:  'SSDP', 
+        3074:  'Game Server',
+        3283:  'Apple Remote Desktop',
+        3702:  'WSD - Web Services Discovery', 
+        5683:  'CoAP',
         20800: 'Game Server',
-        25:   'SMTP',
         27015: 'Game Server',
         30718: 'IoT Lantronix',
-        3074: 'Game Server',
-        3283: 'Apple Remote Desktop',
         33848: 'Jenkins Server',
-        3702: 'WSD - Web Services Discovery', 
         37810: 'DVR DHCPDiscover',
         47808: 'BACnet', 
-        5683: 'CoAP',
     }
 
+    print (fingerprint)
     for port in my_dict:
-        if (fingerprint['srcport'] == [port]):
-            label.append("AMPLIFICATION")
-            label.append(my_dict[port])
+        if ("srcport" in fingerprint):
+            if (fingerprint['srcport'] == [port]):
+                label.append("AMPLIFICATION")
+                label.append(my_dict[port])
     try:
-        if (fingerprint['srcport'] == [53]) and ('dns_qry_name' in fingerprint) :
-            label.append("DNS")
+        if ("srcport" in fingerprint):
+            if (fingerprint['srcport'] == [53]) and ('dns_qry_name' in fingerprint) :
+                label.append("DNS")
     except:
        pass
 
