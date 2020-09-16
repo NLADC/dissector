@@ -900,7 +900,6 @@ def add_label(fingerprint,df):
         47808: 'BACnet', 
     }
 
-    print (fingerprint)
     for port in my_dict:
         if ("srcport" in fingerprint):
             if (fingerprint['srcport'] == [port]):
