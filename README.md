@@ -32,6 +32,12 @@ git clone https://github.com/ddos-clearing-house/ddos_dissector
 pip install -r requirements.txt
 ```
 
+1a. Install wireshark
+Make sure you have installed [wireshark](https://www.wireshark.org/download.html) and its tools. Most importantly, you need to be able to execute
+```bash
+$ tshark -h
+``` 
+
 2. Provide a pcap to be analized
 
 We do provide some pcap samples. Check the directory *pcap_samples*. Note, you can provide any type of cap and the size of pcap will influence the processing time. We encourage the use of a  medium-size file (25Mbytes to 50Mbytes). You can find other pcap samples online, such as in the this <a href="https://www.simpleweb.org/wiki/index.php/Traces#Datasets_for_Booter_attacks">repository</a>.
