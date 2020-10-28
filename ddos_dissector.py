@@ -351,8 +351,12 @@ def pcap_to_df(ret,filename):
     # rename protocol field
     df = df.rename({'_ws.col.Protocol': 'highest_protocol'},axis=1)
 
-    df['ip.ttl'] = df['ip.ttl'].fillna(NONE).astype(float).astype(int)
+    # protocol number to name
+    protocol_names = {num:name[8:] for name,num in vars(socket).items() if name.startswith("IPPROTO")}
     df['ip.proto'] = df['ip.proto'].fillna(NONE).astype(float).astype(int)
+    df['ip.proto'] = df['ip.proto'].apply(lambda x: protocol_names[x])
+
+    df['ip.ttl'] = df['ip.ttl'].fillna(NONE).astype(float).astype(int)
     df['udp.length'] = df['udp.length'].fillna(NONE).astype(float).astype(int)
     df['ntp.priv.reqcode'] = df['ntp.priv.reqcode'].fillna(NONE).astype(float).astype(int)
 
