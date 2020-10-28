@@ -292,7 +292,7 @@ def prepare_tshark_cmd(input_path):
     return cmd
 
 #------------------------------------------------------------------------------
-def flow_to_df(filename):
+def flow_to_df(ret,filename):
     """Convert flow file to DataFrame."""
 
     nfdump =  shutil.which("nfdump")
@@ -318,7 +318,8 @@ def flow_to_df(filename):
     df.srcport = df.srcport.astype(float).astype(int)
     protocol_names = {num:name[8:] for name,num in vars(socket).items() if name.startswith("IPPROTO")}
     df['highest_protocol'] = df['proto'].apply(lambda x: protocol_names[x])
-    return df
+    ret.put(df)
+    #return df
 
 
 #------------------------------------------------------------------------------
@@ -611,23 +612,25 @@ def load_file(args):
     """
     file_type = determine_file_type(args.filename)
 
+    n_type = ""
     if re.search(r'nfdump', file_type):
-        logger.info("nfdump ")
-        df = flow_to_df(args.filename)
+        load_function = flow_to_df
+        n_type = "flow"
 
     elif re.search(r'pcap', file_type):
-        print ("pcap")
+        load_function = pcap_to_df
+        n_type = "pcap"
 
-        # load dataframe using threading
-        ret = queue.Queue()
-        the_process = threading.Thread(name='process', target=pcap_to_df, args=(ret,args.filename))
-        the_process.start()
-        msg = "Loading network file: `{}' ".format(args.filename)
-        while the_process.is_alive():
-            animated_loading(msg) if not (args.quiet) else 0
-        the_process.join()
-        df = ret.get()
-        sys.stdout.write('\r'+msg+'.... done!\n')
+    # load dataframe using threading
+    ret = queue.Queue()
+    the_process = threading.Thread(name='process', target=load_function, args=(ret,args.filename))
+    the_process.start()
+    msg = "Loading network file [{}]: `{}' ".format(n_type,args.filename)
+    while the_process.is_alive():
+        animated_loading(msg) if not (args.quiet) else 0
+    the_process.join()
+    df = ret.get()
+    sys.stdout.write('\r'+msg+'.... done!\n')
     return (df)
 
 #------------------------------------------------------------------------------
