@@ -35,7 +35,6 @@ from pygments.lexers import JsonLexer
 from pygments.formatters import TerminalFormatter
 import subprocess
 import filetype
-import magic
 ###############################################################################
 ### Program settings
 verbose = False
@@ -292,6 +291,38 @@ def prepare_tshark_cmd(input_path):
     return cmd
 
 #------------------------------------------------------------------------------
+def flow_to_df(filename):
+    """Convert flow file to DataFrame."""
+
+    nfdump =  shutil.which("nfdump")
+    if not nfdump:
+        logger.critical("NFDUMP software not found")
+    cmd = [nfdump, '-r', args.filename, '-o', 'extended', '-o', 'json' ]
+
+    data = check_output(cmd, stderr=subprocess.DEVNULL)
+    data = str(data, 'utf-8')
+    data = StringIO(data)
+
+    #df = pd.read_csv(data,low_memory=False,error_bad_lines=False)
+    df = pd.read_json(data).fillna(-1)
+    df = df[['t_first', 't_last', 'proto', 'src4_addr', 'dst4_addr',
+    'src_port', 'dst_port', 'fwd_status', 'tcp_flags', 'src_tos',
+    'in_packets', 'in_bytes', 'icmp_type', 'icmp_code']]
+    df = df.rename(columns={'dst4_addr': 'ip_dst',
+                             'src4_addr': 'ip_src',
+                             'src_port': 'srcport',
+                             'dst_port': 'dstport'
+                            })
+    df.dstport = df.dstport.astype(float).astype(int)
+    df.srcport = df.srcport.astype(float).astype(int)
+    print (df.head().to_csv())
+    import socket
+    table = {num:name[8:] for name,num in vars(socket).items() if name.startswith("IPPROTO")}
+    df['highest_protocol'] = df['proto'].apply(lambda x: table[x])
+    return df
+
+
+#------------------------------------------------------------------------------
 def pcap_to_df(ret,filename):
     """Convert PCAP file to DataFrame."""
 
@@ -355,7 +386,7 @@ def pcap_to_df(ret,filename):
 
     df.columns = [c.replace('.', '_') for c in df.columns]    
     ret.put(df)
-#    return df
+    #return df
 
 #------------------------------------------------------------------------------
 ## Function for calculating the TOP 'N' and aggregate the 'others'
@@ -532,6 +563,26 @@ def ip_src_fragmentation_attack_similarity(df,lst_attack_protocols,frag):
     return False
 
 #------------------------------------------------------------------------------
+def which(program):
+    """
+        check for refered binary
+    """
+    def is_exe(fpath):
+        return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
+
+    fpath, fname = os.path.split(program)
+    if fpath:
+        if is_exe(program):
+            return program
+    else:
+        for path in os.environ["PATH"].split(os.pathsep):
+            exe_file = os.path.join(path, program)
+            if is_exe(exe_file):
+                return exe_file
+
+    return None
+
+#------------------------------------------------------------------------------
 def determine_file_type(input_file):
     """
     Determine what sort of file the input is.
@@ -559,19 +610,25 @@ def load_file(args):
     """
         Load file and return a dataframe
     """
-
     file_type = determine_file_type(args.filename)
 
-    # load dataframe using threading
-    ret = queue.Queue()
-    the_process = threading.Thread(name='process', target=pcap_to_df, args=(ret,args.filename))
-    the_process.start()
-    msg = "Loading network file: `{}' ".format(args.filename)
-    while the_process.is_alive():
-        animated_loading(msg) if not (args.quiet) else 0
-    the_process.join()
-    df = ret.get()
-    sys.stdout.write('\r'+msg+'.... done!\n')
+    if re.search(r'nfdump', file_type):
+        logger.info("nfdump ")
+        df = flow_to_df(args.filename)
+
+    elif re.search(r'pcap', file_type):
+        print ("pcap")
+
+        # load dataframe using threading
+        ret = queue.Queue()
+        the_process = threading.Thread(name='process', target=pcap_to_df, args=(ret,args.filename))
+        the_process.start()
+        msg = "Loading network file: `{}' ".format(args.filename)
+        while the_process.is_alive():
+            animated_loading(msg) if not (args.quiet) else 0
+        the_process.join()
+        df = ret.get()
+        sys.stdout.write('\r'+msg+'.... done!\n')
     return (df)
 
 #------------------------------------------------------------------------------
@@ -614,7 +671,6 @@ def inspect_ntp(df):
         if (outlier):
             if (outlier != [NONE]):
                 fingerprint.update( {field : outlier} )
-
 
     return (fingerprint)
 
@@ -864,11 +920,10 @@ def inspect_generic(df):
     logger.info("Processing attack based on {}".format(attack_protocol))
 
     fields = df.columns.tolist()
-    fields.remove("eth_type")
+    if "eth_type" in fields: fields.remove("eth_type")
     fields.remove("ip_dst")
     if "icmp_type" in fields: fields.remove("icmp_type")
-
-    fields.remove("_ws_col_Info")
+    if "_ws_col_Info" in fields: fields.remove("_ws_col_Info")
 
     fingerprint  = {}
     for field in fields:
@@ -905,6 +960,10 @@ def add_label(fingerprint,df):
     label = []
     
     # Based on FBI Flash Report MU-000132-DD
+
+    if 'udp_length' not in df.columns.tolist():
+        return
+
     df_length = (df.groupby(['srcport'])['udp_length'].max()).reset_index()
     if (len(df_length.udp_length>468)):
         label.append("UDP_SUSPECT_LENGTH")
@@ -996,8 +1055,13 @@ if __name__ == '__main__':
 
     # load network file
     df = load_file(args)
-    fingerprints = []
 
+    # checking if the provided file could be converted to dataframe
+    if (len(df)<2):
+        logger.error("could not read data from file <{}>".format(args.filename))
+        sys.exit(1)
+
+    fingerprints = []
     # usually is only one target, but on anycast/load balanced networksit  might have more
     target_ip_list = infer_target_ip(df)
     if not target_ip_list:
