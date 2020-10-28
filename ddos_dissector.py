@@ -34,6 +34,8 @@ from pygments import highlight
 from pygments.lexers import JsonLexer
 from pygments.formatters import TerminalFormatter
 import subprocess
+import filetype
+import magic
 ###############################################################################
 ### Program settings
 verbose = False
@@ -528,11 +530,38 @@ def ip_src_fragmentation_attack_similarity(df,lst_attack_protocols,frag):
         return True
 
     return False
+
+#------------------------------------------------------------------------------
+def determine_file_type(input_file):
+    """
+    Determine what sort of file the input is.
+    :param input_file: The path to the file, e.g. /home/user/example.pcap
+    :return: The file type of the input file as a string
+    :raises UnsupportedFileTypeError: If input file is not recognised or not supported
+    """
+
+    file_info, error = subprocess.Popen(["/usr/bin/file", input_file], stdout=subprocess.PIPE).communicate()
+    file_type = file_info.decode("utf-8").split()[1]
+
+    if file_type == "tcpdump":
+        return "pcap"
+    if file_type == "pcap":
+        return "pcap"
+    elif file_type == "pcap-ng":
+        return "pcapng"
+    elif file_type == "data" and (b"nfdump" in file_info or b"nfcapd" in file_info):
+        return "nfdump"
+    else:
+        raise UnsupportedFileTypeError("The file type " + file_type + " is not supported.")
+
 #------------------------------------------------------------------------------
 def load_file(args):
     """
         Load file and return a dataframe
     """
+
+    file_type = determine_file_type(args.filename)
+
     # load dataframe using threading
     ret = queue.Queue()
     the_process = threading.Thread(name='process', target=pcap_to_df, args=(ret,args.filename))
