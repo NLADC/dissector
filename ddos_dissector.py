@@ -35,6 +35,7 @@ from pygments.lexers import JsonLexer
 from pygments.formatters import TerminalFormatter
 import subprocess
 import filetype
+import socket
 ###############################################################################
 ### Program settings
 verbose = False
@@ -315,10 +316,8 @@ def flow_to_df(filename):
                             })
     df.dstport = df.dstport.astype(float).astype(int)
     df.srcport = df.srcport.astype(float).astype(int)
-    print (df.head().to_csv())
-    import socket
-    table = {num:name[8:] for name,num in vars(socket).items() if name.startswith("IPPROTO")}
-    df['highest_protocol'] = df['proto'].apply(lambda x: table[x])
+    protocol_names = {num:name[8:] for name,num in vars(socket).items() if name.startswith("IPPROTO")}
+    df['highest_protocol'] = df['proto'].apply(lambda x: protocol_names[x])
     return df
 
 
