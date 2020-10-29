@@ -46,7 +46,8 @@ version = open("VERSION.TXT", "r").read()
 # percentage used to determine correlation between to lists
 SIMILARITY_THRESHOLD = 80
 NONE = -1
-
+FLOW_TYPE = 0
+PCAP_TYPE = 1 
 ###############################################################################
 ### Subrotines
 #------------------------------------------------------------------------------
@@ -305,19 +306,27 @@ def flow_to_df(ret,filename):
     data = StringIO(data)
 
     #df = pd.read_csv(data,low_memory=False,error_bad_lines=False)
-    df = pd.read_json(data).fillna(-1)
+    df = pd.read_json(data).fillna(NONE)
     df = df[['t_first', 't_last', 'proto', 'src4_addr', 'dst4_addr',
-    'src_port', 'dst_port', 'fwd_status', 'tcp_flags', 'src_tos',
-    'in_packets', 'in_bytes', 'icmp_type', 'icmp_code']]
+	     'src_port', 'dst_port', 'fwd_status', 'tcp_flags',
+	     'src_tos', 'in_packets', 'in_bytes', 'icmp_type',
+	     'icmp_code'
+	 ]]
     df = df.rename(columns={'dst4_addr': 'ip_dst',
-                             'src4_addr': 'ip_src',
-                             'src_port': 'srcport',
-                             'dst_port': 'dstport'
-                            })
-    df.dstport = df.dstport.astype(float).astype(int)
-    df.srcport = df.srcport.astype(float).astype(int)
-    protocol_names = {num:name[8:] for name,num in vars(socket).items() if name.startswith("IPPROTO")}
+			     'src4_addr': 'ip_src', 'src_port':
+			     'srcport', 'dst_port': 'dstport'
+			    })
+    df.dstport = df.dstport.astype(float).astype(int) 
+    df.srcport = df.srcport.astype(float).astype(int) 
+    protocol_names = {num:name[8:] for name,num in vars(socket).items() if name.startswith("IPPROTO")} 
     df['highest_protocol'] = df['proto'].apply(lambda x: protocol_names[x])
+    df['proto'] = df['proto'].apply(lambda x: protocol_names[x])
+
+    df['t_last'] = pd.to_datetime(df['t_last'],utc=True) 
+    df['t_first'] = pd.to_datetime(df['t_first'],utc=True) 
+    df['durantion'] = df['t_last'] - df['t_first'] 
+    df = df.drop(['t_last','t_first'],axis=1) 
+    print (df.head()) 
     ret.put(df)
     #return df
 
@@ -395,23 +404,38 @@ def pcap_to_df(ret,filename):
 #------------------------------------------------------------------------------
 ## Function for calculating the TOP 'N' and aggregate the 'others'
 ## Create a dataframe with the top N values and create an 'others' category
-def top_n_dataframe(dataframe_field,top_n=20):
+def top_n_dataframe(dataframe_field,df,n_type,top_n=20):
  
     """
         Find top n values in one dataframe
     """
     field_name = dataframe_field.name
 
+    # flow - different heuristic
+    if (n_type==FLOW_TYPE):
+
+        if (field_name == "in_packets"):
+            return  pd.DataFrame()
+        data = df.groupby(field_name)["in_packets"].sum().sort_values(ascending=False)
+        top = data[:top_n].reset_index()
+        top.columns = [field_name,'count']
+        remain = data[top_n:]
+        new_row = pd.DataFrame(data = {
+            'count' : [ data[top_n:].reset_index().iloc[:,1].sum()],
+            field_name : ['others'],
+        })
+
+    # pcap
     # ignore timestamp field
-    if (field_name == "frame_time_epoch"):
-        return  pd.DataFrame()
+    else:
 
-    top  = dataframe_field.value_counts()[:top_n].to_frame().reset_index()
-
-    new_row = pd.DataFrame(data = {
-        'count' : [ dataframe_field.value_counts()[top_n:].sum()],
-        field_name : ['others'],
-    })
+        if (field_name == "frame_time_epoch"):
+            return  pd.DataFrame()
+        top  = dataframe_field.value_counts()[:top_n].to_frame().reset_index()
+        new_row = pd.DataFrame(data = {
+            'count' : [ dataframe_field.value_counts()[top_n:].sum()],
+            field_name : ['others'],
+        })
 
     top.columns = [field_name, 'count']
     top.set_index([field_name]).reset_index()
@@ -424,20 +448,21 @@ def top_n_dataframe(dataframe_field,top_n=20):
 
     if (len(df)< 16):
         # z-score useless when few elements 
-        df['zscore'] = -1
+        df['zscore'] = NONE
     else:
         # z-score of 2 indicates that an observation is two standard deviations above the average 
         # a z-score of zero represents a value that equals the mean.
-        df['zscore'] = ((df['count'] - df['count'].mean())/df['count'].std(ddof=0)).round().fillna(-1)
+        df['zscore'] = ((df['count'] - df['count'].mean())/df['count'].std(ddof=0)).round().fillna(NONE)
     return (df.reset_index())
 
 #------------------------------------------------------------------------------
-def infer_target_ip (df):
+def infer_target_ip (df,n_type):
     """
     df: dataframe from pcap
+    n_type: network type (flows,pcap)
     return: list of target IPs 
     """
-    outlier = find_outlier(df['ip_dst'])
+    outlier = find_outlier(df['ip_dst'],df,n_type)
 
     if not outlier:
         logger.info("We cannot find the DDoS target IP address. Not enought info to find the outlier.") 
@@ -459,12 +484,12 @@ def animated_loading(msg="loading "):
     cursor.show()
 
 #------------------------------------------------------------------------------
-def find_outlier(df):
+def find_outlier(df_filtered,df,n_type):
     """
         Find outlier based in zscore
     """
-    data = top_n_dataframe(df)
 
+    data = top_n_dataframe(df_filtered,df,n_type)
     if (data.empty):
         return None
     data = data[(data['percent']> SIMILARITY_THRESHOLD) | (data['zscore']>2)]
@@ -487,14 +512,14 @@ def find_outlier(df):
 
 #------------------------------------------------------------------------------
 # Infer the attack based on filtered dataframe
-def infer_protocol_attack(df):
+def infer_protocol_attack(df,n_type):
     """
     return: the list of top protocols and if the framentation protocol has found
     """
     target_ip = df['ip_dst'].iloc[0]
     logger.info("A total of {} IPs have attacked the victim {}".format(df_filtered.ip_src.nunique(), target_ip))
 
-    data = top_n_dataframe(df['highest_protocol'])
+    data = top_n_dataframe(df['highest_protocol'],df,n_type)
     data = data[(data['percent']> SIMILARITY_THRESHOLD) | (data['zscore']>2)]
     if (len(data) <1):
         logger.info("Assuming top1 protocol as attack protocol")
@@ -505,7 +530,7 @@ def infer_protocol_attack(df):
         #TODO handle multiples protocol
         top1_protocol = data['highest_protocol'].iloc[0]
     else:
-        logger.debug("Top1  protocol can be classified as outlier")
+        logger.debug("Top1 protocol could be classified as outlier")
         top1_protocol = data['highest_protocol'].iloc[0]
 
     # fragmentation protocol found
@@ -616,14 +641,13 @@ def load_file(args):
     """
     file_type = determine_file_type(args.filename)
 
-    n_type = ""
     if re.search(r'nfdump', file_type):
         load_function = flow_to_df
-        n_type = "flow"
+        n_type = FLOW_TYPE
 
     elif re.search(r'pcap', file_type):
         load_function = pcap_to_df
-        n_type = "pcap"
+        n_type = PCAP_TYPE
 
     # load dataframe using threading
     ret = queue.Queue()
@@ -635,10 +659,10 @@ def load_file(args):
     the_process.join()
     df = ret.get()
     sys.stdout.write('\r'+msg+'.... done!\n')
-    return (df)
+    return (n_type,df)
 
 #------------------------------------------------------------------------------
-def inspect_smtp(df):
+def inspect_smtp(df,n_type):
     """
         Inspect SMTP protocol
     """
@@ -651,7 +675,7 @@ def inspect_smtp(df):
 
     fingerprint  = {}
     for field in fields:
-        outlier = find_outlier(df_filtered[field])
+        outlier = find_outlier(df_filtered[field],n_type)
         if (outlier):
             if (outlier != [NONE]):
                  fingerprint.update( {field : outlier} )
@@ -659,7 +683,7 @@ def inspect_smtp(df):
     return (fingerprint)
 
 #------------------------------------------------------------------------------
-def inspect_ntp(df):
+def inspect_ntp(df,n_type):
     """
         Inspect NTP protocol
     """
@@ -673,7 +697,7 @@ def inspect_ntp(df):
 
     fingerprint  = {}
     for field in fields:
-        outlier = find_outlier(df_filtered[field])
+        outlier = find_outlier(df,df,n_type)
         if (outlier):
             if (outlier != [NONE]):
                 fingerprint.update( {field : outlier} )
@@ -681,7 +705,7 @@ def inspect_ntp(df):
     return (fingerprint)
 
 #------------------------------------------------------------------------------
-def inspect_harder(df_filtered,df_full):
+def inspect_harder(df_filtered,df_full,n_type):
 
     logger.info("Trying harder")
     fields = df_filtered.columns.tolist()
@@ -690,7 +714,7 @@ def inspect_harder(df_filtered,df_full):
 
     fingerprint  = {}
     for field in fields:
-        outlier = find_outlier(df_filtered[field])
+        outlier = find_outlier(df_filtered[field],n_type)
         if (outlier):
             if (outlier != [NONE]):
                 fingerprint.update( {field : outlier} )
@@ -712,7 +736,7 @@ def inspect_harder(df_filtered,df_full):
     return (fingerprint)
 
 #------------------------------------------------------------------------------
-def inspect_dns(df_fingerprint):
+def inspect_dns(df_fingerprint,n_type):
     """
         Inspect DNS protocol
     """
@@ -725,7 +749,7 @@ def inspect_dns(df_fingerprint):
 
     fingerprint  = {}
     for field in fields:
-        outlier = find_outlier(df_filtered[field])
+        outlier = find_outlier(df_filtered[field],df_filtered,n_type)
         if (outlier):
             if (outlier != [NONE]):
                 fingerprint.update( {field : outlier} )
@@ -917,7 +941,7 @@ def check_repository(config):
     sys.exit(0)
 
 #------------------------------------------------------------------------------
-def inspect_generic(df):
+def inspect_generic(df,n_type):
 
     """
         Inspect generic protocol
@@ -933,7 +957,7 @@ def inspect_generic(df):
 
     fingerprint  = {}
     for field in fields:
-        outlier = find_outlier(df_filtered[field])
+        outlier = find_outlier(df_filtered[field],df,n_type)
         if (outlier):
             if (outlier != [NONE]):
                 fingerprint.update( {field : outlier} )
@@ -966,7 +990,6 @@ def add_label(fingerprint,df):
     label = []
     
     # Based on FBI Flash Report MU-000132-DD
-
     if 'udp_length' not in df.columns.tolist():
         return
 
@@ -1060,7 +1083,7 @@ if __name__ == '__main__':
         sys.exit(IOError("File " + args.filename + " is not readble"))
 
     # load network file
-    df = load_file(args)
+    n_type,df = load_file(args)
 
     # checking if the provided file could be converted to dataframe
     if (len(df)<2):
@@ -1069,7 +1092,7 @@ if __name__ == '__main__':
 
     fingerprints = []
     # usually is only one target, but on anycast/load balanced networksit  might have more
-    target_ip_list = infer_target_ip(df)
+    target_ip_list = infer_target_ip(df,n_type)
     if not target_ip_list:
         print ("Target IP could not be infered.") 
         sys.exit(0)
@@ -1084,7 +1107,7 @@ if __name__ == '__main__':
         print("Processing target IP address: {}".format(target_ip))
 
         df_filtered = df[df['ip_dst'] == target_ip]
-        (lst_attack_protocols, frag) = infer_protocol_attack(df_filtered)
+        (lst_attack_protocols, frag) = infer_protocol_attack(df_filtered,n_type)
 
         # correlation flag - see function ip_src_fragmentation_attack_similarity
         similarity = False
@@ -1115,16 +1138,16 @@ if __name__ == '__main__':
 
         if (attack_protocol == "DNS"):
             logger.info("ATTACK TYPE: DNS")
-            fingerprint = inspect_dns(df_filtered)
+            fingerprint = inspect_dns(df_filtered,n_type)
         elif (attack_protocol == "NTP"):
             logger.info("ATTACK TYPE: NTP")
-            fingerprint = inspect_ntp(df_filtered)
+            fingerprint = inspect_ntp(df_filtered,n_type)
         elif (attack_protocol == "SMTP"):
             logger.info("ATTACK TYPE: SMTP")
-            fingerprint = inspect_smtp(df_filtered)
+            fingerprint = inspect_smtp(df_filtered,n_type)
         else:
             logger.info("ATTACK TYPE: GENERIC")
-            fingerprint = inspect_generic(df_filtered)
+            fingerprint = inspect_generic(df_filtered,n_type)
 
 
         ## return dataframe filtered
