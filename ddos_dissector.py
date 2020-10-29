@@ -48,6 +48,10 @@ SIMILARITY_THRESHOLD = 80
 NONE = -1
 FLOW_TYPE = 0
 PCAP_TYPE = 1 
+
+
+
+
 ###############################################################################
 ### Subrotines
 #------------------------------------------------------------------------------
@@ -319,8 +323,18 @@ def flow_to_df(ret,filename):
     df.dstport = df.dstport.astype(float).astype(int) 
     df.srcport = df.srcport.astype(float).astype(int) 
     protocol_names = {num:name[8:] for name,num in vars(socket).items() if name.startswith("IPPROTO")} 
-    df['highest_protocol'] = df['proto'].apply(lambda x: protocol_names[x])
+    # FIXME translate port to service
+
     df['proto'] = df['proto'].apply(lambda x: protocol_names[x])
+
+
+    def convert_protocol_service(row):
+        try:
+            highest_protocol = socket.getservbyport(row['dstport'], row['proto'].lower()).upper()
+            return highest_protocol
+        except:
+            return "UNKNOWN"
+    df['highest_protocol'] = df[['dstport','proto']].apply(convert_protocol_service,axis=1)
 
     df['t_last'] = pd.to_datetime(df['t_last'],utc=True) 
     df['t_first'] = pd.to_datetime(df['t_first'],utc=True) 
@@ -653,7 +667,7 @@ def load_file(args):
     ret = queue.Queue()
     the_process = threading.Thread(name='process', target=load_function, args=(ret,args.filename))
     the_process.start()
-    msg = "Loading network file [{}]: `{}' ".format(n_type,args.filename)
+    msg = "Loading network file: `{}' ".format(args.filename)
     while the_process.is_alive():
         animated_loading(msg) if not (args.quiet) else 0
     the_process.join()
@@ -989,15 +1003,8 @@ def add_label(fingerprint,df):
     """
     label = []
     
-    # Based on FBI Flash Report MU-000132-DD
-    if 'udp_length' not in df.columns.tolist():
-        return
-
-    df_length = (df.groupby(['srcport'])['udp_length'].max()).reset_index()
-    if (len(df_length.udp_length>468)):
-        label.append("UDP_SUSPECT_LENGTH")
-
-    my_dict = {
+    # UDP Service Mapping
+    udp_service = {
         25:    'SMTP',
         123:   'NTP',
         1121:  'Memcached',
@@ -1017,7 +1024,15 @@ def add_label(fingerprint,df):
         47808: 'BACnet', 
     }
 
-    for port in my_dict:
+    # Based on FBI Flash Report MU-000132-DD
+    if 'udp_length' not in df.columns.tolist():
+        return
+
+    df_length = (df.groupby(['srcport'])['udp_length'].max()).reset_index()
+    if (len(df_length.udp_length>468)):
+        label.append("UDP_SUSPECT_LENGTH")
+
+    for port in udp_service:
         if ("srcport" in fingerprint):
             if (fingerprint['srcport'] == [port]):
                 label.append("AMPLIFICATION")
