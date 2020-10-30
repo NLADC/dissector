@@ -7,35 +7,33 @@
 
 ###############################################################################
 ### Python modules
-import argparse
-import logging
-import os
-import pandas as pd
-import re
-import signal
-import sys
-from subprocess import check_output, STDOUT
-from io import StringIO
-import multiprocessing as mp
-import queue as queue
-import threading
 import time 
-import cursor
-import logging
-import numpy as np
-import requests
-import hashlib
-import json
-from datetime import datetime
-import configparser
-from argparse import RawTextHelpFormatter
+import threading
+import sys
+import subprocess
+import socket
+import signal
 import shutil
-from pygments import highlight
+import requests
+import re
+import queue as queue
+import pandas as pd
+import os
+import numpy as np
+import multiprocessing as mp
+import logging
+import json
+import hashlib
+import cursor
+import configparser
+import argparse
+from subprocess import check_output, STDOUT
 from pygments.lexers import JsonLexer
 from pygments.formatters import TerminalFormatter
-import subprocess
-import filetype
-import socket
+from pygments import highlight
+from io import StringIO
+from datetime import datetime
+from argparse import RawTextHelpFormatter
 ###############################################################################
 ### Program settings
 verbose = False
@@ -48,9 +46,6 @@ SIMILARITY_THRESHOLD = 80
 NONE = -1
 FLOW_TYPE = 0
 PCAP_TYPE = 1 
-
-
-
 
 ###############################################################################
 ### Subrotines
@@ -72,7 +67,7 @@ def parser_args():
     parser.add_argument("--config", default='ddosdb.conf', nargs='?',help="Configuration File. Default =./ddosdb.conf\"")
     parser.add_argument("--host", nargs='?',help="Upload host. ")
     parser.add_argument("--user", nargs='?',help="repository user. ")
-    parser.add_argument("--passwd", nargs='?',help="repository password. ")
+    parser.add_argument("--passwd", nargs='?',help="repository password.")
     parser.add_argument("-g","--graph", help="build dot file (graphviz). It can be used to plot a visual representation\n of the attack using the tool graphviz. When this option is set, youn will\n received information how to convert the generate file (.dot) to image (.png).", action="store_true")
 
     parser.add_argument('-f','--filename', nargs='?', required=False, help="")
@@ -155,46 +150,15 @@ def logger(args):
     return logger
 
 #------------------------------------------------------------------------------
-def upload(pcap, fingerprint, labels, df_fingerprint, user,passw,host):
+def upload(fingerprint, json_file, user, passw, host, key):
     """
     Upload a fingerprint and attack vector to DDoSDB
-    :param pcap: Path to the pcap file
     :param fingerprint: Path to the fingerprint file
+    :param json_file: fingerprint generated file
     :param username: DDoSDB username
     :param password: DDoSDB password
-    :param key: ID to identify this attack, also the filename of the pcap_file.
-    :return:
+    :return: status_code describing HTTP code received
     """
-    # timestamp fields
-    initial_timestamp  = df_fingerprint['frame_time_epoch'].min()
-    initial_timestamp = datetime.utcfromtimestamp(initial_timestamp).strftime('%Y-%m-%d %H:%M:%S')
-    fingerprint.update( {"start_time": initial_timestamp} )
-
-    # packet stats
-    duration_sec = df_fingerprint['frame_time_epoch'].max() - df_fingerprint['frame_time_epoch'].min()
-    fingerprint.update( {"duration_sec": duration_sec} )
-    fingerprint.update( {"avg_bps": df_fingerprint.frame_len.sum()/duration_sec })
-    fingerprint.update( {"total_packetsduration_sec": len(df_fingerprint)} )
-    fingerprint.update( {"avg_pps": len(df_fingerprint)/duration_sec} )
-    fingerprint.update( {"total_dst_ports": len(df_fingerprint['dstport'].unique().tolist())} )
-    fingerprint.update( {"total_packets": len(df_fingerprint)} )
-
-    # keys used on the repository
-    key = str(hashlib.md5(str(fingerprint).encode()).hexdigest())
-    fingerprint.update( {"key": key} )
-    fingerprint.update( {"multivector_key": key} )
-
-    # set field name based on label 
-    if ("AMPLIFICATION" in labels):
-       fingerprint.update( {"amplifiers": df_fingerprint['ip_src'].unique().tolist()} )
-
-    else:
-       fingerprint.update( {"attackers": df_fingerprint['ip_src'].unique().tolist()} )
-
-    # save fingerprint to local file in order to enable the upload via POST
-    json_file = "{}.json".format(key)
-    with open(json_file, 'w') as f_fingerprint:
-        json.dump(fingerprint, f_fingerprint)
 
     files = {
         "json": open(json_file, "rb"),
@@ -230,8 +194,9 @@ def upload(pcap, fingerprint, labels, df_fingerprint, user,passw,host):
 def get_repository(args,config):
     """
     Check credentials and repository based on configuration file or cmd line args
-    param args cmd args
-    param config configuration file
+    :param args: cmd args
+    :param config: configuration file
+    return: user,pass,host: credentials for the repository 
     """
     user,passw,host = (None,)*3
 
@@ -269,7 +234,11 @@ def get_repository(args,config):
 
 #------------------------------------------------------------------------------
 def prepare_tshark_cmd(input_path):
-    """Prepare the tshark command that converts a PCAP to a CSV."""
+    """
+        Prepare the tshark command that converts a PCAP to a CSV.
+        :param input_path: filename
+        return: tshark command line to be used to convert the file
+    """
     tshark =  shutil.which("tshark")
     if not tshark:
         logger.critical("Tshark software not found")
@@ -298,7 +267,12 @@ def prepare_tshark_cmd(input_path):
 
 #------------------------------------------------------------------------------
 def flow_to_df(ret,filename):
-    """Convert flow file to DataFrame."""
+    """
+        Convert flow file (nfdump) to DataFrame structure.
+        :param ret: buffer used to return the dataframe itself
+        :param filename: flow file
+        return ret: dataframe
+    """
 
     nfdump =  shutil.which("nfdump")
     if not nfdump:
@@ -314,20 +288,22 @@ def flow_to_df(ret,filename):
     df = df[['t_first', 't_last', 'proto', 'src4_addr', 'dst4_addr',
 	     'src_port', 'dst_port', 'fwd_status', 'tcp_flags',
 	     'src_tos', 'in_packets', 'in_bytes', 'icmp_type',
-	     'icmp_code'
+	     'icmp_code', 
 	 ]]
     df = df.rename(columns={'dst4_addr': 'ip_dst',
-			     'src4_addr': 'ip_src', 'src_port':
-			     'srcport', 'dst_port': 'dstport'
+			     'src4_addr': 'ip_src', 
+                             'src_port': 'srcport', 
+                             'dst_port': 'dstport',
+                             't_start' : 'frame_time_epoch',
 			    })
     df.dstport = df.dstport.astype(float).astype(int) 
     df.srcport = df.srcport.astype(float).astype(int) 
-    protocol_names = {num:name[8:] for name,num in vars(socket).items() if name.startswith("IPPROTO")} 
-    # FIXME translate port to service
 
+    # convert protocol number to name
+    protocol_names = {num:name[8:] for name,num in vars(socket).items() if name.startswith("IPPROTO")} 
     df['proto'] = df['proto'].apply(lambda x: protocol_names[x])
 
-
+    # convert protocol/port to service
     def convert_protocol_service(row):
         try:
             highest_protocol = socket.getservbyport(row['dstport'], row['proto'].lower()).upper()
@@ -335,19 +311,19 @@ def flow_to_df(ret,filename):
         except:
             return "UNKNOWN"
     df['highest_protocol'] = df[['dstport','proto']].apply(convert_protocol_service,axis=1)
-
-    df['t_last'] = pd.to_datetime(df['t_last'],utc=True) 
-    df['t_first'] = pd.to_datetime(df['t_first'],utc=True) 
-    df['durantion'] = df['t_last'] - df['t_first'] 
-    df = df.drop(['t_last','t_first'],axis=1) 
-    print (df.head()) 
+    # convert to unix epoch (sec)
+    df['frame_time_epoch'] = pd.to_datetime(df['t_first']).astype(int) / 10**9
+    df = df.drop(['t_last','t_first','fwd_status'],axis=1) 
     ret.put(df)
-    #return df
-
 
 #------------------------------------------------------------------------------
 def pcap_to_df(ret,filename):
-    """Convert PCAP file to DataFrame."""
+    """
+        Convert pcap file to DataFrame structure.
+        :param ret: buffer used to return the dataframe itself
+        :param filename: flow file
+        return ret: dataframe
+    """
 
     cmd = prepare_tshark_cmd(filename)
     data = check_output(cmd, stderr=subprocess.DEVNULL)
@@ -384,7 +360,6 @@ def pcap_to_df(ret,filename):
     df['ntp.priv.reqcode'] = df['ntp.priv.reqcode'].fillna(NONE).astype(float).astype(int)
 
     # timestamp 
-
     df['start_timestamp'] = df['frame.time_epoch'].iloc[0]
 
     # Remove columns: 'tcp.srcport', 'udp.srcport','tcp.dstport', 'udp.dstport', _ws.col.Source, _ws.col.Destination
@@ -419,11 +394,17 @@ def pcap_to_df(ret,filename):
 ## Function for calculating the TOP 'N' and aggregate the 'others'
 ## Create a dataframe with the top N values and create an 'others' category
 def top_n_dataframe(dataframe_field,df,n_type,top_n=20):
- 
     """
         Find top n values in one dataframe
+        :param dataframe_field: field to be evaluated
+        :param df: full dataframe
+        :param n_type: network file type (pcap or flow)
+        :param top_n: build dataframe with the top_n results
+        return df: dataframe itself
     """
     field_name = dataframe_field.name
+    if (field_name == "frame_time_epoch"):
+        return  pd.DataFrame()
 
     # flow - different heuristic
     if (n_type==FLOW_TYPE):
@@ -440,17 +421,16 @@ def top_n_dataframe(dataframe_field,df,n_type,top_n=20):
         })
 
     # pcap
-    # ignore timestamp field
     else:
 
-        if (field_name == "frame_time_epoch"):
-            return  pd.DataFrame()
+        # ignore timestamp field
         top  = dataframe_field.value_counts()[:top_n].to_frame().reset_index()
         new_row = pd.DataFrame(data = {
             'count' : [ dataframe_field.value_counts()[top_n:].sum()],
             field_name : ['others'],
         })
 
+    # combine the result dataframe (top_n + aggregated 'others')
     top.columns = [field_name, 'count']
     top.set_index([field_name]).reset_index()
     top_result = pd.concat([top, new_row],sort=False)
@@ -473,7 +453,7 @@ def top_n_dataframe(dataframe_field,df,n_type,top_n=20):
 def infer_target_ip (df,n_type):
     """
     df: dataframe from pcap
-    n_type: network type (flows,pcap)
+    n_type: network file type (flows,pcap)
     return: list of target IPs 
     """
     outlier = find_outlier(df['ip_dst'],df,n_type)
@@ -487,8 +467,11 @@ def infer_target_ip (df,n_type):
         return (outlier)
 
 #------------------------------------------------------------------------------
-# print loading animation
 def animated_loading(msg="loading "):
+    """
+        print loading animation
+        :param msg: prefix label
+    """
     chars = "▁▂▃▄▅▆▇█▇▆▅▄▃▁"
     cursor.hide()
     for char in chars:
@@ -501,6 +484,9 @@ def animated_loading(msg="loading "):
 def find_outlier(df_filtered,df,n_type):
     """
         Find outlier based in zscore
+        :param df_filtered: dataframe filtered by target_ip
+        :param df: full dataframe used for flows analysis
+        :param n_type: network file type (flows,pcap)
     """
 
     data = top_n_dataframe(df_filtered,df,n_type)
@@ -528,7 +514,10 @@ def find_outlier(df_filtered,df,n_type):
 # Infer the attack based on filtered dataframe
 def infer_protocol_attack(df,n_type):
     """
-    return: the list of top protocols and if the framentation protocol has found
+        Evaluate protocol distribution and return the used in the attack
+        :param df: dataframe
+        :param n_type: network file type (flows,pcap)
+        return: the list of top protocols and if the framentation protocol has found
     """
     target_ip = df['ip_dst'].iloc[0]
     logger.info("A total of {} IPs have attacked the victim {}".format(df_filtered.ip_src.nunique(), target_ip))
@@ -584,9 +573,11 @@ def infer_protocol_attack(df,n_type):
 
 #------------------------------------------------------------------------------
 def ip_src_fragmentation_attack_similarity(df,lst_attack_protocols,frag):
-
     """
-        Find IP fragmentation attacks
+        Find IPs related to fragmentation attack
+        :param df: full dataframe
+        :param lst_attack_protocols: list of protocol used in the attack
+        :param frag: fragmentation flag (frag detect or not)
     """
     if (not frag):
         return False
@@ -604,26 +595,6 @@ def ip_src_fragmentation_attack_similarity(df,lst_attack_protocols,frag):
         return True
 
     return False
-
-#------------------------------------------------------------------------------
-def which(program):
-    """
-        check for refered binary
-    """
-    def is_exe(fpath):
-        return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
-
-    fpath, fname = os.path.split(program)
-    if fpath:
-        if is_exe(program):
-            return program
-    else:
-        for path in os.environ["PATH"].split(os.pathsep):
-            exe_file = os.path.join(path, program)
-            if is_exe(exe_file):
-                return exe_file
-
-    return None
 
 #------------------------------------------------------------------------------
 def determine_file_type(input_file):
@@ -651,8 +622,12 @@ def determine_file_type(input_file):
 #------------------------------------------------------------------------------
 def load_file(args):
     """
-        Load file and return a dataframe
+        Wrapper to call attack file to dataframe
+        :param args: command line parameters
+        :return n_type: network file type (flows,pcap)
+        :return df: dataframe itself
     """
+
     file_type = determine_file_type(args.filename)
 
     if re.search(r'nfdump', file_type):
@@ -679,6 +654,9 @@ def load_file(args):
 def inspect_smtp(df,n_type):
     """
         Inspect SMTP protocol
+        :param df: datafram itself
+        :param n_type: network file type (flows,pcap)       
+        :return fingerprints: json file
     """
     attack_protocol = df_filtered['highest_protocol'].iloc[0]
     logger.info("Processing attack based on {}".format(attack_protocol))
@@ -700,6 +678,9 @@ def inspect_smtp(df,n_type):
 def inspect_ntp(df,n_type):
     """
         Inspect NTP protocol
+        :param df: datafram itself
+        :param n_type: network file type (flows,pcap)
+        :return fingerprints: json file
     """
     attack_protocol = df_filtered['highest_protocol'].iloc[0]
     logger.info("Processing attack based on {}".format(attack_protocol))
@@ -720,7 +701,13 @@ def inspect_ntp(df,n_type):
 
 #------------------------------------------------------------------------------
 def inspect_harder(df_filtered,df_full,n_type):
-
+    """
+        Evaluate other protocol fields to improve the match rate
+        :param df_filtered: dataframe filtered by target_ip
+        :param df_full: the entire dataframe
+        :param n_type: network file type (flows,pcap)
+        :return fingerprints: json file
+    """
     logger.info("Trying harder")
     fields = df_filtered.columns.tolist()
     #fields.remove("eth_type")
@@ -753,6 +740,9 @@ def inspect_harder(df_filtered,df_full,n_type):
 def inspect_dns(df_fingerprint,n_type):
     """
         Inspect DNS protocol
+        :param df: datafram itself
+        :param n_type: network file type (flows,pcap)
+        :return fingerprints: json file
     """
     attack_protocol = df_filtered['highest_protocol'].iloc[0]
     logger.info("Processing attack based on {}".format(attack_protocol))
@@ -775,8 +765,8 @@ def generate_dot_file(df_fingerprint, df):
     """
     Build .dot file that is used to generate a png file showing the
     fingerprint match visualization
-    param: matched fingerprint
-    param: full dataframe raw
+    :param df_fingerprint: dataframe filtered based on matched fingerprint
+    :param df: dataframe itself 
     """
     # sum up dataframe to plot
     df_fingerprint = df_fingerprint[['ip_src','ip_dst']].drop_duplicates(keep="first")
@@ -810,8 +800,9 @@ def generate_dot_file(df_fingerprint, df):
 def printProgressBar(value,label,fill_chars="■-"):
     """
         Print progress bar 
-        param: value to be printed
-        param: label used as title
+        :param value: value to be printed
+        :param label: label used as title
+        :param fill_chars: char used in the animation
     """
     if (args.quiet):
         return True
@@ -831,9 +822,10 @@ def printProgressBar(value,label,fill_chars="■-"):
 def filter_fingerprint(df,fingerprint,similarity=False):
     """
         Use the generated fingerprint to filter the traffic in the dataframe.
-        param: df, full dataframe
-        param: fingerprint dic generated 
-        param: similarity used to add IP fragmentation attacks to the filtered dataframe
+        :param df: datafram itself
+        :param fingerprints: json file
+        :param similarity: flag  used to add IP fragmentation attacks to the filtered dataframe
+        :return df_fingerprint: dataframe filtered based on matched fingerprint
     """
     # filter full DF using the built fingerprint filter
     df_fingerprint = df
@@ -855,6 +847,12 @@ def filter_fingerprint(df,fingerprint,similarity=False):
 
 #------------------------------------------------------------------------------
 def evaluate_fingerprint(df,df_fingerprint,fingerprint):
+    """
+        :param df: datafram itself       
+        :param df_fingerprint: dataframe filtered based on matched fingerprint
+        :param fingerprint: json file
+        :return accuracy_ratio: the percentage that generated fingerprint can match in the full dataframe
+    """
 
     total_rows_matched = len(df_fingerprint)
     total_ips_matched_using_fingerprint = df_fingerprint['ip_src'].unique().tolist()
@@ -868,8 +866,18 @@ def evaluate_fingerprint(df,df_fingerprint,fingerprint):
         printProgressBar(value,"TRAFFIC MATCHED")
         printProgressBar(round(percentage_of_ips_matched),"IPs MATCHED")
 
-    # remove added tags fields
+    # remove fields that are not in the dataframe
     fingerprint.pop('tags',None)
+    fingerprint.pop('start_time',None)
+    fingerprint.pop('duration_sec',None)
+    fingerprint.pop('total_dst_ports',None)
+    fingerprint.pop('avg_bps',None)
+    fingerprint.pop('total_packets',None)
+    fingerprint.pop('key',None)
+    fingerprint.pop('multivector_key',None)
+    fingerprint.pop('total_ips',None)
+    fingerprint.pop('amplifiers',None)
+    fingerprint.pop('attackers',None)
 
     if (args.verbose) or (args.debug):
          results = {}
@@ -893,6 +901,7 @@ def check_repository(config):
 
     """
         Check repository access and credentials
+        :param config: configuration file path
     """
     logger.info("Checking repository")
     url = "https://raw.githubusercontent.com/ddos-clearing-house/ddos_dissector/2.0/repository.txt"
@@ -956,9 +965,11 @@ def check_repository(config):
 
 #------------------------------------------------------------------------------
 def inspect_generic(df,n_type):
-
     """
         Inspect generic protocol
+        :param df: datafram itself
+        :param n_type: network file type (flows,pcap)
+        :return fingerprints: json file
     """
     attack_protocol = df_filtered['highest_protocol'].iloc[0]
     logger.info("Processing attack based on {}".format(attack_protocol))
@@ -981,6 +992,7 @@ def inspect_generic(df,n_type):
 def bar(row):
     """
         Plot ASCII bar 
+        :param row: line to be printed
     """
     percent = int(row['percent'])
     bar_chunks, remainder = divmod(int(percent * 8 / increment), 8)
@@ -1060,7 +1072,11 @@ def logo():
 
 #------------------------------------------------------------------------------
 def import_logfile(args):
-
+    """
+        Load configuration file to structured format
+        :param args: command line parameters
+        :return config: structured format
+    """
     if (args.config):
         if os.path.isfile(args.config) and os.access(args.config, os.R_OK):
             print ("Upload using configuration file [{}]".format(args.config))
@@ -1071,6 +1087,60 @@ def import_logfile(args):
         else: 
             print ("Configuration file provided [{}] not found ".format(args.config))
             return None
+
+#------------------------------------------------------------------------------
+def prepare_fingerprint_upload(df_fingerprint,df,fingerprint,n_type,labels):
+    """
+        Add addicional fields and stats to the generated fingerprint
+        :param df_fingerprint: dataframe filtered based on matched fingerprint
+        :param df: datafram itself
+        :param fingerprint: json file
+        :param n_type: network file type (flows,pcap)
+        :return json file
+    """
+    # timestamp fields
+    initial_timestamp  = df_fingerprint['frame_time_epoch'].min()
+    initial_timestamp = datetime.utcfromtimestamp(initial_timestamp).strftime('%Y-%m-%d %H:%M:%S')
+    fingerprint.update( {"start_time": initial_timestamp} )
+    duration_sec = df_fingerprint['frame_time_epoch'].max() - df_fingerprint['frame_time_epoch'].min()
+    fingerprint.update( {"duration_sec": int(duration_sec)} )
+    fingerprint.update( {"total_dst_ports": len(df_fingerprint['dstport'].unique().tolist())} )
+
+    if (n_type == FLOW_TYPE):
+      fingerprint.update( {"avg_bps": int(df_fingerprint.in_packets.mean())})
+      fingerprint.update( {"total_packets": int(df_fingerprint.in_packets.sum())})
+    else:
+      fingerprint.update( {"avg_bps": int(df_fingerprint.frame_len.sum()/duration_sec) })
+      fingerprint.update( {"total_packets": len(df_fingerprint)} )
+
+    # keys used on the repository
+    key = str(hashlib.md5(str(fingerprint).encode()).hexdigest())
+    fingerprint.update( {"key": key} )
+    fingerprint.update( {"multivector_key": key} )
+    fingerprint.update( {"total_ips": len(df_fingerprint['ip_src'].unique().tolist()) })
+
+    # set field name based on label 
+    fingerprint.update( {"amplifiers": "None"} )
+    fingerprint.update( {"attackers": df_fingerprint['ip_src'].unique().tolist()} )
+
+    if labels:
+        if ("AMPLIFICATION" in labels):
+            fingerprint.update( {"amplifiers": df_fingerprint['ip_src'].unique().tolist()} )
+            fingerprint.update( {"attackers": "None"} )
+
+    # save fingerprint to local file in order to enable the upload via POST
+    json_file = "{}.json".format(key)
+    logger.info("Saving fingerprint on {}".format(json_file))
+    with open(json_file, 'w') as f_fingerprint:
+        json.dump(fingerprint, f_fingerprint)
+
+    files = {
+        "json": open(json_file, "rb"),
+        # ignoring pcap file upload for now
+        "pcap": open(json_file, "rb"),
+    }
+    return (fingerprint,json_file)
+
 
 ###############################################################################
 ### Main Process
@@ -1150,7 +1220,6 @@ if __name__ == '__main__':
         # protocol used to find the fingerprint
         attack_protocol = df_filtered['highest_protocol'].iloc[0]
 
-
         if (attack_protocol == "DNS"):
             logger.info("ATTACK TYPE: DNS")
             fingerprint = inspect_dns(df_filtered,n_type)
@@ -1164,7 +1233,6 @@ if __name__ == '__main__':
             logger.info("ATTACK TYPE: GENERIC")
             fingerprint = inspect_generic(df_filtered,n_type)
 
-
         ## return dataframe filtered
         df_fingerprint = filter_fingerprint(df,fingerprint,similarity)
 
@@ -1172,20 +1240,28 @@ if __name__ == '__main__':
         labels = add_label(fingerprint,df_fingerprint)
         fingerprint.update({"tags": labels})
 
+        # add extra fields/stats and save file locally
+        (fingerprint,json_file) = prepare_fingerprint_upload(df_fingerprint,df,fingerprint,n_type,labels)
+
+        fingerprint_anon = fingerprint
+        fingerprint_anon.update({"attackers": "ommited"})
+        fingerprint_anon.update({"amplifiers": "ommited"})
+
+        json_str = json.dumps(fingerprint_anon, indent=4, sort_keys=True)
         print ("Generated fingerprint: ")
-        json_str = json.dumps(fingerprint, indent=4, sort_keys=True)
         print(highlight(json_str, JsonLexer(), TerminalFormatter()))
+
+        if (args.summary):
+            # evaluate fingerprint generated - do not considerer src_ips 
+            accuracy_ratio = evaluate_fingerprint(df,df_fingerprint,fingerprint)
 
         if (args.graph): generate_dot_file(df_fingerprint, df)
 
-        if (args.summary):
-            # evaluate fingerprint generated
-            accuracy_ratio = evaluate_fingerprint(df,df_fingerprint,fingerprint)
-
         if (args.upload):
             (user,passw,host) = get_repository(args,config)
+
             # upload to the repository
-            ret = upload(args.filename, fingerprint, labels, df_fingerprint, user,passw,host)
+            ret = upload(fingerprint, json_file, user, passw, host, fingerprint.get("key"))
 
     sys.exit(0)
 
