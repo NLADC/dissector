@@ -17,7 +17,7 @@
 
 </p>
 
-## Overview
+## DDoS DISSECTOR - Overview
 
 DDos_Dissector is responsible for summarizing DDoS attack traffic from stored traffic (pcap/flows). The key point is to build a heuristic/algorithm that can find similarities in the analyzed network traffic. 
 
