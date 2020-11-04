@@ -34,6 +34,7 @@ from pygments import highlight
 from io import StringIO
 from datetime import datetime
 from argparse import RawTextHelpFormatter
+from hashlib import sha256
 ###############################################################################
 ### Program settings
 verbose = False
@@ -859,6 +860,9 @@ def evaluate_fingerprint(df,df_fingerprint,fingerprint):
     total_rows_matched = len(df_fingerprint)
     total_ips_matched_using_fingerprint = df_fingerprint['ip_src'].unique().tolist()
 
+    msg = "Fingerprint evaluation"
+    sys.stdout.write('\r'+'['+'\u2713'+'] '+ msg+'\n')
+
     logger.info("TRAFFIC MATCHED: {0}%. The generated fingerprint will filter {0}% of the analysed traffic".format(round(len(df_fingerprint)*100/len(df))))
     percentage_of_ips_matched = len(df_fingerprint['ip_src'].unique().tolist() )*100/len(df.ip_src.unique().tolist())
     logger.info("IPS MATCHED    : {0}%. The generated fingerprint will filter {0}% of SRC_IPs".format(round(percentage_of_ips_matched)))
@@ -1119,7 +1123,9 @@ def prepare_fingerprint_upload(df_fingerprint,df,fingerprint,n_type,labels):
     # keys used on the repository
     key = str(hashlib.md5(str(fingerprint).encode()).hexdigest())
     fingerprint.update( {"key": key} )
-    fingerprint.update( {"multivector_key": key} )
+    sha256 = hashlib.sha256(str(fingerprint).encode()).hexdigest()
+    fingerprint.update( {"key_sha256": sha256} )
+    fingerprint.update( {"multivector_key": sha256} )
     fingerprint.update( {"total_ips": len(df_fingerprint['ip_src'].unique().tolist()) })
 
     # set field name based on label 
@@ -1252,7 +1258,9 @@ if __name__ == '__main__':
         fingerprint_anon.update({"amplifiers": "ommited"})
 
         json_str = json.dumps(fingerprint_anon, indent=4, sort_keys=True)
-        print ("Generated fingerprint: ")
+        msg = "Generated fingerprint"
+        sys.stdout.write('\r'+'['+'\u2713'+'] '+ msg+'\n')
+#        print ("Generated fingerprint: ")
         print(highlight(json_str, JsonLexer(), TerminalFormatter()))
 
         if (args.summary):
