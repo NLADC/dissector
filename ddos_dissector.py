@@ -472,10 +472,12 @@ def animated_loading(msg="loading "):
         print loading animation
         :param msg: prefix label
     """
-    chars = "▁▂▃▄▅▆▇█▇▆▅▄▃▁"
+    
+    chars = "▁▂▃▄▅▆▇▇▇▆▅▄▃▁"
     cursor.hide()
     for char in chars:
-        sys.stdout.write('\r'+msg+''+char)
+        #sys.stdout.write('\r'+msg+''+char)
+        sys.stdout.write('\r'+'['+char+'] '+msg)
         time.sleep(.1)
         sys.stdout.flush()
     cursor.show()
@@ -647,7 +649,7 @@ def load_file(args):
         animated_loading(msg) if not (args.quiet) else 0
     the_process.join()
     df = ret.get()
-    sys.stdout.write('\r'+msg+'.... done!\n')
+    sys.stdout.write('\r'+'['+'\u2713'+'] '+ msg+'\n')
     return (n_type,df)
 
 #------------------------------------------------------------------------------
@@ -1079,7 +1081,8 @@ def import_logfile(args):
     """
     if (args.config):
         if os.path.isfile(args.config) and os.access(args.config, os.R_OK):
-            print ("Upload using configuration file [{}]".format(args.config))
+            msg = "Using configuration file [{}]".format(args.config)
+            sys.stdout.write('\r'+'['+'\u2713'+'] '+ msg+'\n')
             logger.debug("Configuration found: {}".format(args.config))
             config = configparser.ConfigParser()
             config.read(args.config)
@@ -1189,7 +1192,8 @@ if __name__ == '__main__':
 
         # build filter for victim IP
         logger.debug("Processing target IP address: {}".format(target_ip))
-        print("Processing target IP address: {}".format(target_ip))
+        msg = "Processing target IP address: {}".format(target_ip)
+        sys.stdout.write('\r'+'['+'\u2713'+'] '+ msg+'\n')
 
         df_filtered = df[df['ip_dst'] == target_ip]
         (lst_attack_protocols, frag) = infer_protocol_attack(df_filtered,n_type)
