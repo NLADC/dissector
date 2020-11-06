@@ -2,9 +2,9 @@
 
 | field | description |
 |-------|-------------|
-|amplifiers| List of IPs used to perform the attack when amplification attack is detected |
 |attackers| List of IPs used to perfom the attack|
-|avg_bps| Average bit per second |
+|amplifiers| List of IPs used to perform the attack when amplification attack is detected |
+|avg_bps| Attack size bit per second (average)|
 |duration_sec| Attack duration in seconds |  
 |dns.qry.name| DNS query name | 
 |dns.qry.type| DNS query type (A, AAAA, TXT, MX) |
@@ -12,25 +12,26 @@
 |frame.len| Ethernet frame size  | 
 |http.request| HTTP request | 
 |http.response| HTTP response |
-|http.user_agent| HTTP User Agent | 
+|http.user_agent| HTTP user agent | 
 |icmp.type| ICMP type | 
-|ip.dst| List of IP addresses (meta field) | 
-|ip.flags.mf| IP Flags | 
-|ip.frag_offset| Fragmentation Offset
+|ip.dst| List of IPs (usually anon) | 
+|ip.flags.mf| IP flags | 
+|ip.frag_offset| Fragmentation offset | 
 |ip.proto| IP protocol | 
-|ip.src| List of SRC IP addresses (meta field) | 
+|ip.src| List of source IPs (meta field point to `amplifiers` or `attackers`) | 
 |ip.ttl| IP TTL |
 |key| MD5 hash code |
 |key_sha256| SHA256 hash code | 
-|multivector_key| SHA256 hash code (index)
-|ntp.priv.reqcode| NTP Request Code |
+|multivector_key| SHA256 hash code (index) | 
+|ntp.priv.reqcode| NTP request code |
 |tags| List of tags (plain text not strutured) | 
-|tcp.dstport| TCP Destination Port | 
-|tcp.flags| TCP Flags | 
-|tcp.srcport| TCP Source Port | 
-|total_dst_ports| Total of Destination Ports | 
+|tcp.dstport| TCP destination port | 
+|tcp.flags| TCP flags | 
+|tcp.srcport| TCP source port | 
+|total_dst_ports| Total of destination ports | 
 |total_ips| Total of IPs (amplifiers or attackers) | 
 |total_packets| Total of packets | 
-|udp.dstport| UDP Destination Port | 
-|udp.length| UDP Length | 
-|udp.srcport| UDP Source Port | 
+|udp.dstport| UDP destination port | 
+|udp.length| UDP length | 
+|udp.srcport| UDP source port | 
+
