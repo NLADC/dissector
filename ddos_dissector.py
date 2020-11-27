@@ -874,6 +874,7 @@ def evaluate_fingerprint(df,df_fingerprint,fingerprint):
 
     # remove fields that are not in the dataframe
     fingerprint.pop('tags',None)
+    fingerprint.pop('key_sha256',None)
     fingerprint.pop('start_time',None)
     fingerprint.pop('duration_sec',None)
     fingerprint.pop('total_dst_ports',None)
