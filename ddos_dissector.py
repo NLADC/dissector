@@ -39,7 +39,7 @@ from hashlib import sha256
 ### Program settings
 verbose = False
 program_name = os.path.basename(__file__)
-version = open("VERSION.TXT", "r").read()
+version = "3.0.7"
 
 # GLOBAL parameters
 # percentage used to determine correlation between to lists
