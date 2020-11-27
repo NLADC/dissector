@@ -1050,12 +1050,13 @@ def add_label(fingerprint,df):
     df_length = (df.groupby(['srcport'])['udp_length'].max()).reset_index()
     if (len(df_length.udp_length>468)):
         label.append("UDP_SUSPECT_LENGTH")
-
-    for port in udp_service:
-        if ("srcport" in fingerprint):
-            if (fingerprint['srcport'] == [port]):
-                label.append("AMPLIFICATION")
-                label.append(my_dict[port])
+        
+        for port in udp_service:
+            if ("srcport" in fingerprint):
+                if (fingerprint['srcport'] == [port]):
+                    label.append("AMPLIFICATION")
+                    label.append("FANCY_BEAR_RANSOM")
+                    #label.append(my_dict[port])
     try:
         if ("srcport" in fingerprint):
             if (fingerprint['srcport'] == [53]) and ('dns_qry_name' in fingerprint) :
