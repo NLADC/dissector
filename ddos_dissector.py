@@ -1043,27 +1043,28 @@ def add_label(fingerprint,df):
         47808: 'BACnet', 
     }
 
-    # Based on FBI Flash Report MU-000132-DD
+    # add protocol name to label list
+    if 'highest_protocol' in df.columns.tolist():
+        label.append(", ".join(fingerprint['highest_protocol']))
+
+    if 'dns_qry_name' in df.columns.tolist():
+        label.append("DNS_QUERY")
+
     if 'udp_length' not in df.columns.tolist():
         return
 
-    df_length = (df.groupby(['srcport'])['udp_length'].max()).reset_index()
-    if (len(df_length.udp_length>468)):
-        label.append("UDP_SUSPECT_LENGTH")
-        
-        for port in udp_service:
-            if ("srcport" in fingerprint):
-                if (fingerprint['srcport'] == [port]):
-                    label.append("AMPLIFICATION")
-                    label.append("FANCY_BEAR_RANSOM")
-                    #label.append(my_dict[port])
-    try:
-        if ("srcport" in fingerprint):
-            if (fingerprint['srcport'] == [53]) and ('dns_qry_name' in fingerprint) :
-                label.append("DNS")
-    except:
-       pass
-
+    if 'udp_length' in df.columns.tolist():
+        # Based on FBI Flash Report MU-000132-DD
+        df_length = (df.groupby(['srcport'])['udp_length'].max()).reset_index()
+        if (len(df_length.udp_length>468)):
+            label.append("UDP_SUSPECT_LENGTH")
+            
+            for port in udp_service:
+                if ("srcport" in fingerprint):
+                    if (fingerprint['srcport'] == [port]):
+                        label.append("AMPLIFICATION")
+                        label.append("RDDoS")
+                        label.append(udp_service[port])
     return (label)
 
 #------------------------------------------------------------------------------
