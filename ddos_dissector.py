@@ -51,11 +51,10 @@ PCAP_TYPE = 1
 ###############################################################################
 ### Subrotines
 #------------------------------------------------------------------------------
-def parser_args():
+def parser_add_arguments():
     """
         Parse comamnd line parameters
     """
-
     parser = argparse.ArgumentParser(prog=program_name, usage='%(prog)s [options]', epilog="Example: ./%(prog)s -f ./pcap_samples/sample1.pcap --summary --upload ", formatter_class=RawTextHelpFormatter)
     parser.add_argument("--version", help="print version and exit", action="store_true")
     parser.add_argument("-v","--verbose", help="print info msg", action="store_true")
@@ -702,8 +701,68 @@ def inspect_ntp(df,n_type):
 
     return (fingerprint)
 
+
 #------------------------------------------------------------------------------
-def inspect_harder(df_filtered,df_full,n_type):
+def multi_frag(df,n_type):
+    """
+        Determine if multiples protocol were used for fragmentation attack
+        :param df_filtered: dataframe filtered by target_ip
+        :param n_type: network file type (flows,pcap)
+        :return fingerprint: json file
+    """
+    fingerprint  = {}
+    df_ = df.fragmentation.value_counts(normalize=True).mul(100).reset_index()
+    value = df_.loc[:,"fragmentation"].values[0]
+    df_['index']=df_['index'].astype(bool)
+    frag_percentage = df_[(df_['fragmentation']>SIMILARITY_THRESHOLD) & (df_['index'].values)[0]==True].values[0][1]
+
+    # high chances to have multi protocol frag attack
+    if (frag_percentage > SIMILARITY_THRESHOLD):
+
+        logger.info("ATTACK TYPE: MULTIPROTOCOL FRAGMENTATION ATTACK")
+        # find protocols responsible for that fragmentation
+        df_ = df.groupby(['highest_protocol','fragmentation'])['fragmentation'].count().to_frame().\
+            rename(columns={'fragmentation':'count'}).reset_index()
+
+        # may have more than one protocol responsible for that fragmementaiton percentage per group
+        # then, find the percentage of frag per protocol
+        df_['percent'] = df_.groupby(['highest_protocol'])['count'].transform(lambda x: (x/x.sum()).mul(100))
+        df_['fragmentation']=df_['fragmentation'].astype(bool)
+
+        # protocol with high percentage of frag
+        protocols = df_[(df_.fragmentation == True) & (df_.percent>SIMILARITY_THRESHOLD)]['highest_protocol'].tolist()
+
+        # find respective src_port
+        logger.info("Reprocessing attack based on protocols: {}".format(protocols))
+
+        fields = df.columns.tolist()
+        fields.remove("eth_type")
+        fields.remove("ip_dst")
+        df_filtered = df[df.highest_protocol.isin(protocols)]
+        srcports_frag = df[df.highest_protocol.isin(protocols)]['srcport'].unique().tolist()
+
+        # remove port "NONE" assigned where there is no info about it (IPv4 frag)
+        if NONE in srcports_frag:
+            srcports_frag.remove(NONE)
+
+        # add srcport to the fingerprint
+        fingerprint.update( { "srcport" : srcports_frag } )
+        for field in fields:
+            outlier = find_outlier(df_filtered[field],df,n_type)
+            if (outlier):
+                if (outlier != [NONE]):
+                     fingerprint.update( {field : outlier} )
+        # revome fields the may overlap srcports outliers
+        del fingerprint['ip_proto']
+        del fingerprint['ip_ttl']
+        return (fingerprint)
+
+    # not multiprotocol fragmentation
+    else: 
+        return None
+
+#------------------------------------------------------------------------------
+def inspect_try_harder(df_full,df_filtered,n_type,fingerprint):
     """
         Evaluate other protocol fields to improve the match rate
         :param df_filtered: dataframe filtered by target_ip
@@ -711,31 +770,13 @@ def inspect_harder(df_filtered,df_full,n_type):
         :param n_type: network file type (flows,pcap)
         :return fingerprints: json file
     """
-    logger.info("Trying harder")
-    fields = df_filtered.columns.tolist()
-    #fields.remove("eth_type")
-    fields.remove("ip_dst")
+    logger.debug("Trying harder")
+    # check for multiprotocol fragmentation
+    new_fingerprint = multi_frag(df_filtered,n_type)
 
-    fingerprint  = {}
-    for field in fields:
-        outlier = find_outlier(df_filtered[field],n_type)
-        if (outlier):
-            if (outlier != [NONE]):
-                fingerprint.update( {field : outlier} )
-
-    df = df_filtered
-
-    results = {}
-    # how many rows each field can filter
-    for key, value in fingerprint.items():
-        total_rows_matched = len(df_full[df_full[key].isin(value)])
-        percentage = round(total_rows_matched*100/len(df_full))
-        # dict with all the fields and results
-        results.update( {key: percentage} )
-    results_sorted = {k: v for k, v in sorted(results.items(), key=lambda item: item[1],  reverse=True)}
-
-    for label, percentage in results_sorted.items():
-        printProgressBar(percentage,label,"▭ ")
+    if (new_fingerprint):
+        logger.debug("return the new fingerprint")
+        return new_fingerprint
 
     return (fingerprint)
 
@@ -751,7 +792,6 @@ def inspect_dns(df_fingerprint,n_type):
     logger.info("Processing attack based on {}".format(attack_protocol))
 
     fields = df_filtered.columns.tolist()
-    #fields.remove("eth_type")
     fields.remove("ip_dst")
 
     fingerprint  = {}
@@ -1044,21 +1084,19 @@ def add_label(fingerprint,df):
     }
 
     # add protocol name to label list
-    if 'highest_protocol' in df.columns.tolist():
-        label.append(", ".join(fingerprint['highest_protocol']))
+    if 'highest_protocol' in fingerprint:
+        #label.append(", ".join(fingerprint['highest_protocol']))
+        print (fingerprint['highest_protocol'])
+        sys.exit(0)
 
-    if 'dns_qry_name' in df.columns.tolist():
+    if 'dns_qry_name' in fingerprint:
         label.append("DNS_QUERY")
 
-    if 'udp_length' not in df.columns.tolist():
-        return
-
-    if 'udp_length' in df.columns.tolist():
+    if 'udp_length' in fingerprint:
         # Based on FBI Flash Report MU-000132-DD
         df_length = (df.groupby(['srcport'])['udp_length'].max()).reset_index()
         if (len(df_length.udp_length>468)):
             label.append("UDP_SUSPECT_LENGTH")
-            
             for port in udp_service:
                 if ("srcport" in fingerprint):
                     if (fingerprint['srcport'] == [port]):
@@ -1160,7 +1198,7 @@ if __name__ == '__main__':
 
     logo()
     signal.signal(signal.SIGINT, signal_handler)
-    parser = parser_args()
+    parser = parser_add_arguments()
     args = parser.parse_args()
     logger = logger(args)
     config = import_logfile(args)
@@ -1188,7 +1226,7 @@ if __name__ == '__main__':
         sys.exit(1)
 
     fingerprints = []
-    # usually is only one target, but on anycast/load balanced networksit  might have more
+    # usually is only one target, but on anycast/load balanced might have more
     target_ip_list = infer_target_ip(df,n_type)
     if not target_ip_list:
         print ("Target IP could not be infered.") 
@@ -1249,6 +1287,14 @@ if __name__ == '__main__':
         ## return dataframe filtered
         df_fingerprint = filter_fingerprint(df,fingerprint,similarity)
 
+        # evaluate the accuracy_ratio
+        accuracy_ratio = round(len(df_fingerprint)*100/len(df))
+        if (accuracy_ratio < 60):
+            fingerprint = inspect_try_harder(df,df_filtered,n_type,fingerprint)
+
+        df_fingerprint = filter_fingerprint(df,fingerprint,similarity)
+        accuracy_ratio = round(len(df_fingerprint)*100/len(df))
+
         # infer tags based on the generated fingerprint
         labels = add_label(fingerprint,df_fingerprint)
         fingerprint.update({"tags": labels})
@@ -1263,8 +1309,8 @@ if __name__ == '__main__':
         json_str = json.dumps(fingerprint_anon, indent=4, sort_keys=True)
         msg = "Generated fingerprint"
         sys.stdout.write('\r'+'['+'\u2713'+'] '+ msg+'\n')
-#        print ("Generated fingerprint: ")
         print(highlight(json_str, JsonLexer(), TerminalFormatter()))
+
 
         if (args.summary):
             # evaluate fingerprint generated - do not considerer src_ips 
