@@ -914,6 +914,7 @@ def evaluate_fingerprint(df,df_fingerprint,fingerprint):
 
     # remove fields that are not in the dataframe
     fingerprint.pop('tags',None)
+    fingerprint.pop('one_line',None)
     fingerprint.pop('key_sha256',None)
     fingerprint.pop('start_time',None)
     fingerprint.pop('duration_sec',None)
@@ -1060,8 +1061,8 @@ def add_label(fingerprint,df):
     """
        Add labels to fingerprint generated
     """
+
     label = []
-    
     # UDP Service Mapping
     udp_service = {
         25:    'SMTP',
@@ -1083,16 +1084,17 @@ def add_label(fingerprint,df):
         47808: 'BACnet', 
     }
 
+    generic_amplification_ports = [53, 389, 123]
+
     # add protocol name to label list
     if 'highest_protocol' in fingerprint:
-        #label.append(", ".join(fingerprint['highest_protocol']))
-        print (fingerprint['highest_protocol'])
-        sys.exit(0)
+        label.append(", ".join(fingerprint['highest_protocol']))
 
     if 'dns_qry_name' in fingerprint:
         label.append("DNS_QUERY")
 
     if 'udp_length' in fingerprint:
+
         # Based on FBI Flash Report MU-000132-DD
         df_length = (df.groupby(['srcport'])['udp_length'].max()).reset_index()
         if (len(df_length.udp_length>468)):
@@ -1103,6 +1105,17 @@ def add_label(fingerprint,df):
                         label.append("AMPLIFICATION")
                         label.append("RDDoS")
                         label.append(udp_service[port])
+
+    # Generic amplification attack
+    if ("srcport" in fingerprint):
+        print ("scr port ")
+        for port in generic_amplification_ports:
+            print (port)
+            print (fingerprint['srcport'])
+            if (port in list(fingerprint['srcport'])):
+                label.append("AMPLIFICATION")
+                break
+
     return (label)
 
 #------------------------------------------------------------------------------
@@ -1294,6 +1307,7 @@ if __name__ == '__main__':
 
         df_fingerprint = filter_fingerprint(df,fingerprint,similarity)
         accuracy_ratio = round(len(df_fingerprint)*100/len(df))
+
 
         # remove brackets from string
         one_line_fingerprint = str(fingerprint).translate(str.maketrans("", "", "[]"))
