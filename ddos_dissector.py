@@ -714,7 +714,10 @@ def multi_frag(df,n_type):
     df_ = df.fragmentation.value_counts(normalize=True).mul(100).reset_index()
     value = df_.loc[:,"fragmentation"].values[0]
     df_['index']=df_['index'].astype(bool)
-    frag_percentage = df_[(df_['fragmentation']>SIMILARITY_THRESHOLD) & (df_['index'].values)[0]==True].values[0][1]
+    try:
+        frag_percentage = df_[(df_['fragmentation']>SIMILARITY_THRESHOLD) & (df_['index'].values)[0]==True].values[0][1]
+    except (ValueError,IndexError):
+        return None
 
     # high chances to have multi protocol frag attack
     if (frag_percentage > SIMILARITY_THRESHOLD):
@@ -753,8 +756,10 @@ def multi_frag(df,n_type):
                 if (outlier != [NONE]):
                      fingerprint.update( {field : outlier} )
         # revome fields the may overlap srcports outliers
-        del fingerprint['ip_proto']
-        del fingerprint['ip_ttl']
+        if 'ip_proto' in fingerprint:
+            del fingerprint['ip_proto']
+        if 'ip_ttl' in fingerprint:
+            del fingerprint['ip_ttl']
         return (fingerprint)
 
     # not multiprotocol fragmentation
@@ -1108,10 +1113,7 @@ def add_label(fingerprint,df):
 
     # Generic amplification attack
     if ("srcport" in fingerprint):
-        print ("scr port ")
         for port in generic_amplification_ports:
-            print (port)
-            print (fingerprint['srcport'])
             if (port in list(fingerprint['srcport'])):
                 label.append("AMPLIFICATION")
                 break
@@ -1323,6 +1325,10 @@ if __name__ == '__main__':
         fingerprint_anon.update({"one_line": one_line_fingerprint})
         fingerprint_anon.update({"attackers": "ommited"})
         fingerprint_anon.update({"amplifiers": "ommited"})
+
+        # remove verbose field provided by wireshark
+        if "_ws_col_Info" in fingerprint:
+            del fingerprint["_ws_col_Info"]
 
         json_str = json.dumps(fingerprint_anon, indent=4, sort_keys=True)
         msg = "Generated fingerprint"
