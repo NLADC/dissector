@@ -1295,6 +1295,9 @@ if __name__ == '__main__':
         df_fingerprint = filter_fingerprint(df,fingerprint,similarity)
         accuracy_ratio = round(len(df_fingerprint)*100/len(df))
 
+        # remove brackets from string
+        one_line_fingerprint = str(fingerprint).translate(str.maketrans("", "", "[]"))
+
         # infer tags based on the generated fingerprint
         labels = add_label(fingerprint,df_fingerprint)
         fingerprint.update({"tags": labels})
@@ -1303,6 +1306,7 @@ if __name__ == '__main__':
         (fingerprint,json_file) = prepare_fingerprint_upload(df_fingerprint,df,fingerprint,n_type,labels)
 
         fingerprint_anon = fingerprint
+        fingerprint_anon.update({"one_line": one_line_fingerprint})
         fingerprint_anon.update({"attackers": "ommited"})
         fingerprint_anon.update({"amplifiers": "ommited"})
 
