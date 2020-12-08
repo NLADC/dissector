@@ -1095,7 +1095,7 @@ def add_label(fingerprint,df):
         47808: 'BACnet', 
     }
 
-    generic_amplification_ports = [53, 389, 123]
+    generic_amplification_ports = [53, 389, 123, 161, 672]
 
     # add protocol name to label list
     if 'highest_protocol' in fingerprint:
@@ -1116,6 +1116,13 @@ def add_label(fingerprint,df):
                         label.append("AMPLIFICATION")
                         label.append("RDDoS")
                         label.append(udp_service[port])
+
+    # Frag attack
+    if 'fragmentation' in fingerprint:
+        label.append("FRAGMENTATION")
+
+    if (len(fingerprint['srcport']) > 1):
+       label.append("MULTIPROTOCOL")
 
     # Generic amplification attack
     if ("srcport" in fingerprint):
@@ -1246,6 +1253,7 @@ if __name__ == '__main__':
         logger.error("could not read data from file <{}>".format(args.filename))
         sys.exit(1)
 
+    df.to_csv("/tmp/df.csv",index=False, sep=";")
     fingerprints = []
     # usually is only one target, but on anycast/load balanced might have more
     target_ip_list = infer_target_ip(df,n_type)
