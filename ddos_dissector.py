@@ -574,7 +574,7 @@ def infer_protocol_attack(df,n_type):
     return None
 
 #------------------------------------------------------------------------------
-def ip_src_fragmentation_attack_similarity(df,lst_attack_protocols,frag):
+def ip_src_fragmentation_attack_similarity(df,lst_attack_protocols,frag, target_ip):
     """
         Find IPs related to fragmentation attack
         :param df: full dataframe
@@ -584,7 +584,7 @@ def ip_src_fragmentation_attack_similarity(df,lst_attack_protocols,frag):
     if (not frag):
         return False
 
-    ip_frag    = df[(df['ip_dst'] == target_ip) & (df['highest_protocol'] == lst_attack_protocols[0])]['ip_src'].unique().tolist()
+    ip_frag = df[(df['ip_dst'] == target_ip) & (df['highest_protocol'] == lst_attack_protocols[0])]['ip_src'].unique().tolist()
     ip_nonfrag = df[(df['ip_dst'] == target_ip) & (df['highest_protocol'] == lst_attack_protocols[-1])]['ip_src'].unique().tolist()
     ip_list_union = set(ip_frag + ip_nonfrag)
     ip_intersection  = list(set(ip_frag) & set(ip_nonfrag))
@@ -738,15 +738,20 @@ def multi_frag(df,n_type):
         # find respective src_port
         logger.info("Reprocessing attack based on protocols: {}".format(protocols))
 
+        # ceron12
         fields = df.columns.tolist()
         fields.remove("eth_type")
         fields.remove("ip_dst")
+        fields.remove("_ws_col_Info")
         df_filtered = df[df.highest_protocol.isin(protocols)]
+
         srcports_frag = df[df.highest_protocol.isin(protocols)]['srcport'].unique().tolist()
 
         # remove port "NONE" assigned where there is no info about it (IPv4 frag)
         if NONE in srcports_frag:
             srcports_frag.remove(NONE)
+            #logger.info("protocol IPv4 is there")
+
 
         # add srcport to the fingerprint
         fingerprint.update( { "srcport" : srcports_frag } )
@@ -755,11 +760,13 @@ def multi_frag(df,n_type):
             if (outlier):
                 if (outlier != [NONE]):
                      fingerprint.update( {field : outlier} )
+
         # revome fields the may overlap srcports outliers
         if 'ip_proto' in fingerprint:
             del fingerprint['ip_proto']
         if 'ip_ttl' in fingerprint:
             del fingerprint['ip_ttl']
+
         return (fingerprint)
 
     # not multiprotocol fragmentation
@@ -775,7 +782,6 @@ def inspect_try_harder(df_full,df_filtered,n_type,fingerprint):
         :param n_type: network file type (flows,pcap)
         :return fingerprints: json file
     """
-    logger.debug("Trying harder")
     # check for multiprotocol fragmentation
     new_fingerprint = multi_frag(df_filtered,n_type)
 
@@ -1194,7 +1200,7 @@ def prepare_fingerprint_upload(df_fingerprint,df,fingerprint,n_type,labels):
             fingerprint.update( {"attackers": "None"} )
 
     # save fingerprint to local file in order to enable the upload via POST
-    json_file = "{}.json".format(key)
+    json_file = "./fingerprints/{}.json".format(key)
     logger.info("Saving fingerprint on {}".format(json_file))
     with open(json_file, 'w') as f_fingerprint:
         json.dump(fingerprint, f_fingerprint)
@@ -1240,6 +1246,7 @@ if __name__ == '__main__':
         logger.error("could not read data from file <{}>".format(args.filename))
         sys.exit(1)
 
+    df.to_csv("/tmp/df.csv",index=False, sep=";")
     fingerprints = []
     # usually is only one target, but on anycast/load balanced might have more
     target_ip_list = infer_target_ip(df,n_type)
@@ -1266,7 +1273,7 @@ if __name__ == '__main__':
         if (frag):
             frag_proto = lst_attack_protocols[0]
             # is this fragmentation attack caused by another attack?
-            similarity = ip_src_fragmentation_attack_similarity(df,lst_attack_protocols,frag)
+            similarity = ip_src_fragmentation_attack_similarity(df,lst_attack_protocols,frag,target_ip )
 
             if (similarity):
                 # lets use the top2 protocol since there is a big overlap of src_ip between frag attack and top2 proto
@@ -1304,7 +1311,7 @@ if __name__ == '__main__':
 
         # evaluate the accuracy_ratio
         accuracy_ratio = round(len(df_fingerprint)*100/len(df))
-        if (accuracy_ratio < 60):
+        if (accuracy_ratio < SIMILARITY_THRESHOLD):
             fingerprint = inspect_try_harder(df,df_filtered,n_type,fingerprint)
 
         df_fingerprint = filter_fingerprint(df,fingerprint,similarity)
