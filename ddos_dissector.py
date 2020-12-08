@@ -1121,11 +1121,11 @@ def add_label(fingerprint,df):
     if 'fragmentation' in fingerprint:
         label.append("FRAGMENTATION")
 
-    if (len(fingerprint['srcport']) > 1):
-       label.append("MULTIPROTOCOL")
 
     # Generic amplification attack
     if ("srcport" in fingerprint):
+        if (len(fingerprint['srcport']) > 1):
+            label.append("MULTIPROTOCOL")
         for port in generic_amplification_ports:
             if (port in list(fingerprint['srcport'])):
                 label.append("AMPLIFICATION")
@@ -1253,6 +1253,7 @@ if __name__ == '__main__':
         logger.error("could not read data from file <{}>".format(args.filename))
         sys.exit(1)
 
+    df.to_csv("/tmp/df.csv",index=False, sep=";")
     fingerprints = []
     # usually is only one target, but on anycast/load balanced might have more
     target_ip_list = infer_target_ip(df,n_type)
