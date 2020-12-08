@@ -1253,7 +1253,6 @@ if __name__ == '__main__':
         logger.error("could not read data from file <{}>".format(args.filename))
         sys.exit(1)
 
-    df.to_csv("/tmp/df.csv",index=False, sep=";")
     fingerprints = []
     # usually is only one target, but on anycast/load balanced might have more
     target_ip_list = infer_target_ip(df,n_type)
