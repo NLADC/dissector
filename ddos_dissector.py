@@ -383,12 +383,15 @@ def pcap_to_df(ret,filename):
         df['fragmentation'] = (df['ip.flags.mf'] == '1') | (df['ip.frag_offset'] != '0')
         df.drop(['ip.flags.mf', 'ip.frag_offset'], axis=1, inplace=True)
 
+# translate flags to string
 #     if 'tcp.flags.str' in df.columns:
 #         df['tcp.flags.str'] = df['tcp.flags.str'].str.encode("utf-8")
 
     df.columns = [c.replace('.', '_') for c in df.columns]    
+
+    # remove info field
+    del df['_ws_col_Info']
     ret.put(df)
-    #return df
 
 #------------------------------------------------------------------------------
 ## Function for calculating the TOP 'N' and aggregate the 'others'
@@ -483,33 +486,39 @@ def animated_loading(msg="loading "):
     cursor.show()
 
 #------------------------------------------------------------------------------
-def find_outlier(df_filtered,df,n_type):
+def find_outlier(df_filtered,df,n_type,strict=0):
     """
         Find outlier based in zscore
         :param df_filtered: dataframe filtered by target_ip
         :param df: full dataframe used for flows analysis
         :param n_type: network file type (flows,pcap)
+        :param strict: change filter to be more strict
     """
-
     data = top_n_dataframe(df_filtered,df,n_type)
+    
     if (data.empty):
         return None
-    data = data[(data['percent']> SIMILARITY_THRESHOLD) | (data['zscore']>2)]
+
+    if (strict):
+        data = data[(data['percent']> SIMILARITY_THRESHOLD) & (data['zscore']>2)]
+    else:
+        data = data[(data['percent']> SIMILARITY_THRESHOLD) | (data['zscore']>2)]
 
     if (data.size==0):
         return None
 
-    logger.debug("Finding outlier for .:{}:.\n {}" .format(data.columns[0], data.head(5).to_string(index=False) ))
+    logger.debug('-' * 60)
     outliers = data.iloc[:,0].tolist()
+
     if ("others" in outliers):
         # `others` is the sum of remains elements from top_n_dataframe
         outliers.remove('others')
 
     if (len(outliers)>0):
-        logger.debug("Outliers for the field `{}`: {}".format(data.columns[0],outliers))
+        logger.debug("Outliers for .:{}:. --> {} \n {}" .format(data.columns[0], outliers,  data.head(5).to_string(index=False) ))
         return outliers
     else:
-        logger.debug("No outlier for the field `{}`".format(data.columns[0]))
+        logger.debug("Outliers for .:{}:. --> None \n {}" .format(data.columns[0], data.head(5).to_string(index=False) ))
         return None
 
 #------------------------------------------------------------------------------
@@ -665,7 +674,6 @@ def inspect_smtp(df,n_type):
 
     fields = df.columns.tolist()
     fields.remove("eth_type")
-    fields.remove("ip_dst")
 
     fingerprint  = {}
     for field in fields:
@@ -689,7 +697,6 @@ def inspect_ntp(df,n_type):
 
     fields = df.columns.tolist()
     fields.remove("eth_type")
-    fields.remove("_ws_col_Info")
     fields.remove("dstport")
 
     fingerprint  = {}
@@ -714,6 +721,8 @@ def multi_frag(df,n_type):
     df_ = df.fragmentation.value_counts(normalize=True).mul(100).reset_index()
     value = df_.loc[:,"fragmentation"].values[0]
     df_['index']=df_['index'].astype(bool)
+
+    # percentage of packets with fragmentation
     try:
         frag_percentage = df_[(df_['fragmentation']>SIMILARITY_THRESHOLD) & (df_['index'].values)[0]==True].values[0][1]
     except (ValueError,IndexError):
@@ -723,6 +732,7 @@ def multi_frag(df,n_type):
     if (frag_percentage > SIMILARITY_THRESHOLD):
 
         logger.info("ATTACK TYPE: MULTIPROTOCOL FRAGMENTATION ATTACK")
+
         # find protocols responsible for that fragmentation
         df_ = df.groupby(['highest_protocol','fragmentation'])['fragmentation'].count().to_frame().\
             rename(columns={'fragmentation':'count'}).reset_index()
@@ -738,23 +748,18 @@ def multi_frag(df,n_type):
         # find respective src_port
         logger.info("Reprocessing attack based on protocols: {}".format(protocols))
 
-        # ceron12
         fields = df.columns.tolist()
         fields.remove("eth_type")
-        fields.remove("ip_dst")
-        fields.remove("_ws_col_Info")
         df_filtered = df[df.highest_protocol.isin(protocols)]
-
         srcports_frag = df[df.highest_protocol.isin(protocols)]['srcport'].unique().tolist()
 
         # remove port "NONE" assigned where there is no info about it (IPv4 frag)
         if NONE in srcports_frag:
             srcports_frag.remove(NONE)
-            #logger.info("protocol IPv4 is there")
-
 
         # add srcport to the fingerprint
         fingerprint.update( { "srcport" : srcports_frag } )
+        
         for field in fields:
             outlier = find_outlier(df_filtered[field],df,n_type)
             if (outlier):
@@ -771,25 +776,42 @@ def multi_frag(df,n_type):
 
     # not multiprotocol fragmentation
     else: 
+        logger.debug("Not multiprotocol frag attack")
         return None
 
 #------------------------------------------------------------------------------
-def inspect_try_harder(df_full,df_filtered,n_type,fingerprint):
+def inspect_try_harder(df,df_filtered,n_type,fingerprint,ratio):
     """
         Evaluate other protocol fields to improve the match rate
         :param df_filtered: dataframe filtered by target_ip
-        :param df_full: the entire dataframe
+        :param df: the entire dataframe
         :param n_type: network file type (flows,pcap)
         :return fingerprints: json file
     """
+
     # check for multiprotocol fragmentation
     new_fingerprint = multi_frag(df_filtered,n_type)
 
     if (new_fingerprint):
-        logger.debug("return the new fingerprint")
+        logger.debug ("MultiFrag attack")
+        logger.debug("New fingerprint generated")
         return new_fingerprint
 
-    return (fingerprint)
+    # not multifrag
+    else:
+        logger.debug ("This is not a MultiFrag attack, trying generic approach")
+        fields = df_filtered.columns.tolist()
+        fields.remove("eth_type")
+
+        new_fingerprint  = {}
+        for field in fields:
+            # strict mode 
+            outlier = find_outlier(df_filtered[field],df_filtered,n_type)
+            if (outlier):
+                if (outlier != [NONE]):
+                    new_fingerprint.update( {field : outlier} )
+
+    return (new_fingerprint)
 
 #------------------------------------------------------------------------------
 def inspect_dns(df_fingerprint,n_type):
@@ -803,7 +825,7 @@ def inspect_dns(df_fingerprint,n_type):
     logger.info("Processing attack based on {}".format(attack_protocol))
 
     fields = df_filtered.columns.tolist()
-    fields.remove("ip_dst")
+    fields.remove("eth_type")
 
     fingerprint  = {}
     for field in fields:
@@ -1035,9 +1057,7 @@ def inspect_generic(df,n_type):
 
     fields = df.columns.tolist()
     if "eth_type" in fields: fields.remove("eth_type")
-    fields.remove("ip_dst")
     if "icmp_type" in fields: fields.remove("icmp_type")
-    if "_ws_col_Info" in fields: fields.remove("_ws_col_Info")
 
     fingerprint  = {}
     for field in fields:
@@ -1120,7 +1140,6 @@ def add_label(fingerprint,df):
     # Frag attack
     if 'fragmentation' in fingerprint:
         label.append("FRAGMENTATION")
-
 
     # Generic amplification attack
     if ("srcport" in fingerprint):
@@ -1272,7 +1291,11 @@ if __name__ == '__main__':
         sys.stdout.write('\r'+'['+'\u2713'+'] '+ msg+'\n')
 
         df_filtered = df[df['ip_dst'] == target_ip]
+
         (lst_attack_protocols, frag) = infer_protocol_attack(df_filtered,n_type)
+
+        # remove target IP from dataframe since it will be anonymized
+        del df_filtered['ip_dst']
 
         # correlation flag - see function ip_src_fragmentation_attack_similarity
         similarity = False
@@ -1318,15 +1341,20 @@ if __name__ == '__main__':
 
         # evaluate the accuracy_ratio
         accuracy_ratio = round(len(df_fingerprint)*100/len(df))
+        
         if (accuracy_ratio < SIMILARITY_THRESHOLD):
-            fingerprint = inspect_try_harder(df,df_filtered,n_type,fingerprint)
+            logger.debug("LOW MATCHING RATE: Changing heuristic.")
+            fingerprint = inspect_try_harder(df,df_filtered,n_type,fingerprint,accuracy_ratio)
 
         df_fingerprint = filter_fingerprint(df,fingerprint,similarity)
         accuracy_ratio = round(len(df_fingerprint)*100/len(df))
 
-
         # remove brackets from string
         one_line_fingerprint = str(fingerprint).translate(str.maketrans("", "", "[]"))
+
+        if (len(fingerprint) <2):
+            print ("Could not find fingerprint for this network file :(" )
+            sys.exit(0)
 
         # infer tags based on the generated fingerprint
         labels = add_label(fingerprint,df_fingerprint)
@@ -1339,10 +1367,6 @@ if __name__ == '__main__':
         fingerprint_anon.update({"one_line": one_line_fingerprint})
         fingerprint_anon.update({"attackers": "ommited"})
         fingerprint_anon.update({"amplifiers": "ommited"})
-
-        # remove verbose field provided by wireshark
-        if "_ws_col_Info" in fingerprint:
-            del fingerprint["_ws_col_Info"]
 
         json_str = json.dumps(fingerprint_anon, indent=4, sort_keys=True)
         msg = "Generated fingerprint"
