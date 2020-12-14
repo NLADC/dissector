@@ -492,17 +492,40 @@ def find_outlier(df_filtered,df,n_type,strict=0):
         :param df_filtered: dataframe filtered by target_ip
         :param df: full dataframe used for flows analysis
         :param n_type: network file type (flows,pcap)
-        :param strict: change filter to be more strict
+        :param strict: turn the outlier process less flexible
     """
+
+    # summarization dataframe
     data = top_n_dataframe(df_filtered,df,n_type)
     
-    if (data.empty):
-        return None
+    if (data.empty): 
+        return 
 
+    outlier_field = data.columns[0]
+
+    # be more strict in the filter used to look for the outlier
     if (strict):
-        data = data[(data['percent']> SIMILARITY_THRESHOLD) & (data['zscore']>2)]
+        data_ = data[(data['percent']> SIMILARITY_THRESHOLD) & (data['zscore']>2)]
+    
+	# if the filter does not return anything, check if the df is
+	# composed by only one field
+        if (data_.size==0):
+
+            # get first line from summarization dataframe
+            data = data.head(1)
+            data = data[(data['percent']> SIMILARITY_THRESHOLD) & (data['zscore']<0) & (data[outlier_field]!="others")] 
+            if (data.empty): return 
+            outliers = data.iloc[:,0].tolist()
+            logger.debug("Outliers for .:{}:. --> {} \n {}" .format(outlier_field, outliers, data.head(5).to_string(index=False) ))
+            return (outliers)
+        else:
+            # return the filtered dataframe saved in aux var
+            data = data_
+
+    # regular process - no strict
     else:
         data = data[(data['percent']> SIMILARITY_THRESHOLD) | (data['zscore']>2)]
+        print ("entrou no no_strict mode")
 
     if (data.size==0):
         return None
@@ -710,10 +733,64 @@ def inspect_ntp(df,n_type):
 
 
 #------------------------------------------------------------------------------
+def non_multifrag_heuristic(df,df_filtered,n_type):
+    """
+        Generic heuristic to deal with low accuracy ratio fingerprint
+        :param df: dataframe filtered by target_ip
+        :param n_type: network file type (flows,pcap)
+        :return fingerprint: json file
+    """
+    fields = df_filtered.columns.tolist()
+    fields.remove("eth_type")
+
+    new_fingerprint = {}
+    for field in fields:
+        # strict mode 
+        outlier = find_outlier(df_filtered[field],df_filtered,n_type)
+        if (outlier):
+            if (outlier != [NONE]):
+                new_fingerprint.update( {field : outlier} )
+
+    ## return dataframe filtered
+    df_fingerprint_new = filter_fingerprint(df,fingerprint,similarity)
+
+    # evaluate the accuracy_ratio
+    accuracy_ratio = round(len(df_fingerprint_new)*100/len(df))
+    print (accuracy_ratio)
+    print (new_fingerprint)
+
+
+    print ("entrou -----------------")
+
+    fields = df_filtered.columns.tolist()
+    fields.remove("eth_type")
+    print (fields)
+    new_fingerprint = {}
+    for field in fields:
+        print (field)
+        # strict mode 
+        outlier = find_outlier(df_filtered[field],df_filtered,n_type,True)
+        if (outlier):
+            if (outlier != [NONE]):
+                new_fingerprint.update( {field : outlier} )
+
+    ## return dataframe filtered
+    df_fingerprint_new = filter_fingerprint(df,fingerprint,similarity)
+
+    # evaluate the accuracy_ratio
+    accuracy_ratio = round(len(df_fingerprint_new)*100/len(df))
+    print (accuracy_ratio)
+    print (new_fingerprint)
+
+
+
+    sys.exit(0)
+
+#------------------------------------------------------------------------------
 def multi_frag(df,n_type):
     """
         Determine if multiples protocol were used for fragmentation attack
-        :param df_filtered: dataframe filtered by target_ip
+        :param df: dataframe filtered by target_ip
         :param n_type: network file type (flows,pcap)
         :return fingerprint: json file
     """
@@ -753,7 +830,7 @@ def multi_frag(df,n_type):
         df_filtered = df[df.highest_protocol.isin(protocols)]
         srcports_frag = df[df.highest_protocol.isin(protocols)]['srcport'].unique().tolist()
 
-        # remove port "NONE" assigned where there is no info about it (IPv4 frag)
+        # remove port "NONE" (assigned to IPv4 frag protocol)
         if NONE in srcports_frag:
             srcports_frag.remove(NONE)
 
@@ -775,41 +852,34 @@ def multi_frag(df,n_type):
         return (fingerprint)
 
     # not multiprotocol fragmentation
-    else: 
-        logger.debug("Not multiprotocol frag attack")
-        return None
+    return (None)
 
 #------------------------------------------------------------------------------
 def inspect_try_harder(df,df_filtered,n_type,fingerprint,ratio):
     """
         Evaluate other protocol fields to improve the match rate
+        :param df: full dataframe 
         :param df_filtered: dataframe filtered by target_ip
         :param df: the entire dataframe
         :param n_type: network file type (flows,pcap)
         :return fingerprints: json file
     """
+    ratio_fingerprint = {}
 
     # check for multiprotocol fragmentation
     new_fingerprint = multi_frag(df_filtered,n_type)
 
     if (new_fingerprint):
-        logger.debug ("MultiFrag attack")
+        logger.info("MultiFrag attack")
         logger.debug("New fingerprint generated")
         return new_fingerprint
 
     # not multifrag
     else:
-        logger.debug ("This is not a MultiFrag attack, trying generic approach")
-        fields = df_filtered.columns.tolist()
-        fields.remove("eth_type")
 
-        new_fingerprint  = {}
-        for field in fields:
-            # strict mode 
-            outlier = find_outlier(df_filtered[field],df_filtered,n_type)
-            if (outlier):
-                if (outlier != [NONE]):
-                    new_fingerprint.update( {field : outlier} )
+        logger.info("This is not a multiFrag attack, trying generic approach")
+        fingerprint  = non_multifrag_heuristic(df,df_filtered,n_type)
+
 
     return (new_fingerprint)
 
@@ -1139,7 +1209,9 @@ def add_label(fingerprint,df):
 
     # Frag attack
     if 'fragmentation' in fingerprint:
-        label.append("FRAGMENTATION")
+        value = fingerprint.get('fragmentation')[0]
+        if (value=="True"):
+            label.append("FRAGMENTATION")
 
     # Generic amplification attack
     if ("srcport" in fingerprint):
@@ -1226,7 +1298,11 @@ def prepare_fingerprint_upload(df_fingerprint,df,fingerprint,n_type,labels):
             fingerprint.update( {"attackers": "None"} )
 
     # save fingerprint to local file in order to enable the upload via POST
-    json_file = "./fingerprints/{}.json".format(key)
+    fingerprint_dir = "./fingerprints/"
+    if not os.path.exists(fingerprint_dir):
+        os.makedirs(fingerprint_dir)
+
+    json_file = "{}/{}.json".format(fingerprint_dir,key)
     logger.info("Saving fingerprint on {}".format(json_file))
     with open(json_file, 'w') as f_fingerprint:
         json.dump(fingerprint, f_fingerprint)
@@ -1343,7 +1419,7 @@ if __name__ == '__main__':
         accuracy_ratio = round(len(df_fingerprint)*100/len(df))
         
         if (accuracy_ratio < SIMILARITY_THRESHOLD):
-            logger.debug("LOW MATCHING RATE: Changing heuristic.")
+            logger.info("LOW MATCHING RATE: Changing heuristic.")
             fingerprint = inspect_try_harder(df,df_filtered,n_type,fingerprint,accuracy_ratio)
 
         df_fingerprint = filter_fingerprint(df,fingerprint,similarity)
