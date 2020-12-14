@@ -525,7 +525,6 @@ def find_outlier(df_filtered,df,n_type,strict=0):
     # regular process - no strict
     else:
         data = data[(data['percent']> SIMILARITY_THRESHOLD) | (data['zscore']>2)]
-        print ("entrou no no_strict mode")
 
     if (data.size==0):
         return None
@@ -756,35 +755,23 @@ def non_multifrag_heuristic(df,df_filtered,n_type):
 
     # evaluate the accuracy_ratio
     accuracy_ratio = round(len(df_fingerprint_new)*100/len(df))
-    print (accuracy_ratio)
-    print (new_fingerprint)
-
-
-    print ("entrou -----------------")
 
     fields = df_filtered.columns.tolist()
     fields.remove("eth_type")
-    print (fields)
+
     new_fingerprint = {}
     for field in fields:
-        print (field)
-        # strict mode 
         outlier = find_outlier(df_filtered[field],df_filtered,n_type,True)
         if (outlier):
             if (outlier != [NONE]):
                 new_fingerprint.update( {field : outlier} )
 
     ## return dataframe filtered
-    df_fingerprint_new = filter_fingerprint(df,fingerprint,similarity)
+    df_fingerprint_new = filter_fingerprint(df,new_fingerprint,similarity)
 
     # evaluate the accuracy_ratio
     accuracy_ratio = round(len(df_fingerprint_new)*100/len(df))
-    print (accuracy_ratio)
-    print (new_fingerprint)
-
-
-
-    sys.exit(0)
+    return (new_fingerprint)
 
 #------------------------------------------------------------------------------
 def multi_frag(df,n_type):
@@ -879,9 +866,9 @@ def inspect_try_harder(df,df_filtered,n_type,fingerprint,ratio):
 
         logger.info("This is not a multiFrag attack, trying generic approach")
         fingerprint  = non_multifrag_heuristic(df,df_filtered,n_type)
+        return (fingerprint)
 
-
-    return (new_fingerprint)
+    return None
 
 #------------------------------------------------------------------------------
 def inspect_dns(df_fingerprint,n_type):
