@@ -782,33 +782,6 @@ def clusterization_multifrag(df,df_filtered,n_type):
 
         return (fingerprint)
 
-#    ----
-#        df_frag = top_n_dataframe(df_frag.highest_protocol,df_frag,n_type)
-#        protocols = df_frag[df_frag.percent>10]['highest_protocol'].tolist()
-#        srcports_frag = df_frag[df_frag.percent>10]['highest_protocol']['srcport'].unique().tolist()
-#        sys.exit()
-#        print (srcports_frag)
-##        srcports_frag = df[df.highest_protocol.isin(protocols)]['srcport'].unique().tolist()
-#        df_filtered = df_filtered[(df_filtered["fragmentation"]==True) & (df_filtered.highest_protocol.isin(protocols))]
-#
-#        print (df_filtered.columns)
-#        # ceron12
-#  #      df_frag = df_frag[['ip_proto', 'highest_protocol', 'udp_length', 'ip_ttl', 'ntp_priv_reqcode', 'srcport', 'dstport', 'fragmentation']]
-#        df_filtered = df_filtered[['ip_src', 'frame_len', 'udp_length', 'ntp_priv_reqcode', 'frame_time_epoch', 'srcport', 'dstport', 'start_timestamp', 'fragmentation']]
-#        fields = df_filtered.columns.tolist()
-#
-#        for field in fields:
-#            outlier = find_outlier(df_filtered[field],df,n_type)
-#            if (outlier):
-#                if (outlier != [NONE]):
-#                     fingerprint.update( {field : outlier} )
-#
-#        fingerprint.update( {'ip_proto' : protocols} )
-#        return (fingerprint)
-#
-#    # not multiprotocol fragmentation
-#    return (None)
-
 #------------------------------------------------------------------------------
 def generate_dot_file(df_fingerprint, df):
     """
@@ -1054,7 +1027,6 @@ def build_attack_fingerprint(df,df_filtered,n_type,similarity):
         :param n_type: network file type (flows,pcap)
         :return fingerprints: json file
     """
-    
     attack_protocol = df_filtered['highest_protocol'].iloc[0]
     logger.info("Processing attack based on {}".format(attack_protocol))
 
@@ -1294,8 +1266,6 @@ def print_fingerprint(fingerprint):
         sys.stdout.write('\r'+'['+'\u2713'+'] '+ msg+'\n')
         print(highlight(json_str, JsonLexer(), TerminalFormatter()))
 
-
-
 ###############################################################################
 ### Main Process
 if __name__ == '__main__':
@@ -1413,4 +1383,4 @@ if __name__ == '__main__':
             print (ret)
 
     sys.exit(0)
-
+#EOF
