@@ -406,9 +406,9 @@ def top_n_dataframe(dataframe_field,df,n_type,top_n=20):
         return df: dataframe itself
     """
     field_name = dataframe_field.name
-    if (field_name == "frame_time_epoch"):
+    if (field_name == "frame_time_epoch" or field_name=="start_timestamp"):
         return  pd.DataFrame()
-
+    
     # flow - different heuristic
     if (n_type==FLOW_TYPE):
 
@@ -425,16 +425,14 @@ def top_n_dataframe(dataframe_field,df,n_type,top_n=20):
 
     # pcap
     else:
-        # ignore timestamp field
-        top  = dataframe_field.value_counts()[:top_n].to_frame().reset_index()
+        top = df[field_name].value_counts().reset_index()[:top_n]
         new_row = pd.DataFrame(data = {
-            'count' : [ dataframe_field.value_counts()[top_n:].sum()],
+            'count' : [df[field_name].value_counts().reset_index()[top_n:][field_name].sum()],
             field_name : ['others'],
         })
 
     # combine the result dataframe (top_n + aggregated 'others')
     top.columns = [field_name, 'count']
-    top.set_index([field_name]).reset_index()
     top_result = pd.concat([top, new_row],sort=False)
 
     # percentage field
@@ -493,10 +491,14 @@ def find_outlier(df_filtered,df,n_type,strict=0):
         :param n_type: network file type (flows,pcap)
         :param strict: turn the outlier process less flexible
     """
+    # ceron12
+    field_name = df_filtered.name
 
     # summarization dataframe
     data = top_n_dataframe(df_filtered,df,n_type)
-    if (data.empty): return 
+
+    if (data.empty): 
+        return 
 
     outlier_field = data.columns[0]
 
@@ -523,9 +525,12 @@ def find_outlier(df_filtered,df,n_type,strict=0):
     # regular process - no strict
     else:
         data = data[(data['percent']> SIMILARITY_THRESHOLD) | (data['zscore']>2)]
-        if (data.size==0): return None
+        if (len(data)==0): return None
 
     outliers = data.iloc[:,0].tolist()
+    if (outliers == NONE):
+        logger.debug("Outliers for .:{}:. --> None \n {}" .format(data.columns[0], data.head(5).to_string(index=False) ))
+        return
 
     # remove outlier when dispersion is equal to `others` values, for example:
     # srcport  count  percent  zscore
@@ -718,7 +723,7 @@ def clusterization_multifrag(df,df_filtered,n_type):
         :param n_type: network file type (flows,pcap)
         :return fingerprint: json file
     """
-    df_filtered = df 
+
     fingerprint  = {}
     df_ = df.fragmentation.value_counts(normalize=True).mul(100).reset_index()
     value = df_.loc[:,"fragmentation"].values[0]
@@ -734,19 +739,75 @@ def clusterization_multifrag(df,df_filtered,n_type):
     if (frag_percentage > SIMILARITY_THRESHOLD):
 
         logger.info("ATTACK TYPE: MULTIPROTOCOL FRAGMENTATION ATTACK")
-        logger.debug("Percentage of traffic with fragmentation {}%".format(int(frag_percentage)))
-        df_frag = df[df["fragmentation"]==True] 
-        df_frag = df_frag[['ip_proto', 'highest_protocol', 'udp_length', 'ip_ttl', 'ntp_priv_reqcode', 'srcport', 'dstport', 'fragmentation']]
-        fields = df_frag.columns.tolist()
+
+        # find protocols responsible for that fragmentation
+        df_ = df.groupby(['highest_protocol','fragmentation'])['fragmentation'].count().to_frame().\
+            rename(columns={'fragmentation':'count'}).reset_index()
+
+        # may have more than one protocol responsible for that fragmementaiton percentage per group
+        # then, find the percentage of frag per protocol
+        df_['percent'] = df_.groupby(['highest_protocol'])['count'].transform(lambda x: (x/x.sum()).mul(100))
+        df_['fragmentation']=df_['fragmentation'].astype(bool)
+
+        # protocol with high percentage of frag
+        protocols = df_[(df_.fragmentation == True) & (df_.percent>SIMILARITY_THRESHOLD)]['highest_protocol'].tolist()
+
+        # find respective src_port
+        logger.info("Reprocessing attack based on protocols: {}".format(protocols))
+
+        df_filtered = df_filtered[df_filtered.highest_protocol.isin(protocols)]
+        srcports_frag = df[df.highest_protocol.isin(protocols)]['srcport'].unique().tolist()
+
+        # remove port "NONE" (assigned to IPv4 frag protocol)
+        if NONE in srcports_frag:
+            srcports_frag.remove(NONE)
+
+        # add srcport to the fingerprint
+        fingerprint.update( { "srcport" : srcports_frag } )
+
+        fields = df_filtered.columns.tolist()
+        fields.remove("eth_type")
+
         for field in fields:
-            outlier = find_outlier(df_frag[field],df,n_type)
+            outlier = find_outlier(df_filtered[field],df,n_type)
             if (outlier):
                 if (outlier != [NONE]):
                      fingerprint.update( {field : outlier} )
+
+        # revome fields the may overlap srcports outliers
+        if 'ip_proto' in fingerprint:
+            del fingerprint['ip_proto']
+        if 'ip_ttl' in fingerprint:
+            del fingerprint['ip_ttl']
+
         return (fingerprint)
 
-    # not multiprotocol fragmentation
-    return (None)
+#    ----
+#        df_frag = top_n_dataframe(df_frag.highest_protocol,df_frag,n_type)
+#        protocols = df_frag[df_frag.percent>10]['highest_protocol'].tolist()
+#        srcports_frag = df_frag[df_frag.percent>10]['highest_protocol']['srcport'].unique().tolist()
+#        sys.exit()
+#        print (srcports_frag)
+##        srcports_frag = df[df.highest_protocol.isin(protocols)]['srcport'].unique().tolist()
+#        df_filtered = df_filtered[(df_filtered["fragmentation"]==True) & (df_filtered.highest_protocol.isin(protocols))]
+#
+#        print (df_filtered.columns)
+#        # ceron12
+#  #      df_frag = df_frag[['ip_proto', 'highest_protocol', 'udp_length', 'ip_ttl', 'ntp_priv_reqcode', 'srcport', 'dstport', 'fragmentation']]
+#        df_filtered = df_filtered[['ip_src', 'frame_len', 'udp_length', 'ntp_priv_reqcode', 'frame_time_epoch', 'srcport', 'dstport', 'start_timestamp', 'fragmentation']]
+#        fields = df_filtered.columns.tolist()
+#
+#        for field in fields:
+#            outlier = find_outlier(df_filtered[field],df,n_type)
+#            if (outlier):
+#                if (outlier != [NONE]):
+#                     fingerprint.update( {field : outlier} )
+#
+#        fingerprint.update( {'ip_proto' : protocols} )
+#        return (fingerprint)
+#
+#    # not multiprotocol fragmentation
+#    return (None)
 
 #------------------------------------------------------------------------------
 def generate_dot_file(df_fingerprint, df):
@@ -997,7 +1058,6 @@ def build_attack_fingerprint(df,df_filtered,n_type,similarity):
     attack_protocol = df_filtered['highest_protocol'].iloc[0]
     logger.info("Processing attack based on {}".format(attack_protocol))
 
-    
     # HEURISTIC 
     dic_ratio_array = []
 
@@ -1007,8 +1067,8 @@ def build_attack_fingerprint(df,df_filtered,n_type,similarity):
     if (dict_accuracy_ratio != NONE):
         logger.debug('-' * 60)
         logger.debug("First heuristic matching ratio = {}".format(dict_accuracy_ratio.get("ratio")))
-        logger.debug("First heuristic matching ratio = {}".format((dict_accuracy_ratio.get("fingerprint"))))
-        logger.debug("First heuristic matching ratio = {}".format(len(dict_accuracy_ratio.get("fingerprint"))))
+        logger.debug("First heuristic fingerprint  = {}".format((dict_accuracy_ratio.get("fingerprint"))))
+        logger.debug("First fingerprint lengh = {}".format(len(dict_accuracy_ratio.get("fingerprint"))))
         if (len(dict_accuracy_ratio.get("fingerprint"))>2):
             logger.debug('-' * 60)
             dic_ratio_array.append(dict_accuracy_ratio)
@@ -1019,8 +1079,8 @@ def build_attack_fingerprint(df,df_filtered,n_type,similarity):
     if (dict_accuracy_ratio != NONE):
         logger.debug('-' * 60)
         logger.debug("Second heuristic matching ratio = {}".format(dict_accuracy_ratio.get("ratio")))
-        logger.debug("Second heuristic matching ratio = {}".format((dict_accuracy_ratio.get("fingerprint"))))
-        logger.debug("Second heuristic matching ratio = {}".format(len(dict_accuracy_ratio.get("fingerprint"))))
+        logger.debug("Second heuristic fingerprint  = {}".format((dict_accuracy_ratio.get("fingerprint"))))
+        logger.debug("Second fingerprint lengh = {}".format(len(dict_accuracy_ratio.get("fingerprint"))))
         logger.debug('-' * 60)
         dic_ratio_array.append(dict_accuracy_ratio)
 
@@ -1028,9 +1088,9 @@ def build_attack_fingerprint(df,df_filtered,n_type,similarity):
     fingerprint = clusterization_non_multifrag(df,df_filtered,n_type)
     (df_fingerprint,dict_accuracy_ratio) = get_matching_ratio(df,fingerprint,similarity)
     if (dict_accuracy_ratio != NONE):
-        logger.debug("Thrid  heuristic matching ratio = {}".format(dict_accuracy_ratio.get("ratio")))
-        logger.debug("Thrid heuristic matching ratio = {}".format((dict_accuracy_ratio.get("fingerprint"))))
-        logger.debug("Thrid heuristic matching ratio = {}".format(len(dict_accuracy_ratio.get("fingerprint"))))
+        logger.debug("Third heuristic matching ratio = {}".format(dict_accuracy_ratio.get("ratio")))
+        logger.debug("Third heuristic fingerprint  = {}".format((dict_accuracy_ratio.get("fingerprint"))))
+        logger.debug("Third fingerprint lengh = {}".format(len(dict_accuracy_ratio.get("fingerprint"))))
         logger.debug('-' * 60)
         dic_ratio_array.append(dict_accuracy_ratio)
 
@@ -1040,7 +1100,6 @@ def build_attack_fingerprint(df,df_filtered,n_type,similarity):
     if (len(fingerprint) < 2):
          # found a very small fingerprint
          return None
-
     return (fingerprint)
 
 #------------------------------------------------------------------------------
