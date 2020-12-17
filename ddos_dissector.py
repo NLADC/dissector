@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 ###############################################################################
+# Concordia Project
 #  
+# This project has received funding from the European Union’s Horizon
+# 2020 Research and Innovation program under Grant Agreement No 830927.
 #  
-# @copyright - Joao Ceron - joaoceron@sidn.nl
+# Joao Ceron - joaoceron@sidn.nl
 ###############################################################################
 
 ###############################################################################
@@ -20,14 +23,13 @@ import queue as queue
 import pandas as pd
 import os
 import numpy as np
-import multiprocessing as mp
 import logging
 import json
 import hashlib
 import cursor
 import configparser
 import argparse
-from subprocess import check_output, STDOUT
+#from subprocess import check_output, STDOUT
 from pygments.lexers import JsonLexer
 from pygments.formatters import TerminalFormatter
 from pygments import highlight
@@ -74,7 +76,7 @@ def parser_add_arguments():
     return parser
 
 #------------------------------------------------------------------------------
-def signal_handler(sig, frame):
+def signal_handler():
     """
         Signal handler
     """
@@ -417,7 +419,6 @@ def top_n_dataframe(dataframe_field,df,n_type,top_n=20):
         data = df.groupby(field_name)["in_packets"].sum().sort_values(ascending=False)
         top = data[:top_n].reset_index()
         top.columns = [field_name,'count']
-        remain = data[top_n:]
         new_row = pd.DataFrame(data = {
             'count' : [ data[top_n:].reset_index().iloc[:,1].sum()],
             field_name : ['others'],
@@ -955,7 +956,6 @@ def check_repository(config):
                 "X-Password": config['repository']['passwd'],
             }
 
-            ddosdb_url = (config['repository']['host'])
             server_config = re.search('https?://(.*)/?', server).group(1)
 
             # check if the configuration file has credentials for the online server
@@ -1299,7 +1299,6 @@ if __name__ == '__main__':
         logger.error("could not read data from file <{}>".format(args.filename))
         sys.exit(1)
 
-    fingerprints = []
     # usually is only one target, but on anycast/load balanced might have more
     target_ip_list = infer_target_ip(df,n_type)
     if not target_ip_list:
