@@ -29,7 +29,7 @@ import hashlib
 import cursor
 import configparser
 import argparse
-#from subprocess import check_output, STDOUT
+from subprocess import check_output, STDOUT
 from pygments.lexers import JsonLexer
 from pygments.formatters import TerminalFormatter
 from pygments import highlight
