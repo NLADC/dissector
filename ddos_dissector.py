@@ -28,6 +28,7 @@ import json
 import hashlib
 import cursor
 import configparser
+import ipaddr
 import argparse
 from subprocess import check_output, STDOUT
 from pygments.lexers import JsonLexer
@@ -459,13 +460,34 @@ def infer_target_ip (df,n_type):
     """
     outlier = find_outlier(df['ip_dst'],df,n_type)
 
-    if not outlier:
-        logger.info("We cannot find the DDoS target IP address. Not enought info to find the outlier.") 
+    if (not outlier or len(outlier)<1):
+        logger.debug("We cannot find the DDoS target IP address. Not enought info to find the outlier.") 
+        logger.debug("Trying to aggregate top IPs")
+        
+        data = top_n_dataframe(df['ip_dst'],df,n_type)
 
-    elif (len(outlier)==0):
-        return (list(df['ip_dst'].value_counts().keys()[0]))
+        # attacker IP that represent more than 20% of the traffic - empiric threshold
+        data_ = data[(data['percent']> 20)]['ip_dst'].tolist()
+        ip_lst = sorted(data[(data['percent']> 20)]['ip_dst'].tolist())
+        ips = [ipaddr.IPv4Address(ip) for ip in ip_lst]
+        lowest_ip  = ips[0]  
+        highest_ip = ips[-1] 
+        # find the aggregation mask
+        mask_length = ipaddr._get_prefix_length(int(lowest_ip), int(highest_ip), lowest_ip.max_prefixlen)
+
+        if (mask_length > 21):
+            logger.debug("Top IPs are correlated")
+
+            # rewrite to one IP address
+            for ip in ip_lst[:1]:
+                df.loc[df['ip_dst'] == ip,"ip_dst"] = ip_lst[0]
+            return ( (ip_lst[0]).split(), df)
+
+        else:
+            # return the top 1
+            return (list(df['ip_dst'].value_counts().keys()[0]),df)
     else:
-        return (outlier)
+        return (outlier,df)
 
 #------------------------------------------------------------------------------
 def animated_loading(msg="loading "):
@@ -492,12 +514,11 @@ def find_outlier(df_filtered,df,n_type,strict=0):
         :param n_type: network file type (flows,pcap)
         :param strict: turn the outlier process less flexible
     """
-    # ceron12
+
     field_name = df_filtered.name
 
     # summarization dataframe
     data = top_n_dataframe(df_filtered,df,n_type)
-
     if (data.empty): 
         return 
 
@@ -705,7 +726,6 @@ def clusterization_non_multifrag(df,df_filtered,n_type):
         :return fingerprint: json file
     """
     fields = df_filtered.columns.tolist()
-    fields.remove("eth_type")
 
     fingerprint = {}
     for field in fields:
@@ -1300,86 +1320,86 @@ if __name__ == '__main__':
         sys.exit(1)
 
     # usually is only one target, but on anycast/load balanced might have more
-    target_ip_list = infer_target_ip(df,n_type)
+    (target_ip_list,df) = infer_target_ip(df,n_type)
+
     if not target_ip_list:
         print ("Target IP could not be infered.") 
         sys.exit(0)
 
     logger.info("Attack target(s): {}".format(target_ip_list))
 
-    # for each target IP
-    for idx, target_ip in enumerate(target_ip_list):
+    target_ip = target_ip_list[0]
 
-        # build filter for victim IP
-        logger.debug("Processing target IP address: {}".format(target_ip))
-        msg = "Processing target IP address: {}".format(target_ip)
-        sys.stdout.write('\r'+'['+'\u2713'+'] '+ msg+'\n')
+    # build filter for victim IP
+    logger.debug("Processing target IP address: {}".format(target_ip))
+    msg = "Processing target IP address: {}".format(target_ip)
+    sys.stdout.write('\r'+'['+'\u2713'+'] '+ msg+'\n')
 
-        df_filtered = df[df['ip_dst'] == target_ip]
+    df_filtered = df[df['ip_dst'] == target_ip]
 
-        (lst_attack_protocols, frag) = infer_protocol_attack(df_filtered,n_type)
+    (lst_attack_protocols, frag) = infer_protocol_attack(df_filtered,n_type)
 
-        # remove target IP from dataframe since it will be anonymized
-        del df_filtered['ip_dst']
+    # remove target IP from dataframe since it will be anonymized
+    del df_filtered['ip_dst']
 
-        # correlation flag - see function ip_src_fragmentation_attack_similarity
-        similarity = False
+    # correlation flag - see function ip_src_fragmentation_attack_similarity
+    similarity = False
 
-        if (frag):
-            frag_proto = lst_attack_protocols[0]
-            # is this fragmentation attack caused by another attack?
-            similarity = ip_src_fragmentation_attack_similarity(df,lst_attack_protocols,frag,target_ip)
+    if (frag):
+        frag_proto = lst_attack_protocols[0]
+        # is this fragmentation attack caused by another attack?
+        similarity = ip_src_fragmentation_attack_similarity(df,lst_attack_protocols,frag,target_ip)
 
-            if (similarity):
-                # lets use the top2 protocol since there is a big overlap of src_ip between frag attack and top2 proto
-                logger.debug("Fragmentation attack likely to stop if we filter the {} attack".format(lst_attack_protocols[-1]))
-                df_filtered = df_filtered[df_filtered['highest_protocol'] == lst_attack_protocols[-1]]
-
-            else:
-                logger.debug("Fragmentation attack is not correlated to the top2 protocol")
-                logger.debug("We should do something to filter that")
-                #TODO add new attack_vector
+        if (similarity):
+            # lets use the top2 protocol since there is a big overlap of src_ip between frag attack and top2 proto
+            logger.debug("Fragmentation attack likely to stop if we filter the {} attack".format(lst_attack_protocols[-1]))
+            df_filtered = df_filtered[df_filtered['highest_protocol'] == lst_attack_protocols[-1]]
 
         else:
-            # filter based on top1, since the top1 is not fragmentation
-            logger.debug("Fragmentation attack not found")
-            df_filtered = df_filtered[df_filtered['highest_protocol'] == lst_attack_protocols[0]]
+            logger.debug("Fragmentation attack is not correlated to the top2 protocol")
+            logger.debug("We should do something to filter that")
+            #TODO add new attack_vector
 
-        # build attack fingerprint 
-        fingerprint = build_attack_fingerprint(df,df_filtered,n_type,similarity)
-        
-        if not fingerprint:
-            print ("Could not find fingerprint for this network file :(" )
-            sys.exit()
+    else:
+        # filter based on top1, since the top1 is not fragmentation
+        logger.debug("Fragmentation attack not found")
+        df_filtered = df_filtered[df_filtered['highest_protocol'] == lst_attack_protocols[0]]
 
-        # filter dataframe using the selected fingerprint
-        df_fingerprint = filter_fingerprint(df,fingerprint,similarity)
+    # build attack fingerprint 
+    fingerprint = build_attack_fingerprint(df,df_filtered,n_type,similarity)
+    
+    if not fingerprint:
+        print ("Could not find fingerprint for this network file :(" )
+        sys.exit()
 
-        # remove brackets from string
-        one_line_fingerprint = str(fingerprint).translate(str.maketrans("", "", "[]"))
+    # filter dataframe using the selected fingerprint
+    df_fingerprint = filter_fingerprint(df,fingerprint,similarity)
 
-        # infer tags based on the generated fingerprint
-        labels = add_label(fingerprint,df_fingerprint)
-        fingerprint.update({"tags": labels})
+    # remove brackets from string
+    one_line_fingerprint = str(fingerprint).translate(str.maketrans("", "", "[]"))
 
-        # add extra fields/stats and save file locally
-        (fingerprint,json_file) = prepare_fingerprint_upload(df_fingerprint,df,fingerprint,n_type,labels)
+    # infer tags based on the generated fingerprint
+    labels = add_label(fingerprint,df_fingerprint)
+    fingerprint.update({"tags": labels})
 
-        # show anon fingerprint
-        print_fingerprint(fingerprint)
+    # add extra fields/stats and save file locally
+    (fingerprint,json_file) = prepare_fingerprint_upload(df_fingerprint,df,fingerprint,n_type,labels)
 
-        # evaluate fingerprint generated - does not considerer src_ips 
-        if (args.summary): evaluate_fingerprint(df,df_fingerprint,fingerprint)
+    # show anon fingerprint
+    print_fingerprint(fingerprint)
 
-        # generate graphic file 
-        if (args.graph): generate_dot_file(df_fingerprint, df)
+    # evaluate fingerprint generated - does not considerer src_ips 
+    if (args.summary): evaluate_fingerprint(df,df_fingerprint,fingerprint)
 
-        if (args.upload):
-            (user,passw,host) = get_repository(args,config)
+    # generate graphic file 
+    if (args.graph): generate_dot_file(df_fingerprint, df)
 
-            # upload to the repository
-            ret = upload(fingerprint, json_file, user, passw, host, fingerprint.get("key"))
-            print (ret)
+    if (args.upload):
+        (user,passw,host) = get_repository(args,config)
+
+        # upload to the repository
+        ret = upload(fingerprint, json_file, user, passw, host, fingerprint.get("key"))
+        print (ret)
 
     sys.exit(0)
 #EOF
