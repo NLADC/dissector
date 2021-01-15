@@ -466,13 +466,17 @@ def infer_target_ip (df,n_type):
         
         data = top_n_dataframe(df['ip_dst'],df,n_type)
 
-        # attacker IP that represent more than 20% of the traffic - empiric threshold
+        # Outlier was not found (attack targeting multiples IP address)
+        # Try to cluster the victim IPs. Usually, there are (IPs) part of the same network block.
+        # Select IPs responsible for more than 20% of the traffic and try to cluster them.
+        # If we succeed IPs are in the same range (network mask bigger than 21) we assume the target.
         data_ = data[(data['percent']> 20)]['ip_dst'].tolist()
         ip_lst = sorted(data[(data['percent']> 20)]['ip_dst'].tolist())
         ips = [ipaddr.IPv4Address(ip) for ip in ip_lst]
         lowest_ip  = ips[0]  
         highest_ip = ips[-1] 
-        # find the aggregation mask
+
+        # aggregation mask size
         mask_length = ipaddr._get_prefix_length(int(lowest_ip), int(highest_ip), lowest_ip.max_prefixlen)
 
         if (mask_length > 21):
