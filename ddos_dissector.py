@@ -1418,6 +1418,10 @@ if __name__ == '__main__':
     # filter dataframe using the selected fingerprint
     df_fingerprint = filter_fingerprint(df,fingerprint,similarity)
 
+    if (len(df_fingerprint)<1):
+        print ("Could not find fingerprint for this network file :(" )
+        sys.exit()
+
     # remove brackets from string
     one_line_fingerprint = str(fingerprint).translate(str.maketrans("", "", "[]"))
 
@@ -1425,8 +1429,13 @@ if __name__ == '__main__':
     labels = add_label(fingerprint,df_fingerprint)
     fingerprint.update({"tags": labels})
 
+    print (fingerprint)
+    print (df_fingerprint.head())
+    sys.exit()
+
     # add extra fields/stats and save file locally
     (fingerprint,json_file) = prepare_fingerprint_upload(df_fingerprint,df,fingerprint,n_type,labels)
+    sys.exit()
 
     # show anon fingerprint
     print_fingerprint(fingerprint)
