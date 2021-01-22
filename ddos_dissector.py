@@ -244,7 +244,9 @@ def prepare_tshark_cmd(input_path):
     """
     tshark =  shutil.which("tshark")
     if not tshark:
-        logger.critical("Tshark software not found")
+        logger.error("Tshark software not found. It should be on the path.\n")
+        return 
+
     cmd = [tshark, '-r', input_path, '-T', 'fields']
 
     # fields included in the csv
@@ -276,17 +278,22 @@ def flow_to_df(ret,filename):
         :param filename: flow file
         return ret: dataframe
     """
-
     nfdump =  shutil.which("nfdump")
+   
     if not nfdump:
-        logger.critical("NFDUMP software not found")
+        logger.error("NFDUMP software not found. It should be on the path.")
+        ret.put(NONE)
+
     cmd = [nfdump, '-r', args.filename, '-o', 'extended', '-o', 'json' ]
 
-    data = check_output(cmd, stderr=subprocess.DEVNULL)
-    data = str(data, 'utf-8')
+    cmd_stdout = check_output(cmd, stderr=subprocess.DEVNULL)
+    if not cmd_stdout:
+        ret.put(NONE)
+        sys.exit()
+
+    data = str(cmd_stdout, 'utf-8')
     data = StringIO(data)
 
-    #df = pd.read_csv(data,low_memory=False,error_bad_lines=False)
     df = pd.read_json(data).fillna(NONE)
     df = df[['t_first', 't_last', 'proto', 'src4_addr', 'dst4_addr',
 	     'src_port', 'dst_port', 'fwd_status', 'tcp_flags',
@@ -329,8 +336,17 @@ def pcap_to_df(ret,filename):
     """
 
     cmd = prepare_tshark_cmd(filename)
-    data = check_output(cmd, stderr=subprocess.DEVNULL)
-    data = str(data, 'utf-8')
+
+    if not cmd:
+        ret.put(NONE)
+        sys.exit()
+
+    cmd_stdout = check_output(cmd, stderr=subprocess.DEVNULL)
+    if not cmd_stdout:
+        ret.put(NONE)
+        sys.exit()
+            
+    data = str(cmd_stdout, 'utf-8')
     data = StringIO(data)
 
     df = pd.read_csv(data,low_memory=False,error_bad_lines=False)
@@ -676,9 +692,14 @@ def determine_file_type(input_file):
     :raises UnsupportedFileTypeError: If input file is not recognised or not supported
     """
 
-    file_info, error = subprocess.Popen(["/usr/bin/file", input_file], stdout=subprocess.PIPE).communicate()
-    file_type = file_info.decode("utf-8").split()[1]
+    file_ = shutil.which("file")
+    if not file_:
+        logger.error("File software not found. It should be on the path.\n")
+        return (NONE)
 
+    file_info, error = subprocess.Popen([file_, input_file], stdout=subprocess.PIPE).communicate()
+    file_type = file_info.decode("utf-8").split()[1]
+   
     if file_type == "tcpdump":
         return "pcap"
     if file_type == "pcap":
@@ -700,6 +721,8 @@ def load_file(args):
     """
 
     file_type = determine_file_type(args.filename)
+    if (file_type == NONE):
+        return (NONE,NONE)
 
     if re.search(r'nfdump', file_type):
         load_function = flow_to_df
@@ -711,13 +734,24 @@ def load_file(args):
 
     # load dataframe using threading
     ret = queue.Queue()
+
     the_process = threading.Thread(name='process', target=load_function, args=(ret,args.filename))
     the_process.start()
     msg = "Loading network file: `{}' ".format(args.filename)
+    
     while the_process.is_alive():
-        animated_loading(msg) if not (args.quiet) else 0
+        if the_process:
+            animated_loading(msg) if not (args.quiet) else 0
     the_process.join()
+
     df = ret.get()
+
+    # not a dataframe
+
+    if not isinstance(df, pd.DataFrame):
+        print ("\n")
+        return(NONE,NONE)
+        
     sys.stdout.write('\r'+'['+'\u2713'+'] '+ msg+'\n')
     return (n_type,df)
 
@@ -1317,6 +1351,10 @@ if __name__ == '__main__':
 
     # load network file
     n_type,df = load_file(args)
+
+    if not isinstance(df, pd.DataFrame):
+        logger.error("could not convert input file <{}>".format(args.filename))
+        sys.exit(1)
 
     # checking if the provided file could be converted to dataframe
     if (len(df)<2):
