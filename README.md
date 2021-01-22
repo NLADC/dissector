@@ -75,7 +75,7 @@ We do provide some pcap samples. Check the directory *pcap_samples*. Note, you c
 </snip>
 ```
 
-   <p align="center"><img width=80% src="https://github.com/joaoceron/new_dissector/blob/master/media/dissector.gif"></p>
+   <p align="center"><img width=80% src="https://github.com/ddos-clearing-house/ddos_dissector/blob/3.0/media/dissector.gif"></p>
 
 
 
