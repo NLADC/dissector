@@ -242,6 +242,7 @@ def prepare_tshark_cmd(input_path):
         :param input_path: filename
         return: tshark command line to be used to convert the file
     """
+
     tshark =  shutil.which("tshark")
     if not tshark:
         logger.error("Tshark software not found. It should be on the path.\n")
