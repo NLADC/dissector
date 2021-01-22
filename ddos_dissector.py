@@ -1429,9 +1429,6 @@ if __name__ == '__main__':
     labels = add_label(fingerprint,df_fingerprint)
     fingerprint.update({"tags": labels})
 
-    print (fingerprint)
-    print (df_fingerprint.head())
-    sys.exit()
 
     # add extra fields/stats and save file locally
     (fingerprint,json_file) = prepare_fingerprint_upload(df_fingerprint,df,fingerprint,n_type,labels)
