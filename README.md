@@ -78,9 +78,10 @@ We do provide some pcap samples. Check the directory *pcap_samples*. Note, you c
 "total_dst_ports": 1043,
 "avg_bps": 28406714,
 "total_packets": 19183,
-"total_ips": 393,  
+"total_ips": 393, 
+}
 
-</snip>
+<snip>
 ```
 
    <p align="center"><img width=80% src="https://github.com/ddos-clearing-house/ddos_dissector/blob/3.0/media/dissector.gif"></p>
