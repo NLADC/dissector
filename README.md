@@ -46,32 +46,40 @@ We do provide some pcap samples. Check the directory *pcap_samples*. Note, you c
      
 ```json
 <snip>
+{
+  "dns_qry_type": [
+    255
+  ],
   "ip_proto": [
-    17
+    "UDP"
   ],
   "highest_protocol": [
     "DNS"
   ],
   "dns_qry_name": [
-    "anonsc.com"
+    "evil.com"
   ],
   "eth_type": [
     "0x00000800"
-  ],
-  "frame_len": [
-    397
   ],
   "srcport": [
     53
   ],
   "fragmentation": [
-    true
+    false
   ],
-  "amplifiers": [
-    "109.93.47.83",
-  ],
-  "start_time": "2020-08-08 21:36:23"
-}
+  "tags": [
+    "DNS",
+    "DNS_QUERY",
+    "AMPLIFICATION"
+  ],  
+"start_time": "2013-08-14 23:32:40",
+"duration_sec": 0,
+"total_dst_ports": 1043,
+"avg_bps": 28406714,
+"total_packets": 19183,
+"total_ips": 393,  
+
 </snip>
 ```
 
