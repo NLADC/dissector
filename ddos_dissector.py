@@ -80,10 +80,11 @@ def parser_add_arguments():
     return parser
 
 #------------------------------------------------------------------------------
-def signal_handler():
+def signal_handler(signum, handler):
     """
         Signal handler
     """
+    sys.stdout.flush()
     print('Ctrl+C detected.')
     cursor.show()
     sys.exit(0)
@@ -290,7 +291,13 @@ def flow_to_df(ret,filename):
 
     cmd = [nfdump, '-r', args.filename, '-o', 'extended', '-o', 'json' ]
 
-    cmd_stdout = check_output(cmd, stderr=subprocess.DEVNULL)
+
+    try:
+        cmd_stdout = check_output(cmd, stderr=subprocess.DEVNULL)
+    except:
+        ret.put(NONE)
+        sys.exit()
+
     if not cmd_stdout:
         ret.put(NONE)
         sys.exit()
@@ -340,12 +347,16 @@ def pcap_to_df(ret,filename):
     """
 
     cmd = prepare_tshark_cmd(filename)
-
     if not cmd:
+         ret.put(NONE)
+         sys.exit()
+
+    try:
+        cmd_stdout = check_output(cmd, stderr=subprocess.DEVNULL)
+    except:
         ret.put(NONE)
         sys.exit()
 
-    cmd_stdout = check_output(cmd, stderr=subprocess.DEVNULL)
     if not cmd_stdout:
         ret.put(NONE)
         sys.exit()
@@ -755,11 +766,14 @@ def load_file(args):
     the_process = threading.Thread(name='process', target=load_function, args=(ret,args.filename))
     the_process.start()
     msg = "Loading network file: `{}' ".format(args.filename)
-    
-    while the_process.is_alive():
-        if the_process:
-            animated_loading(msg) if not (args.quiet) else 0
-    the_process.join()
+
+    try:
+        while the_process.is_alive():
+            if the_process:
+                animated_loading(msg) if not (args.quiet) else 0
+        the_process.join()
+    except (KeyboardInterrupt, SystemExit):
+        signal_handler(None,None)
 
     df = ret.get()
 
