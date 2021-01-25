@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 ###############################################################################
 # Concordia Project
 #  
@@ -38,11 +40,12 @@ from io import StringIO
 from datetime import datetime
 from argparse import RawTextHelpFormatter
 from hashlib import sha256
+
 ###############################################################################
 ### Program settings
 verbose = False
 program_name = os.path.basename(__file__)
-version = "3.0.7"
+version = "3.1"
 
 # GLOBAL parameters
 # percentage used to determine correlation between to lists
@@ -489,7 +492,20 @@ def infer_target_ip (df,n_type):
         # If we succeed IPs are in the same range (network mask bigger than 21) we assume the target.
         data_ = data[(data['percent']> 20)]['ip_dst'].tolist()
         ip_lst = sorted(data[(data['percent']> 20)]['ip_dst'].tolist())
-        ips = [ipaddr.IPv4Address(ip) for ip in ip_lst]
+
+        # filter ipv4|ipv6 only
+        ips = []
+        for ip in ip_lst:
+            try:
+                ipaddr.IPAddress(ip)
+            except:
+                continue
+            ips.append(ip)
+        
+        # only one IP address has return
+        if (len(ips)<2):
+            return (ips,df)
+
         lowest_ip  = ips[0]  
         highest_ip = ips[-1] 
 
@@ -1429,10 +1445,8 @@ if __name__ == '__main__':
     labels = add_label(fingerprint,df_fingerprint)
     fingerprint.update({"tags": labels})
 
-
     # add extra fields/stats and save file locally
     (fingerprint,json_file) = prepare_fingerprint_upload(df_fingerprint,df,fingerprint,n_type,labels)
-    sys.exit()
 
     # show anon fingerprint
     print_fingerprint(fingerprint)
