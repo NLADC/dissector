@@ -74,7 +74,6 @@ We do provide some pcap samples. Check the directory *pcap_samples*. Note, you c
     "AMPLIFICATION"
   ],  
 "start_time": "2013-08-14 23:32:40",
-"duration_sec": 0,
 "total_dst_ports": 1043,
 "avg_bps": 28406714,
 "total_packets": 19183,
