@@ -85,7 +85,7 @@ def signal_handler(signum, handler):
         Signal handler
     """
     sys.stdout.flush()
-    print('Ctrl+C detected.')
+    print('\nCtrl+C detected.')
     cursor.show()
     sys.exit(0)
 #------------------------------------------------------------------------------
@@ -290,7 +290,6 @@ def flow_to_df(ret,filename):
         ret.put(NONE)
 
     cmd = [nfdump, '-r', args.filename, '-o', 'extended', '-o', 'json' ]
-
 
     try:
         cmd_stdout = check_output(cmd, stderr=subprocess.DEVNULL)
@@ -795,6 +794,7 @@ def clusterization_non_multifrag(df,df_filtered,n_type):
         :return fingerprint: json file
     """
     fields = df_filtered.columns.tolist()
+    if "eth_type" in fields: fields.remove("eth_type")
 
     fingerprint = {}
     for field in fields:
@@ -836,11 +836,16 @@ def clusterization_multifrag(df,df_filtered,n_type):
 
         # may have more than one protocol responsible for that fragmementaiton percentage per group
         # then, find the percentage of frag per protocol
-        df_['percent'] = df_.groupby(['highest_protocol'])['count'].transform(lambda x: (x/x.sum()).mul(100))
+        df_['percent_frag'] = df_.groupby(['highest_protocol'])['count'].transform(lambda x: (x/x.sum()).mul(100))
+        df_['percent'] = (df_['count'] / df_['count'].sum()) * 100
         df_['fragmentation']=df_['fragmentation'].astype(bool)
 
         # protocol with high percentage of frag
-        protocols = df_[(df_.fragmentation == True) & (df_.percent>SIMILARITY_THRESHOLD)]['highest_protocol'].tolist()
+        protocols = df_[(df_.fragmentation == True) & (df_.percent>SIMILARITY_THRESHOLD) & \
+                    (df_.percent_frag>SIMILARITY_THRESHOLD) ]['highest_protocol'].tolist()
+
+        if not protocols:
+            return 
 
         # find respective src_port
         logger.info("Reprocessing attack based on protocols: {}".format(protocols))
@@ -848,15 +853,19 @@ def clusterization_multifrag(df,df_filtered,n_type):
         df_filtered = df_filtered[df_filtered.highest_protocol.isin(protocols)]
         srcports_frag = df[df.highest_protocol.isin(protocols)]['srcport'].unique().tolist()
 
-        # remove port "NONE" (assigned to IPv4 frag protocol)
-        if NONE in srcports_frag:
-            srcports_frag.remove(NONE)
+        outlier = find_outlier(df[df.highest_protocol.isin(protocols)]['srcport'],df_filtered,n_type)
 
-        # add srcport to the fingerprint
-        fingerprint.update( { "srcport" : srcports_frag } )
+        # remove port "NONE" (assigned to IPv4 frag protocol)
+        if (NONE in srcports_frag) or (not outlier):
+            #srcports_frag.remove(NONE)
+            srcports_frag = [NONE]
+        else:
+
+            # add srcport to the fingerprint
+            fingerprint.update( { "srcport" : srcports_frag } )
 
         fields = df_filtered.columns.tolist()
-        fields.remove("eth_type")
+        if "eth_type" in fields: fields.remove("eth_type")
 
         for field in fields:
             outlier = find_outlier(df_filtered[field],df,n_type)
@@ -1119,12 +1128,14 @@ def build_attack_fingerprint(df,df_filtered,n_type,similarity):
     attack_protocol = df_filtered['highest_protocol'].iloc[0]
     logger.info("Processing attack based on {}".format(attack_protocol))
 
-    # HEURISTIC 
+    # DETECTION HEURISTIC 
     dic_ratio_array = []
 
     ### FIRST HEURISTIC
     fingerprint = clusterization_heuristic_generic(df,df_filtered,n_type)
     (df_fingerprint,dict_accuracy_ratio) = get_matching_ratio(df,fingerprint,similarity)
+    logger.debug(dict_accuracy_ratio)
+
     if (dict_accuracy_ratio != NONE):
         logger.debug('-' * 60)
         logger.debug("First heuristic matching ratio = {}".format(dict_accuracy_ratio.get("ratio")))
@@ -1132,17 +1143,21 @@ def build_attack_fingerprint(df,df_filtered,n_type,similarity):
         logger.debug("First fingerprint lengh = {}".format(len(dict_accuracy_ratio.get("fingerprint"))))
         if (len(dict_accuracy_ratio.get("fingerprint"))>2):
             logger.debug('-' * 60)
+            dict_accuracy_ratio['size'] = len(dict_accuracy_ratio.get("fingerprint"))
             dic_ratio_array.append(dict_accuracy_ratio)
 
     ### SECOND HEURISTIC
     fingerprint = clusterization_multifrag(df,df_filtered,n_type)
     (df_fingerprint,dict_accuracy_ratio) = get_matching_ratio(df,fingerprint,similarity)
+    logger.debug(dict_accuracy_ratio)
+
     if (dict_accuracy_ratio != NONE):
         logger.debug('-' * 60)
         logger.debug("Second heuristic matching ratio = {}".format(dict_accuracy_ratio.get("ratio")))
         logger.debug("Second heuristic fingerprint  = {}".format((dict_accuracy_ratio.get("fingerprint"))))
         logger.debug("Second fingerprint lengh = {}".format(len(dict_accuracy_ratio.get("fingerprint"))))
         logger.debug('-' * 60)
+        dict_accuracy_ratio['size'] = len(dict_accuracy_ratio.get("fingerprint"))
         dic_ratio_array.append(dict_accuracy_ratio)
 
     ### THIRD HEURISTIC
@@ -1153,14 +1168,26 @@ def build_attack_fingerprint(df,df_filtered,n_type,similarity):
         logger.debug("Third heuristic fingerprint  = {}".format((dict_accuracy_ratio.get("fingerprint"))))
         logger.debug("Third fingerprint lengh = {}".format(len(dict_accuracy_ratio.get("fingerprint"))))
         logger.debug('-' * 60)
+        dict_accuracy_ratio['size'] = len(dict_accuracy_ratio.get("fingerprint"))
         dic_ratio_array.append(dict_accuracy_ratio)
 
     # pick the best matching rate
     df_ = pd.DataFrame(dic_ratio_array)
-    fingerprint = df_.sort_values(by="ratio",ascending=False).loc[1,"fingerprint"]
-    if (len(fingerprint) < 2):
-         # found a very small fingerprint
-         return None
+    logger.debug("Fingerprint found")
+    logger.debug(df_)
+
+    data = df_.sort_values(by="size",ascending=True)
+    # filter fingerprint with more than 2 fields
+    data = data[data['size'] > 2]
+    data["diff"] = data.ratio.diff().fillna(0).astype(int)
+
+    # Pick the longest fingerprint (it is more specific)
+    # If the signature has less detection ratio (-10) get the biggest fingerprint
+    fingerprint = data[data['diff']>-10].sort_values(by="size",ascending=False).head(1)['fingerprint'].values[0]
+
+    if not fingerprint:
+        fingerprint = df_.sort_values(by="ratio",ascending=False).loc[0,"fingerprint"]
+
     return (fingerprint)
 
 #------------------------------------------------------------------------------
@@ -1376,6 +1403,7 @@ if __name__ == '__main__':
     if (not args.filename):
         parser.print_help()
         sys.exit(IOError("\nInput file not provided. Use '-f' for that."))
+
     if (not os.path.exists(args.filename)):
         logger.error(IOError("File " + args.filename + " is not readble"))
         sys.exit(IOError("File " + args.filename + " is not readble"))
@@ -1400,18 +1428,15 @@ if __name__ == '__main__':
         sys.exit(0)
 
     logger.info("Attack target(s): {}".format(target_ip_list))
-
     target_ip = target_ip_list[0]
-
     # build filter for victim IP
     logger.debug("Processing target IP address: {}".format(target_ip))
     msg = "Processing target IP address: {}".format(target_ip)
     sys.stdout.write('\r'+'['+'\u2713'+'] '+ msg+'\n')
 
     df_filtered = df[df['ip_dst'] == target_ip]
-
     (lst_attack_protocols, frag) = infer_protocol_attack(df_filtered,n_type)
-
+    
     # remove target IP from dataframe since it will be anonymized
     del df_filtered['ip_dst']
 
@@ -1431,7 +1456,6 @@ if __name__ == '__main__':
         else:
             logger.debug("Fragmentation attack is not correlated to the top2 protocol")
             logger.debug("We should do something to filter that")
-            #TODO add new attack_vector
 
     else:
         # filter based on top1, since the top1 is not fragmentation
