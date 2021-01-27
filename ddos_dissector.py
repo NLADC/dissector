@@ -70,6 +70,7 @@ def parser_add_arguments():
     parser.add_argument("-s","--summary", help="present fingerprint evaluation summary", action="store_true")
     parser.add_argument("-u","--upload", help="upload to the selected repository", action="store_true")
     parser.add_argument("--log", default='log.txt', nargs='?',help="Log filename. Default =./log.txt\"")
+    parser.add_argument("--fingerprint_dir", default='fingerprints', nargs='?',help="Fingerprint storage directory. Default =./fingerprints\"")
     parser.add_argument("--config", default='ddosdb.conf', nargs='?',help="Configuration File. Default =./ddosdb.conf\"")
     parser.add_argument("--host", nargs='?',help="Upload host. ")
     parser.add_argument("--user", nargs='?',help="repository user. ")
@@ -166,7 +167,6 @@ def upload(fingerprint, json_file, user, passw, host, key):
     :param password: DDoSDB password
     :return: status_code describing HTTP code received
     """
-
     files = {
         "json": open(json_file, "rb"),
         # ignoring pcap file upload for now
@@ -190,11 +190,12 @@ def upload(fingerprint, json_file, user, passw, host, key):
 
     if (r.status_code==403):
         print ("Invalid credentials or no permission to upload fingerprints:")
-    elif (r.status_code==500):
-        print ("Internal Server Error. Check repository Django logs.")
     elif (r.status_code==201):
         print ("Upload success: \n\tHTTP CODE [{}] \n\tFingerprint ID [{}]".format(r.status_code,key))
         print ("\tURL: {}query?q={}".format(host,key))
+    else: 
+        print ("Internal Server Error. Check repository Django logs.")
+        print ("Error Code: {}".format(r.status_code))
     return r.status_code
 
 #------------------------------------------------------------------------------
@@ -1309,7 +1310,7 @@ def import_logfile(args):
             return None
 
 #------------------------------------------------------------------------------
-def prepare_fingerprint_upload(df_fingerprint,df,fingerprint,n_type,labels):
+def prepare_fingerprint_upload(df_fingerprint,df,fingerprint,n_type,labels,fingerprint_dir):
     """
         Add addicional fields and stats to the generated fingerprint
         :param df_fingerprint: dataframe filtered based on matched fingerprint
@@ -1351,20 +1352,23 @@ def prepare_fingerprint_upload(df_fingerprint,df,fingerprint,n_type,labels):
             fingerprint.update( {"attackers": "None"} )
 
     # save fingerprint to local file in order to enable the upload via POST
-    fingerprint_dir = "./fingerprints/"
     if not os.path.exists(fingerprint_dir):
         os.makedirs(fingerprint_dir)
 
     json_file = "{}/{}.json".format(fingerprint_dir,key)
     logger.info("Saving fingerprint on {}".format(json_file))
-    with open(json_file, 'w') as f_fingerprint:
-        json.dump(fingerprint, f_fingerprint)
 
-    files = {
-        "json": open(json_file, "rb"),
-        # ignoring pcap file upload for now
-        "pcap": open(json_file, "rb"),
-    }
+    try:
+        with open(json_file, 'w') as f_fingerprint:
+            json.dump(fingerprint, f_fingerprint)
+    
+        files = {
+            "json": open(json_file, "rb"),
+            # ignoring pcap file upload for now
+            "pcap": open(json_file, "rb"),
+        }
+    except:
+        logger.info("Could not save fingerprint {}".format(json_file))
     return (fingerprint,json_file)
 
 
@@ -1484,13 +1488,17 @@ if __name__ == '__main__':
     fingerprint.update({"tags": labels})
 
     # add extra fields/stats and save file locally
-    (fingerprint,json_file) = prepare_fingerprint_upload(df_fingerprint,df,fingerprint,n_type,labels)
+    (fingerprint,json_file) = prepare_fingerprint_upload(df_fingerprint,df,fingerprint,n_type,labels,args.fingerprint_dir)
 
     # show anon fingerprint
     print_fingerprint(fingerprint)
 
     # evaluate fingerprint generated - does not considerer src_ips 
     if (args.summary): evaluate_fingerprint(df,df_fingerprint,fingerprint)
+
+    fingerprint_dir = args.fingerprint_dir
+    json_file = "{}/{}.json".format(fingerprint_dir,fingerprint.get("key"))
+    print ("Fingerprint saved on {}".format(json_file))
 
     # generate graphic file 
     if (args.graph): generate_dot_file(df_fingerprint, df)
@@ -1500,7 +1508,6 @@ if __name__ == '__main__':
 
         # upload to the repository
         ret = upload(fingerprint, json_file, user, passw, host, fingerprint.get("key"))
-        print (ret)
 
     sys.exit(0)
 #EOF
