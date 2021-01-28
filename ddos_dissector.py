@@ -167,6 +167,10 @@ def upload(fingerprint, json_file, user, passw, host, key):
     :param password: DDoSDB password
     :return: status_code describing HTTP code received
     """
+
+    if not os.path.isfile(json_file):
+        logger.critical("Could not read the fingerprint json file {}".format(json_file))
+
     files = {
         "json": open(json_file, "rb"),
         # ignoring pcap file upload for now
@@ -1356,8 +1360,6 @@ def prepare_fingerprint_upload(df_fingerprint,df,fingerprint,n_type,labels,finge
         os.makedirs(fingerprint_dir)
 
     json_file = "{}/{}.json".format(fingerprint_dir,key)
-    logger.info("Saving fingerprint on {}".format(json_file))
-
     try:
         with open(json_file, 'w') as f_fingerprint:
             json.dump(fingerprint, f_fingerprint)
@@ -1369,8 +1371,8 @@ def prepare_fingerprint_upload(df_fingerprint,df,fingerprint,n_type,labels,finge
         }
     except:
         logger.info("Could not save fingerprint {}".format(json_file))
-    return (fingerprint,json_file)
 
+    return (fingerprint,json_file)
 
 #------------------------------------------------------------------------------
 def print_fingerprint(fingerprint):
@@ -1487,7 +1489,7 @@ if __name__ == '__main__':
     labels = add_label(fingerprint,df_fingerprint)
     fingerprint.update({"tags": labels})
 
-    # add extra fields/stats and save file locally
+    #c add extra fields/stats and save file locally
     (fingerprint,json_file) = prepare_fingerprint_upload(df_fingerprint,df,fingerprint,n_type,labels,args.fingerprint_dir)
 
     # show anon fingerprint
@@ -1496,12 +1498,10 @@ if __name__ == '__main__':
     # evaluate fingerprint generated - does not considerer src_ips 
     if (args.summary): evaluate_fingerprint(df,df_fingerprint,fingerprint)
 
-    fingerprint_dir = args.fingerprint_dir
-    json_file = "{}/{}.json".format(fingerprint_dir,fingerprint.get("key"))
-    print ("Fingerprint saved on {}".format(json_file))
-
     # generate graphic file 
     if (args.graph): generate_dot_file(df_fingerprint, df)
+
+    print ("Fingerprint saved on {}".format(json_file))
 
     if (args.upload):
         (user,passw,host) = get_repository(args,config)
