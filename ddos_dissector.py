@@ -564,7 +564,7 @@ def find_outlier(df_filtered,df,n_type,strict=0):
         :param df_filtered: dataframe filtered by target_ip
         :param df: full dataframe used for flows analysis
         :param n_type: network file type (flows,pcap)
-        :param strict: turn the outlier process less flexible
+        :param strict: turn the outlier process less flexible (ignore zscore, use frequency)
     """
 
     field_name = df_filtered.name
@@ -580,13 +580,16 @@ def find_outlier(df_filtered,df,n_type,strict=0):
     if (strict):
         data_ = data[(data['percent']> SIMILARITY_THRESHOLD) & (data['zscore']>2)]
     
-	# if the filter does not return anything, check if the df is
-	# composed by only one field
+        # if the filter does not return anything, check if the df is
+        # composed by only one field
         if (data_.size==0):
 
-            # get first line from summarization dataframe
+            # get first line from the summarized dataframe
             data = data.head(1)
+
+            # ignore zscore, use frequency threshold
             data = data[(data['percent']> SIMILARITY_THRESHOLD) & (data['zscore']<0) & (data[outlier_field]!="others")] 
+
             if (data.empty): return 
             outliers = data.iloc[:,0].tolist()
             logger.debug("Outliers for .:{}:. --> {} \n {}" .format(outlier_field, outliers, data.head(5).to_string(index=False) ))
@@ -633,87 +636,65 @@ def infer_protocol_attack(df,n_type):
         return: the list of top protocols and if the framentation protocol has found
     """
     target_ip = df['ip_dst'].iloc[0]
-    logger.info("A total of {} IPs have attacked the victim {}".format(df_filtered.ip_src.nunique(), target_ip))
+    logger.info("A total of {} IPs have attacked the victim {}".format(df.ip_src.nunique(), target_ip))
 
-    data = top_n_dataframe(df['highest_protocol'],df,n_type)
-    data = data[(data['percent']> SIMILARITY_THRESHOLD) | (data['zscore']>2)]
-    if (len(data) <1):
-        logger.info("Assuming top1 protocol as attack protocol")
-        logger.debug("No protocol outlier found in the significance level")
+    # find protocol outliers
+    outlier = find_outlier(df['highest_protocol'],df,n_type)
+
+    # there is no outlier
+    if not outlier:
+
+        # top protocol in the distribution
         top1_protocol = df["highest_protocol"].value_counts().keys()[0]
-    elif (len(data)>1):
-        logger.debug("More than 1 protocol can be classified as outlier")
 
-        #TODO handle multiples protocol
-        top1_protocol = data['highest_protocol'].iloc[0]
-    else:
-        logger.debug("Top1 protocol could be classified as outlier")
-        top1_protocol = data['highest_protocol'].iloc[0]
+        # IPv4 and IPv6 as highest_protocol denotes a fragmentation attack
+        if bool(re.search('IPv[46]',top1_protocol)):
 
-    # fragmentation protocol found
-    frag = False
+            frag = True
+            data = top_n_dataframe(df['highest_protocol'],df,n_type)
+            # fragmentation attack is bigger than 50% of the provided traffic (empirical value)
+            if (data['percent'].iloc[0] > 50):
+                logger.debug("Frag Attack: a large fraction of traffic {}% is related to fragmentation attack".format(data['percent'].iloc[0]))
 
-    # generic fragmementation attack 
-    # where there is not information about source/destination port
-    if bool(re.search('IPv[46]',top1_protocol)):
-        frag = df[(df['ip_dst'] == target_ip) & (df['highest_protocol'] == top1_protocol)]['fragmentation'].value_counts().keys()[0]
-        array_protocols = []
-        if (frag):
+                # remove fragmentation protocol from the dataframe 
+                data = top_n_dataframe(df['highest_protocol'],df[df['highest_protocol'] != "IPv4"],n_type)
 
-            # top protocol is regarding fragmentation attack
-            frag_proto = df[(df['ip_dst'] == target_ip) & (df['highest_protocol'] == top1_protocol)]['ip_proto'].value_counts().keys()[0]
-            logger.debug("Fragmented based on protocol {}".format(frag_proto))
-            array_protocols.append(top1_protocol)
+                # find outlier again by ignoring fragmentation protocol (just removed)
+                outlier = find_outlier(data['highest_protocol'],data,n_type)
 
-            # drop this protocol and find other 
-            df = df[df["highest_protocol"] != top1_protocol]
-            top1_protocol_frag = top1_protocol
+                if not outlier:
+                    # still no outlier. It seems that we have an even protocol distribution
+                    # this may be caused by multi-vector attack
 
-            # find the top1 protocol again
-            top1_protocol = df["highest_protocol"].value_counts().keys()[0]
-            array_protocols.append(top1_protocol)
-            return (array_protocols, top1_protocol_frag)
+                    # If remains protocols have a simmilar distribution (+-30%) use them as outliers - empirical
+                    data = data[(data['percent']>30) & (data['highest_protocol']!="others")]
+                    protocol_list = data.sort_values(by="percent",ascending=False)['highest_protocol'].tolist()
+                    #protocol_list = data[data['percent']>30].sort_values(by="percent",ascending=False)['highest_protocol'].tolist()
+                    return (protocol_list,frag)
+
         else:
+            # did not get outliers and it is not fragmentation attack
+            # multiprotocol attack with no fragmentation 
+            frag = False
+            data = top_n_dataframe(df['highest_protocol'],df,n_type)
 
-            # it is not frag attack. However, the top1 protocol is IPv4|IPv6. This means that highest_protocol is not the top1
-            # regular IP attack where highest_protocol is not defined
-            array_protocols = []
-            array_protocols.append(top1_protocol)
-            return (array_protocols,frag)
+            # If remains protocols have a simmilar distribution (+-30%) use them as outliers - empirical
+            data = data[(data['percent']>30) & (data['highest_protocol']!="others")]
+            protocol_list = data.sort_values(by="percent",ascending=False)['highest_protocol'].tolist()
+            return (protocol_list,frag)
 
     else:
 
-        # not frag attack
-        array_protocols = []
-        array_protocols.append(top1_protocol)
-        return (array_protocols,frag)
+        # outlier found 
+        logger.debug("Protocol outlier found: {}".format(outlier))
+        
+        # return the top1
+        logger.debug("Top1 protocol could be classified as outlier")
+        top1_protocol = df["highest_protocol"].value_counts().reset_index().head(1)['index'].tolist()
+        frag = False
+        return (top1_protocol,frag)
 
     return None
-
-#------------------------------------------------------------------------------
-def ip_src_fragmentation_attack_similarity(df,lst_attack_protocols,frag, target_ip):
-    """
-        Find IPs related to fragmentation attack
-        :param df: full dataframe
-        :param lst_attack_protocols: list of protocol used in the attack
-        :param frag: fragmentation flag (frag detect or not)
-    """
-    if (not frag):
-        return False
-
-    ip_frag = df[(df['ip_dst'] == target_ip) & (df['highest_protocol'] == lst_attack_protocols[0])]['ip_src'].unique().tolist()
-    ip_nonfrag = df[(df['ip_dst'] == target_ip) & (df['highest_protocol'] == lst_attack_protocols[-1])]['ip_src'].unique().tolist()
-    ip_list_union = set(ip_frag + ip_nonfrag)
-    ip_intersection  = list(set(ip_frag) & set(ip_nonfrag))
-
-    # percentage of IPs in both lists
-    percentage_in_intersection = round(len(ip_intersection)*100/len(set(ip_list_union)))
-    if (percentage_in_intersection > SIMILARITY_THRESHOLD):
-        logger.info("The fragmentation attack is consequence of attack using the protocol {}".format(lst_attack_protocols[-1]))
-        logger.debug("A total of {}% IPs in the fragmentation attacks is also performing attack using {}".format(percentage_in_intersection,lst_attack_protocols[-1] ))
-        return True
-
-    return False
 
 #------------------------------------------------------------------------------
 def determine_file_type(input_file):
@@ -741,7 +722,9 @@ def determine_file_type(input_file):
     elif file_type == "data" and (b"nfdump" in file_info or b"nfcapd" in file_info):
         return "nfdump"
     else:
-        raise UnsupportedFileTypeError("The file type " + file_type + " is not supported.")
+        print ("The file type " + file_type + " is not supported.")
+        print ("Input file {}".format(input_file))
+        sys.exit(0)
 
 #------------------------------------------------------------------------------
 def load_file(args):
@@ -782,7 +765,6 @@ def load_file(args):
     df = ret.get()
 
     # not a dataframe
-
     if not isinstance(df, pd.DataFrame):
         print ("\n")
         return(NONE,NONE)
@@ -791,13 +773,15 @@ def load_file(args):
     return (n_type,df)
 
 #------------------------------------------------------------------------------
-def clusterization_non_multifrag(df,df_filtered,n_type):
+def clusterization_non_multifrag(df_filtered,n_type):
     """
         Generic heuristic to deal with low accuracy ratio fingerprint
         :param df: dataframe filtered by target_ip
         :param n_type: network file type (flows,pcap)
         :return fingerprint: json file
     """
+    logger.debug("ATTACK TYPE 3: NON MULTIFRAG FRAGMENTATION ATTACK")
+
     fields = df_filtered.columns.tolist()
     if "eth_type" in fields: fields.remove("eth_type")
 
@@ -811,7 +795,7 @@ def clusterization_non_multifrag(df,df_filtered,n_type):
     return (fingerprint)
 
 #------------------------------------------------------------------------------
-def clusterization_multifrag(df,df_filtered,n_type):
+def clusterization_multifrag(df_filtered,n_type):
     """
         Determine if multiples protocol were used for fragmentation attack
         :param df: dataframe filtered by target_ip
@@ -833,7 +817,7 @@ def clusterization_multifrag(df,df_filtered,n_type):
     # high chances to have multi protocol frag attack
     if (frag_percentage > SIMILARITY_THRESHOLD):
 
-        logger.info("ATTACK TYPE: MULTIPROTOCOL FRAGMENTATION ATTACK")
+        logger.debug("ATTACK TYPE 2: MULTIPROTOCOL FRAGMENTATION ATTACK")
 
         # find protocols responsible for that fragmentation
         df_ = df.groupby(['highest_protocol','fragmentation'])['fragmentation'].count().to_frame().\
@@ -944,34 +928,7 @@ def printProgressBar(value,label,fill_chars="■-"):
     return True
 
 #------------------------------------------------------------------------------
-def filter_fingerprint(df,fingerprint,similarity=False):
-    """
-        Use the generated fingerprint to filter the traffic in the dataframe.
-        :param df: datafram itself
-        :param fingerprints: json file
-        :param similarity: flag used to add IP fragmentation attacks to the filtered dataframe
-        :return df_fingerprint: dataframe filtered based on matched fingerprint
-    """
-    # filter full DF using the built fingerprint filter
-    df_fingerprint = df
-    for key, value in fingerprint.items():
-        df_fingerprint = df_fingerprint[df_fingerprint[key].isin(value)]
-    total_ips_matched_using_fingerprint = df_fingerprint['ip_src'].unique().tolist()
-
-    if (similarity):
-
-        # SRC_IP from frag attack and generated fingerprint are very correlated.
-        # Here we add 'frag attack filter' to the matched dataframe to compute the match rate using both attacks (frag + fingerprint)
-        df_frag = df[(df['ip_dst'] == target_ip) & (df['fragmentation'] ==1) & (df['dstport'] ==0) & (df['ip_src'].isin(total_ips_matched_using_fingerprint))]
-        df_fingerprint = pd.concat([df_fingerprint,df_frag], ignore_index=True)
-        df_fingerprint = df_fingerprint.drop_duplicates(keep="first")
-        total_ips_matched_using_fingerprint = df_fingerprint['ip_src'].unique().tolist()
-        logger.debug("Fragmentation attack filter added to the matched dataframe")
-
-    return (df_fingerprint)
-
-#------------------------------------------------------------------------------
-def evaluate_fingerprint(df,df_fingerprint,fingerprint):
+def evaluate_fingerprint(df,df_fingerprint,fingerprints):
     """
         :param df: datafram itself       
         :param df_fingerprint: dataframe filtered based on matched fingerprint
@@ -980,8 +937,6 @@ def evaluate_fingerprint(df,df_fingerprint,fingerprint):
     """
 
     total_rows_matched = len(df_fingerprint)
-    total_ips_matched_using_fingerprint = df_fingerprint['ip_src'].unique().tolist()
-
     msg = "Fingerprint evaluation"
     sys.stdout.write('\r'+'['+'\u2713'+'] '+ msg+'\n')
 
@@ -993,38 +948,36 @@ def evaluate_fingerprint(df,df_fingerprint,fingerprint):
         value = round(len(df_fingerprint)*100/len(df))
         printProgressBar(value,"TRAFFIC MATCHED")
         printProgressBar(round(percentage_of_ips_matched),"IPs MATCHED")
-
-    # remove fields that are not in the dataframe
-    fingerprint.pop('tags',None)
-    fingerprint.pop('one_line',None)
-    fingerprint.pop('key_sha256',None)
-    fingerprint.pop('start_time',None)
-    fingerprint.pop('duration_sec',None)
-    fingerprint.pop('total_dst_ports',None)
-    fingerprint.pop('avg_bps',None)
-    fingerprint.pop('total_packets',None)
-    fingerprint.pop('key',None)
-    fingerprint.pop('multivector_key',None)
-    fingerprint.pop('total_ips',None)
-    fingerprint.pop('amplifiers',None)
-    fingerprint.pop('attackers',None)
-
+    #
+    # Fields breakdown
+    # 
     if (args.verbose) or (args.debug):
-         results = {}
-         # how many rows each field can filter
-         for key, value in fingerprint.items():
-             total_rows_matched = len(df[df[key].isin(value)])
-             percentage = round(total_rows_matched*100/len(df))
-             # dict with all the fields and results
-             results.update( {key: percentage} )
-         results_sorted = {k: v for k, v in sorted(results.items(), key=lambda item: item[1],  reverse=True)}
- 
-         logger.info("          =============== FIELDS BREAKDOWN ================ ")
-         for label, percentage in results_sorted.items():
-             printProgressBar(percentage,label,"▭ ")
-    accuracy_ratio = round(len(df_fingerprint)*100/len(df))
 
-    return (accuracy_ratio)
+        # get all the attack vectors within fingerprint
+        regex = re.compile(r'attack_vector.*')
+        attack_vectors = list(filter(regex.search, fingerprints.keys()))
+        count = 0
+
+        # get fingerprint 
+        for ff in attack_vectors:
+            count = count + 1
+            fingerprint = fingerprints.get(ff).replace("True","\'True\'").replace("False","\'False\'").replace("\'", "\"")
+            fingerprint = json.loads(fingerprint)
+    
+            results =  {}
+            for key, value in fingerprint.items():
+                val = str(value).split()
+                total_rows_matched = len(df[df[key].isin(val)])
+                percentage = round(total_rows_matched*100/len(df))
+
+                # dict with all the fields and results
+                results.update( {key: percentage} )
+            results_sorted = {k: v for k, v in sorted(results.items(), key=lambda item: item[1],  reverse=True)}
+
+            logger.info(" ============= FIELDS BREAKDOWN ===ATTACK_VECTOR {} ============= ".format(count))
+            for label, percentage in results_sorted.items():
+                 printProgressBar(percentage,label,"▭ ")
+    return ()
 
 #------------------------------------------------------------------------------
 def check_repository(config):
@@ -1093,15 +1046,17 @@ def check_repository(config):
     sys.exit(0)
 
 #------------------------------------------------------------------------------
-def get_matching_ratio(df,fingerprint,similarity):
+def get_matching_ratio(df_attack_vector,fingerprint):
 
     if not fingerprint:
         return (NONE,NONE)
-    ## filter dataframe using the produced fingerprint
-    df_fingerprint = filter_fingerprint(df,fingerprint,similarity)
 
-     # evaluate fingerprint matching ratio
-    accuracy_ratio = round(len(df_fingerprint)*100/len(df))
+    df_fingerprint = df_attack_vector
+    for key, value in fingerprint.items():
+        df_fingerprint = df_fingerprint[df_fingerprint[key].isin(value)]
+
+    # evaluate fingerprint matching ratio
+    accuracy_ratio = round(len(df_fingerprint)*100/len(df_attack_vector))
 
     d = { "ratio"       : accuracy_ratio, 
           "fingerprint" : fingerprint
@@ -1109,72 +1064,100 @@ def get_matching_ratio(df,fingerprint,similarity):
     return (df_fingerprint,d)
 
 #------------------------------------------------------------------------------
-def clusterization_heuristic_generic(df,df_fingerprint,n_type):
+def clusterization_heuristic_generic(df_attack_vector,n_type):
 
-    fields = df_filtered.columns.tolist()
+    fields = df_attack_vector.columns.tolist()
     if "eth_type" in fields: fields.remove("eth_type")
 
+    logger.debug("ATTACK TYPE 1: GENERIC ")
     fingerprint  = {}
     for field in fields:
-        outlier = find_outlier(df_filtered[field],df,n_type)
+        outlier = find_outlier(df_attack_vector[field],df_attack_vector,n_type)
         if (outlier):
             if (outlier != [NONE]):
                 fingerprint.update( {field : outlier} )
 
     return (fingerprint)
 #------------------------------------------------------------------------------
-def build_attack_fingerprint(df,df_filtered,n_type,similarity):
+def build_attack_fingerprint(df,df_attack_vector,n_type,multi_vector_attack_flag):
     """
         Inspect generic protocol
         :param df: datafram itself
         :param n_type: network file type (flows,pcap)
+        :param multi_vector_attack_flag: attack composed by multiple protocols
         :return fingerprints: json file
     """
-    attack_protocol = df_filtered['highest_protocol'].iloc[0]
-    logger.info("Processing attack based on {}".format(attack_protocol))
+    # remove target IP from dataframe since it will be anonymized
+    del df_attack_vector['ip_dst']
+ 
+    attack_vector_protocol = df_attack_vector['highest_protocol'].iloc[0]
+    logger.info("Processing attack_vector based on {}".format(attack_vector_protocol))
 
-    # DETECTION HEURISTIC 
+    # DETECTION RATE HEURISTIC 
     dic_ratio_array = []
 
     ### FIRST HEURISTIC
-    fingerprint = clusterization_heuristic_generic(df,df_filtered,n_type)
-    (df_fingerprint,dict_accuracy_ratio) = get_matching_ratio(df,fingerprint,similarity)
+    fingerprint = clusterization_heuristic_generic(df_attack_vector,n_type)
+    
+    if (multi_vector_attack_flag):
+        (df_fingerprint,dict_accuracy_ratio) = get_matching_ratio(df_attack_vector,fingerprint)
+    else:
+        (df_fingerprint,dict_accuracy_ratio) = get_matching_ratio(df,fingerprint)
+
     logger.debug(dict_accuracy_ratio)
 
     if (dict_accuracy_ratio != NONE):
         logger.debug('-' * 60)
+        logger.info("HEURISTIC 1: matching ratio {}%".format((dict_accuracy_ratio.get("ratio"))))
         logger.debug("First heuristic matching ratio = {}".format(dict_accuracy_ratio.get("ratio")))
         logger.debug("First heuristic fingerprint  = {}".format((dict_accuracy_ratio.get("fingerprint"))))
         logger.debug("First fingerprint lengh = {}".format(len(dict_accuracy_ratio.get("fingerprint"))))
-        if (len(dict_accuracy_ratio.get("fingerprint"))>2):
-            logger.debug('-' * 60)
-            dict_accuracy_ratio['size'] = len(dict_accuracy_ratio.get("fingerprint"))
-            dic_ratio_array.append(dict_accuracy_ratio)
+        logger.debug('-' * 60)
+        dict_accuracy_ratio['size'] = len(dict_accuracy_ratio.get("fingerprint"))
+        dic_ratio_array.append(dict_accuracy_ratio)
+    else:
+        logger.info("HEURISTIC 1: matching ratio 0%")
 
     ### SECOND HEURISTIC
-    fingerprint = clusterization_multifrag(df,df_filtered,n_type)
-    (df_fingerprint,dict_accuracy_ratio) = get_matching_ratio(df,fingerprint,similarity)
+    fingerprint = clusterization_multifrag(df_attack_vector,n_type)
+   
+    if (multi_vector_attack_flag):
+        (df_fingerprint,dict_accuracy_ratio) = get_matching_ratio(df_attack_vector,fingerprint)
+    else:
+        (df_fingerprint,dict_accuracy_ratio) = get_matching_ratio(df,fingerprint)
+
     logger.debug(dict_accuracy_ratio)
 
     if (dict_accuracy_ratio != NONE):
         logger.debug('-' * 60)
+        logger.info("HEURISTIC 2: matching ratio {}%".format((dict_accuracy_ratio.get("ratio"))))
         logger.debug("Second heuristic matching ratio = {}".format(dict_accuracy_ratio.get("ratio")))
         logger.debug("Second heuristic fingerprint  = {}".format((dict_accuracy_ratio.get("fingerprint"))))
         logger.debug("Second fingerprint lengh = {}".format(len(dict_accuracy_ratio.get("fingerprint"))))
         logger.debug('-' * 60)
         dict_accuracy_ratio['size'] = len(dict_accuracy_ratio.get("fingerprint"))
         dic_ratio_array.append(dict_accuracy_ratio)
+    else:
+        logger.info("HEURISTIC 2: matching ratio 0%")
 
     ### THIRD HEURISTIC
-    fingerprint = clusterization_non_multifrag(df,df_filtered,n_type)
-    (df_fingerprint,dict_accuracy_ratio) = get_matching_ratio(df,fingerprint,similarity)
+    fingerprint = clusterization_non_multifrag(df_attack_vector,n_type)
+
+    if (multi_vector_attack_flag):
+        (df_fingerprint,dict_accuracy_ratio) = get_matching_ratio(df_attack_vector,fingerprint)
+    else:
+        (df_fingerprint,dict_accuracy_ratio) = get_matching_ratio(df,fingerprint)
+
     if (dict_accuracy_ratio != NONE):
+        logger.info("HEURISTIC 3: matching ratio {}%".format((dict_accuracy_ratio.get("ratio"))))
         logger.debug("Third heuristic matching ratio = {}".format(dict_accuracy_ratio.get("ratio")))
         logger.debug("Third heuristic fingerprint  = {}".format((dict_accuracy_ratio.get("fingerprint"))))
         logger.debug("Third fingerprint lengh = {}".format(len(dict_accuracy_ratio.get("fingerprint"))))
         logger.debug('-' * 60)
         dict_accuracy_ratio['size'] = len(dict_accuracy_ratio.get("fingerprint"))
         dic_ratio_array.append(dict_accuracy_ratio)
+    else:
+        logger.info("HEURISTIC 3: matching ratio 0%")
 
     # pick the best matching rate
     df_ = pd.DataFrame(dic_ratio_array)
@@ -1190,8 +1173,10 @@ def build_attack_fingerprint(df,df_filtered,n_type,similarity):
     # If the signature has less detection ratio (-10) get the biggest fingerprint
     fingerprint = data[data['diff']>-10].sort_values(by="size",ascending=False).head(1)['fingerprint'].values[0]
 
+    # did not get bigger length fingerprint, then get the best ratio  
     if not fingerprint:
         fingerprint = df_.sort_values(by="ratio",ascending=False).loc[0,"fingerprint"]
+        print (df_.sort_values(by="ratio",ascending=False).loc[0,"ratio"])
 
     return (fingerprint)
 
@@ -1216,12 +1201,11 @@ def bar(row):
     return ()
 
 #------------------------------------------------------------------------------
-def add_label(fingerprint,df):
+def add_label(fingerprints,df):
     """
        Add labels to fingerprint generated
     """
 
-    label = []
     # UDP Service Mapping
     udp_service = {
         25:    'SMTP',
@@ -1245,42 +1229,49 @@ def add_label(fingerprint,df):
 
     generic_amplification_ports = [53, 389, 123, 161, 672]
 
-    # add protocol name to label list
-    if 'highest_protocol' in fingerprint:
-        label.append(", ".join(fingerprint['highest_protocol']))
+    label = []
+    for fingerprint in fingerprints:
 
-    if 'dns_qry_name' in fingerprint:
-        label.append("DNS_QUERY")
+        if (len(fingerprints)>1):
+            label.append("MULTIVECTOR ATTACK")
+        else: 
+            label.append("SINGLEVECTOR ATTACK")
 
-    if 'udp_length' in fingerprint:
+        # add protocol name to label list
+        if 'highest_protocol' in fingerprint:
+            label.append(", ".join(fingerprint['highest_protocol']))
+    
+        if 'dns_qry_name' in fingerprint:
+            label.append("DNS_QUERY")
+    
+        if 'udp_length' in fingerprint:
+    
+            # Based on FBI Flash Report MU-000132-DD
+            df_length = (df.groupby(['srcport'])['udp_length'].max()).reset_index()
+            if (len(df_length.udp_length>468)):
+                label.append("UDP_SUSPECT_LENGTH")
+                for port in udp_service:
+                    if ("srcport" in fingerprint):
+                        if (fingerprint['srcport'] == [port]):
+                            label.append("AMPLIFICATION")
+                            label.append("RDDoS")
+                            label.append(udp_service[port])
+    
+        # Frag attack
+        if 'fragmentation' in fingerprint:
+            value = fingerprint.get('fragmentation')[0]
+            if (value==True):
+                label.append("FRAGMENTATION")
 
-        # Based on FBI Flash Report MU-000132-DD
-        df_length = (df.groupby(['srcport'])['udp_length'].max()).reset_index()
-        if (len(df_length.udp_length>468)):
-            label.append("UDP_SUSPECT_LENGTH")
-            for port in udp_service:
-                if ("srcport" in fingerprint):
-                    if (fingerprint['srcport'] == [port]):
-                        label.append("AMPLIFICATION")
-                        label.append("RDDoS")
-                        label.append(udp_service[port])
-
-    # Frag attack
-    if 'fragmentation' in fingerprint:
-        value = fingerprint.get('fragmentation')[0]
-        if (value=="True"):
-            label.append("FRAGMENTATION")
-
-    # Generic amplification attack
-    if ("srcport" in fingerprint):
-        if (len(fingerprint['srcport']) > 1):
-            label.append("MULTIPROTOCOL")
-        for port in generic_amplification_ports:
-            if (port in list(fingerprint['srcport'])):
-                label.append("AMPLIFICATION")
-                break
-
-    return (label)
+        # Generic amplification attack
+        if ("srcport" in fingerprint):
+            if (len(fingerprint['srcport']) > 1):
+                label.append("MULTIPROTOCOL")
+            for port in generic_amplification_ports:
+                if (port in list(fingerprint['srcport'])):
+                    label.append("AMPLIFICATION")
+                    continue
+    return (list(set(label)))
 
 #------------------------------------------------------------------------------
 def logo():
@@ -1314,7 +1305,7 @@ def import_logfile(args):
             return None
 
 #------------------------------------------------------------------------------
-def prepare_fingerprint_upload(df_fingerprint,df,fingerprint,n_type,labels,fingerprint_dir):
+def prepare_fingerprint_upload(df_fingerprint,df,fingerprints,n_type,labels,fingerprint_dir):
     """
         Add addicional fields and stats to the generated fingerprint
         :param df_fingerprint: dataframe filtered based on matched fingerprint
@@ -1323,32 +1314,44 @@ def prepare_fingerprint_upload(df_fingerprint,df,fingerprint,n_type,labels,finge
         :param n_type: network file type (flows,pcap)
         :return json file
     """
+
+    count = 0
+    fingerprint_combined = {}
+
+    # combine attack vectors
+    for fingerprint in fingerprints:
+       count = count+1
+       # remove brackets from string
+       one_line_fingerprint = str(fingerprint).translate(str.maketrans("", "", "[]"))
+       attack_vector_name = "attack_vector_{}".format(count)
+       fingerprint_combined.update({attack_vector_name: one_line_fingerprint})
+    
     # timestamp fields
     initial_timestamp  = df_fingerprint['frame_time_epoch'].min()
     initial_timestamp = datetime.utcfromtimestamp(initial_timestamp).strftime('%Y-%m-%d %H:%M:%S')
-    fingerprint.update( {"start_time": initial_timestamp} )
+    fingerprint_combined.update( {"start_time": initial_timestamp} )
     duration_sec = df_fingerprint['frame_time_epoch'].max() - df_fingerprint['frame_time_epoch'].min()
-    fingerprint.update( {"duration_sec": int(duration_sec)} )
-    fingerprint.update( {"total_dst_ports": len(df_fingerprint['dstport'].unique().tolist())} )
+    fingerprint_combined.update( {"duration_sec": int(duration_sec)} )
+    fingerprint_combined.update( {"total_dst_ports": len(df_fingerprint['dstport'].unique().tolist())} )
 
     if (n_type == FLOW_TYPE):
-      fingerprint.update( {"avg_bps": int(df_fingerprint.in_packets.mean())})
-      fingerprint.update( {"total_packets": int(df_fingerprint.in_packets.sum())})
+      fingerprint_combined.update( {"avg_bps": int(df_fingerprint.in_packets.mean())})
+      fingerprint_combined.update( {"total_packets": int(df_fingerprint.in_packets.sum())})
     else:
-      fingerprint.update( {"avg_bps": int(df_fingerprint.frame_len.sum()/duration_sec) })
-      fingerprint.update( {"total_packets": len(df_fingerprint)} )
+      fingerprint_combined.update( {"avg_bps": int(df_fingerprint.frame_len.sum()/duration_sec) })
+      fingerprint_combined.update( {"total_packets": len(df_fingerprint)} )
 
     # keys used on the repository
     key = str(hashlib.md5(str(fingerprint).encode()).hexdigest())
-    fingerprint.update( {"key": key} )
+    fingerprint_combined.update( {"key": key} )
     sha256 = hashlib.sha256(str(fingerprint).encode()).hexdigest()
-    fingerprint.update( {"key_sha256": sha256} )
-    fingerprint.update( {"multivector_key": sha256} )
-    fingerprint.update( {"total_ips": len(df_fingerprint['ip_src'].unique().tolist()) })
+    fingerprint_combined.update( {"key_sha256": sha256} )
+    fingerprint_combined.update( {"multivector_key": sha256} )
+    fingerprint_combined.update( {"total_ips": len(df_fingerprint['ip_src'].unique().tolist()) })
 
     # set field name based on label 
-    fingerprint.update( {"amplifiers": "None"} )
-    fingerprint.update( {"attackers": df_fingerprint['ip_src'].unique().tolist()} )
+    fingerprint_combined.update( {"amplifiers": "None"} )
+    fingerprint_combined.update( {"attackers": df_fingerprint['ip_src'].unique().tolist()} )
 
     if labels:
         if ("AMPLIFICATION" in labels):
@@ -1362,7 +1365,7 @@ def prepare_fingerprint_upload(df_fingerprint,df,fingerprint,n_type,labels,finge
     json_file = "{}/{}.json".format(fingerprint_dir,key)
     try:
         with open(json_file, 'w') as f_fingerprint:
-            json.dump(fingerprint, f_fingerprint)
+            json.dump(fingerprint_combined, f_fingerprint)
     
         files = {
             "json": open(json_file, "rb"),
@@ -1372,21 +1375,76 @@ def prepare_fingerprint_upload(df_fingerprint,df,fingerprint,n_type,labels,finge
     except:
         logger.info("Could not save fingerprint {}".format(json_file))
 
-    return (fingerprint,json_file)
+    return (fingerprint_combined,json_file)
 
 #------------------------------------------------------------------------------
 def print_fingerprint(fingerprint):
 
-        # print fingerprint and remove IPs
-        fingerprint_anon = fingerprint
-        fingerprint_anon.update({"one_line": one_line_fingerprint})
-        fingerprint_anon.update({"attackers": "ommited"})
-        fingerprint_anon.update({"amplifiers": "ommited"})
+    fingerprint_anon = fingerprint 
 
-        json_str = json.dumps(fingerprint_anon, indent=4, sort_keys=True)
-        msg = "Generated fingerprint"
-        sys.stdout.write('\r'+'['+'\u2713'+'] '+ msg+'\n')
-        print(highlight(json_str, JsonLexer(), TerminalFormatter()))
+    # print fingerprint and remove IPs
+    fingerprint_anon.update({"attackers": "ommited"})
+    fingerprint_anon.update({"amplifiers": "ommited"})
+    fingerprint_anon.update({"tags": labels})
+
+    json_str = json.dumps(fingerprint_anon, indent=4, sort_keys=True)
+    msg = "Generated fingerprint"
+    sys.stdout.write('\r'+'['+'\u2713'+'] '+ msg+'\n')
+    print(highlight(json_str, JsonLexer(), TerminalFormatter()))
+
+#------------------------------------------------------------------------------
+def evaluate_fingerprint_ratio(df,fingerprints,fragmentation_attack_flag):
+
+    if (len(fingerprints)==0):
+        print ("Could not find a fingerprint for this network file :(" )
+        sys.exit()
+    else:
+        logger.info("Found {} fingerprints for this attack".format(len(fingerprints)))
+
+    if (len(fingerprints)==1):
+
+        # only one fingerprint was found
+        (df_fingerprint,dict_accuracy_ratio) = get_matching_ratio(df,fingerprints[0])
+
+        if fragmentation_attack_flag:
+            logger.debug("multivector attack with fragmentation - one fingerprint")
+            logger.debug("1 fingerprint found, but it was expected more than 1, since it is a fragmentation attack")
+
+            # add fragmentation dataframe because a fragmentation attack was detected
+            df_frag = df[df['highest_protocol'].str.contains('IPv[46]')]
+
+            # add fragmentation IPs to the evaluatioa dataframe
+            df_all = pd.concat([df_frag,df_fingerprint])
+            return (df_all)
+
+        # No fragmentation
+        else:
+            logger.debug("multivector attack with NO fragmentation - one fingerprint")
+            return (df_fingerprint)
+
+    # more than 1 fingerprint was found
+    else:
+
+        # more than 1 fingerprint and they are related to fragmentation attack
+        df_attack_vector_combined = pd.DataFrame()
+
+        # get dataframe per fingerprint and combine it
+        for attack_vector_fingerprint in fingerprints:
+            (df_fingerprint,dict_accuracy_ratio) = get_matching_ratio(df,attack_vector_fingerprint)
+            df_attack_vector_combined = pd.concat([df_attack_vector_combined,df_fingerprint])
+
+        # add fragmentation dataframe to the filtered one
+        if fragmentation_attack_flag:
+
+            logger.debug("multivector attack with fragmentation - 1+ fingerprints")
+            df_frag = df[df['highest_protocol'].str.contains('IPv[46]')]
+            df_attack_vector_combined = pd.concat([df_frag,df_attack_vector_combined])
+
+        # more than 1 fingerprint and they are NOT related to fragmentation attack
+        else:
+            logger.debug("multivector attack with NO fragmentation - 1+ fingerprints")
+
+        return (df_attack_vector_combined)
 
 ###############################################################################
 ### Main Process
@@ -1426,88 +1484,77 @@ if __name__ == '__main__':
         logger.error("could not read data from file <{}>".format(args.filename))
         sys.exit(1)
 
+    ## 
+    ## DETECT TARGET 
+    ## 
+
     # usually is only one target, but on anycast/load balanced might have more
     (target_ip_list,df) = infer_target_ip(df,n_type)
-
-    if not target_ip_list:
+    try:
+        target_ip = target_ip_list[0]
+    except:
         print ("Target IP could not be infered.") 
         sys.exit(0)
 
-    logger.info("Attack target(s): {}".format(target_ip_list))
-    target_ip = target_ip_list[0]
     # build filter for victim IP
-    logger.debug("Processing target IP address: {}".format(target_ip))
     msg = "Processing target IP address: {}".format(target_ip)
+    df_target = df[df['ip_dst'] == target_ip]
     sys.stdout.write('\r'+'['+'\u2713'+'] '+ msg+'\n')
+    logger.debug(msg)
 
-    df_filtered = df[df['ip_dst'] == target_ip]
-    (lst_attack_protocols, frag) = infer_protocol_attack(df_filtered,n_type)
+    ## 
+    ## IDENTIFY ATTACK VECTORS
+    ## 
+    (lst_attack_protocols, fragmentation_attack_flag) = infer_protocol_attack(df_target,n_type)
     
-    # remove target IP from dataframe since it will be anonymized
-    del df_filtered['ip_dst']
+    multi_vector_attack_flag = False
 
-    # correlation flag - see function ip_src_fragmentation_attack_similarity
-    similarity = False
+    # more than one protocol as outliers 
+    if (len(lst_attack_protocols)>1):
+        multi_vector_attack_flag = True
+        logger.info("Multi-vector attack based on: {} : fragmentation [{}]".format(lst_attack_protocols,fragmentation_attack_flag))
+    else: 
+        logger.info("Single attack based on: {} : fragmentation [{}]".format(lst_attack_protocols,fragmentation_attack_flag))
 
-    if (frag):
-        frag_proto = lst_attack_protocols[0]
-        # is this fragmentation attack caused by another attack?
-        similarity = ip_src_fragmentation_attack_similarity(df,lst_attack_protocols,frag,target_ip)
+    ## 
+    ## IDENTIFY FINGERPRINTS
+    ## 
+    fingerprints = []
 
-        if (similarity):
-            # lets use the top2 protocol since there is a big overlap of src_ip between frag attack and top2 proto
-            logger.debug("Fragmentation attack likely to stop if we filter the {} attack".format(lst_attack_protocols[-1]))
-            df_filtered = df_filtered[df_filtered['highest_protocol'] == lst_attack_protocols[-1]]
+    # fingerprint per attack vector
+    for protocol in lst_attack_protocols:
 
-        else:
-            logger.debug("Fragmentation attack is not correlated to the top2 protocol")
-            logger.debug("We should do something to filter that")
+        # filter database based on protocol and target
+        df_attack_vector = df[(df['ip_dst'] == target_ip) & (df['highest_protocol'] == protocol)]
 
-    else:
-        # filter based on top1, since the top1 is not fragmentation
-        logger.debug("Fragmentation attack not found")
-        df_filtered = df_filtered[df_filtered['highest_protocol'] == lst_attack_protocols[0]]
-
-    # build attack fingerprint 
-    fingerprint = build_attack_fingerprint(df,df_filtered,n_type,similarity)
-    
-    if not fingerprint:
-        print ("Could not find fingerprint for this network file :(" )
-        sys.exit()
-
-    # filter dataframe using the selected fingerprint
-    df_fingerprint = filter_fingerprint(df,fingerprint,similarity)
-
-    if (len(df_fingerprint)<1):
-        print ("Could not find fingerprint for this network file :(" )
-        sys.exit()
-
-    # remove brackets from string
-    one_line_fingerprint = str(fingerprint).translate(str.maketrans("", "", "[]"))
+       #df_filtered = df_filtered[df_filtered['highest_protocol']==protocol]
+        fingerprint = build_attack_fingerprint(df,df_attack_vector,n_type,multi_vector_attack_flag)
+        fingerprints.append(fingerprint)
+    ## 
+    ## FINGERPRINT EVALUATION
+    ## 
+    df_filtered = evaluate_fingerprint_ratio(df,fingerprints,fragmentation_attack_flag)
 
     # infer tags based on the generated fingerprint
-    labels = add_label(fingerprint,df_fingerprint)
-    fingerprint.update({"tags": labels})
+    labels = add_label(fingerprints,df_filtered)
 
-    #c add extra fields/stats and save file locally
-    (fingerprint,json_file) = prepare_fingerprint_upload(df_fingerprint,df,fingerprint,n_type,labels,args.fingerprint_dir)
+    # add extra fields/stats and save file locally
+    (enriched_fingerprint,json_file) = prepare_fingerprint_upload(df_filtered,df,fingerprints,n_type,labels,args.fingerprint_dir)
 
     # show anon fingerprint
-    print_fingerprint(fingerprint)
+    print_fingerprint(enriched_fingerprint)
 
-    # evaluate fingerprint generated - does not considerer src_ips 
-    if (args.summary): evaluate_fingerprint(df,df_fingerprint,fingerprint)
+    if (args.summary): evaluate_fingerprint(df,df_filtered,enriched_fingerprint)
 
     # generate graphic file 
     if (args.graph): generate_dot_file(df_fingerprint, df)
-
     print ("Fingerprint saved on {}".format(json_file))
 
     if (args.upload):
         (user,passw,host) = get_repository(args,config)
 
         # upload to the repository
-        ret = upload(fingerprint, json_file, user, passw, host, fingerprint.get("key"))
+        ret = upload(enriched_fingerprint, json_file, user, passw, host, fingerprint.get("key"))
 
     sys.exit(0)
 #EOF
