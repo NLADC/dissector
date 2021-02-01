@@ -776,9 +776,9 @@ def load_file(args):
 def clusterization_non_multifrag(df_filtered,n_type):
     """
         Generic heuristic to deal with low accuracy ratio fingerprint
-        :param df: dataframe filtered by target_ip
+        :param df_filtered: attack filtered by attack vector
         :param n_type: network file type (flows,pcap)
-        :return fingerprint: json file
+        return fingerprint generated
     """
     logger.debug("ATTACK TYPE 3: NON MULTIFRAG FRAGMENTATION ATTACK")
 
@@ -798,11 +798,10 @@ def clusterization_non_multifrag(df_filtered,n_type):
 def clusterization_multifrag(df_filtered,n_type):
     """
         Determine if multiples protocol were used for fragmentation attack
-        :param df: dataframe filtered by target_ip
+        :param df_filtered: attack filtered by attack vector
         :param n_type: network file type (flows,pcap)
-        :return fingerprint: json file
+        return fingerprint generated
     """
-
     fingerprint  = {}
     df_ = df.fragmentation.value_counts(normalize=True).mul(100).reset_index()
     value = df_.loc[:,"fragmentation"].values[0]
@@ -981,7 +980,6 @@ def evaluate_fingerprint(df,df_fingerprint,fingerprints):
 
 #------------------------------------------------------------------------------
 def check_repository(config):
-
     """
         Check repository access and credentials
         :param config: configuration file path
@@ -1047,6 +1045,12 @@ def check_repository(config):
 
 #------------------------------------------------------------------------------
 def get_matching_ratio(df_attack_vector,fingerprint):
+    """
+        Identify the matching rate using the generated fingerprint
+        :param df_attack_vector: attack filtered by attack vector
+        return: dict with ratio and fingerprint
+
+    """
 
     if not fingerprint:
         return (NONE,NONE)
@@ -1065,6 +1069,12 @@ def get_matching_ratio(df_attack_vector,fingerprint):
 
 #------------------------------------------------------------------------------
 def clusterization_heuristic_generic(df_attack_vector,n_type):
+    """
+        One of the Fingerprint aggregation methodology 
+        :param df_attack_vector: attack filtered by attack vector
+        :param n_type: network file type (flows,pcap)
+        return fingerprint generated
+    """
 
     fields = df_attack_vector.columns.tolist()
     if "eth_type" in fields: fields.remove("eth_type")
@@ -1083,9 +1093,10 @@ def build_attack_fingerprint(df,df_attack_vector,n_type,multi_vector_attack_flag
     """
         Inspect generic protocol
         :param df: datafram itself
+        :param df_attack_vector: attack filtered by attack vector
         :param n_type: network file type (flows,pcap)
         :param multi_vector_attack_flag: attack composed by multiple protocols
-        :return fingerprints: json file
+        return fingerprint generated
     """
     # remove target IP from dataframe since it will be anonymized
     del df_attack_vector['ip_dst']
@@ -1512,9 +1523,11 @@ if __name__ == '__main__':
     # more than one protocol as outliers 
     if (len(lst_attack_protocols)>1):
         multi_vector_attack_flag = True
-        logger.info("Multi-vector attack based on: {} : fragmentation [{}]".format(lst_attack_protocols,fragmentation_attack_flag))
+        logger.info("Multi-vector attack based on: {} : fragmentation [{}]".
+                format(lst_attack_protocols,fragmentation_attack_flag))
     else: 
-        logger.info("Single attack based on: {} : fragmentation [{}]".format(lst_attack_protocols,fragmentation_attack_flag))
+        logger.info("Single attack based on: {} : fragmentation [{}]".
+                format(lst_attack_protocols,fragmentation_attack_flag))
 
     ## 
     ## IDENTIFY FINGERPRINTS
