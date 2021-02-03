@@ -814,12 +814,14 @@ def clusterization_multifrag(df_filtered,n_type):
         :return fingerprint: json file
     """
 
+    if (n_type == FLOW_TYPE):
+        return None
+
     fingerprint  = {}
     df_ = df.fragmentation.value_counts(normalize=True).mul(100).reset_index()
     value = df_.loc[:,"fragmentation"].values[0]
     df_['index']=df_['index'].astype(bool)
 
-    # percentage of packets with fragmentation
     try:
         frag_percentage = df_[(df_['fragmentation']>SIMILARITY_THRESHOLD) & (df_['index'].values)[0]==True].values[0][1]
     except (ValueError,IndexError):
@@ -1128,6 +1130,8 @@ def build_attack_fingerprint(df,df_attack_vector,n_type,multi_vector_attack_flag
         logger.info("HEURISTIC 1: matching ratio 0%")
 
     ### SECOND HEURISTIC
+
+
     fingerprint = clusterization_multifrag(df_attack_vector,n_type)
    
     if (multi_vector_attack_flag):
