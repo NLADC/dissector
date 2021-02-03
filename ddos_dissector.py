@@ -1480,8 +1480,6 @@ if __name__ == '__main__':
 
     # load network file
     n_type,df = load_file(args)
-
-    df.to_csv("/tmp/df.csv",sep=";")
     if not isinstance(df, pd.DataFrame):
         logger.error("could not convert input file <{}>".format(args.filename))
         sys.exit(1)
