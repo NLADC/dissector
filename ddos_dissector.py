@@ -493,6 +493,18 @@ def infer_target_ip (df,n_type):
     n_type: network file type (flows,pcap)
     return: list of target IPs 
     """
+    # check if the second most common value grouped in 'others'
+    # if so, there are 
+    #   ip_dst	        count	percent	zscore
+    # 	94.198.154.130	2799	50	4.0
+    #	others	        1842	33	2.0 <-- not an outlier
+    #   94.198.154.24	86	2	-0.0
+    data = top_n_dataframe(df.ip_dst,df,n_type)
+    data = data[(data.iloc[1,0] == "others") & (data['zscore'] <3)].size
+    if not data:
+       logger.info("There are several destination IP in the dataset. High entropy. Effectiveness will be low.")
+
+    # find outlier
     outlier = find_outlier(df['ip_dst'],df,n_type)
 
     if (not outlier or len(outlier)<1):
@@ -722,8 +734,7 @@ def determine_file_type(input_file):
     elif file_type == "data" and (b"nfdump" in file_info or b"nfcapd" in file_info):
         return "nfdump"
     else:
-        print ("The file type " + file_type + " is not supported.")
-        print ("Input file {}".format(input_file))
+        logger.critical("The file [{}] type [{}] is not supported.".format(input_file,file_type))
         sys.exit(0)
 
 #------------------------------------------------------------------------------
@@ -953,30 +964,28 @@ def evaluate_fingerprint(df,df_fingerprint,fingerprints):
     # 
     if (args.verbose) or (args.debug):
 
-        # get all the attack vectors within fingerprint
-        regex = re.compile(r'attack_vector.*')
-        attack_vectors = list(filter(regex.search, fingerprints.keys()))
         count = 0
+        df.fragmentation = df.fragmentation.astype(str)
 
-        # get fingerprint 
-        for ff in attack_vectors:
-            count = count + 1
-            fingerprint = fingerprints.get(ff).replace("True","\'True\'").replace("False","\'False\'").replace("\'", "\"")
-            fingerprint = json.loads(fingerprint)
-    
+        # for each fingerprint generated
+        for fingerprint in (fingerprints['attack_vector']):
+            count = count + 1 
             results =  {}
             for key, value in fingerprint.items():
-                val = str(value).split()
+                val = ','.join(str(v) for v in value)
+                val = val.split()
                 total_rows_matched = len(df[df[key].isin(val)])
                 percentage = round(total_rows_matched*100/len(df))
 
                 # dict with all the fields and results
                 results.update( {key: percentage} )
             results_sorted = {k: v for k, v in sorted(results.items(), key=lambda item: item[1],  reverse=True)}
+            
 
-            logger.info(" ============= FIELDS BREAKDOWN ===ATTACK_VECTOR {} ============= ".format(count))
+            logger.info(" ============= FIELDS BREAKDOWN === ATTACK_VECTOR {} ============= ".format(count))
             for label, percentage in results_sorted.items():
                  printProgressBar(percentage,label,"▭ ")
+
     return ()
 
 #------------------------------------------------------------------------------
@@ -1317,14 +1326,18 @@ def prepare_fingerprint_upload(df_fingerprint,df,fingerprints,n_type,labels,fing
 
     count = 0
     fingerprint_combined = {}
-
+    fingerprint_array = []
+    fingerprint_one_line_array = []
     # combine attack vectors
     for fingerprint in fingerprints:
        count = count+1
-       # remove brackets from string
+       fingerprint_array.append(fingerprint)
        one_line_fingerprint = str(fingerprint).translate(str.maketrans("", "", "[]"))
-       attack_vector_name = "attack_vector_{}".format(count)
-       fingerprint_combined.update({attack_vector_name: one_line_fingerprint})
+       fingerprint_one_line_array.append(one_line_fingerprint)
+
+    # fingerprints
+    fingerprint_combined.update({"attack_vector": fingerprint_array})
+    fingerprint_combined.update({"one_line_fingerprints": fingerprint_one_line_array})
     
     # timestamp fields
     initial_timestamp  = df_fingerprint['frame_time_epoch'].min()
@@ -1350,13 +1363,7 @@ def prepare_fingerprint_upload(df_fingerprint,df,fingerprints,n_type,labels,fing
     fingerprint_combined.update( {"total_ips": len(df_fingerprint['ip_src'].unique().tolist()) })
 
     # set field name based on label 
-    fingerprint_combined.update( {"amplifiers": "None"} )
-    fingerprint_combined.update( {"attackers": df_fingerprint['ip_src'].unique().tolist()} )
-
-    if labels:
-        if ("AMPLIFICATION" in labels):
-            fingerprint.update( {"amplifiers": df_fingerprint['ip_src'].unique().tolist()} )
-            fingerprint.update( {"attackers": "None"} )
+    fingerprint_combined.update( {"src_ip": df_fingerprint['ip_src'].unique().tolist()} )
 
     # save fingerprint to local file in order to enable the upload via POST
     if not os.path.exists(fingerprint_dir):
@@ -1383,8 +1390,7 @@ def print_fingerprint(fingerprint):
     fingerprint_anon = fingerprint 
 
     # print fingerprint and remove IPs
-    fingerprint_anon.update({"attackers": "ommited"})
-    fingerprint_anon.update({"amplifiers": "ommited"})
+    fingerprint_anon.update({"src_ip": "ommited"})
     fingerprint_anon.update({"tags": labels})
 
     json_str = json.dumps(fingerprint_anon, indent=4, sort_keys=True)
@@ -1475,6 +1481,7 @@ if __name__ == '__main__':
     # load network file
     n_type,df = load_file(args)
 
+    df.to_csv("/tmp/df.csv",sep=";")
     if not isinstance(df, pd.DataFrame):
         logger.error("could not convert input file <{}>".format(args.filename))
         sys.exit(1)
@@ -1506,7 +1513,6 @@ if __name__ == '__main__':
     ## IDENTIFY ATTACK VECTORS
     ## 
     (lst_attack_protocols, fragmentation_attack_flag) = infer_protocol_attack(df_target,n_type)
-    
     multi_vector_attack_flag = False
 
     # more than one protocol as outliers 
@@ -1527,7 +1533,6 @@ if __name__ == '__main__':
         # filter database based on protocol and target
         df_attack_vector = df[(df['ip_dst'] == target_ip) & (df['highest_protocol'] == protocol)]
 
-       #df_filtered = df_filtered[df_filtered['highest_protocol']==protocol]
         fingerprint = build_attack_fingerprint(df,df_attack_vector,n_type,multi_vector_attack_flag)
         fingerprints.append(fingerprint)
     ## 
