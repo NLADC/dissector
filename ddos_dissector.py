@@ -1513,7 +1513,6 @@ if __name__ == '__main__':
     ## IDENTIFY ATTACK VECTORS
     ## 
     (lst_attack_protocols, fragmentation_attack_flag) = infer_protocol_attack(df_target,n_type)
-    
     multi_vector_attack_flag = False
 
     # more than one protocol as outliers 
