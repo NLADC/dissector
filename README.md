@@ -173,3 +173,6 @@ As soon we detect a characteristic that reveals the attack type, the traffic is 
 __Generate fingerprints__: this process consists of a) the identified characteristics; b) add stats regarding the attack (average bit per second, number of packets, a total of IPs); c) label attacks using tags (Amplification, NTP, volumetric attack, layer 7); and d) aggregating this information into a JSON file. 
 
 
+## Acknowledge
+
+The development of the clearing house was partly funded by the European Union’s Horizon 2020 Research and Innovation program under Grant Agreement No 830927. It will be used by the Dutch National Anti-DDoS Coalition, a self-funded public-private initiative to collaboratively protect Dutch organizations and the wider Internet community from DDoS attacks. Websites: https://www.concordia-h2020.eu/ and https://www.nomoreddos.org/en/
