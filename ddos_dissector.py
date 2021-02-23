@@ -493,8 +493,8 @@ def infer_target_ip (df,n_type):
     n_type: network file type (flows,pcap)
     return: list of target IPs 
     """
-    # check if the second most common value grouped in 'others'
-    # if so, there are 
+    # check if the second most common value is grouped in 'others'
+    #
     #   ip_dst	        count	percent	zscore
     # 	94.198.154.130	2799	50	4.0
     #	others	        1842	33	2.0 <-- not an outlier
@@ -516,7 +516,7 @@ def infer_target_ip (df,n_type):
         # Outlier was not found (attack targeting multiples IP address)
         # Try to cluster the victim IPs. Usually, there are (IPs) part of the same network block.
         # Select IPs responsible for more than 20% of the traffic and try to cluster them.
-        # If we succeed IPs are in the same range (network mask bigger than 21) we assume the target.
+        # If we succeed IPs are in the same range (network mask bigger than 21) we combine than and set as target.
         data_ = data[(data['percent']> 20)]['ip_dst'].tolist()
         ip_lst = sorted(data[(data['percent']> 20)]['ip_dst'].tolist())
 
@@ -814,14 +814,12 @@ def clusterization_multifrag(df_filtered,n_type):
         :return fingerprint: json file
     """
 
-    if (n_type == FLOW_TYPE):
-        return None
-
     fingerprint  = {}
     df_ = df.fragmentation.value_counts(normalize=True).mul(100).reset_index()
     value = df_.loc[:,"fragmentation"].values[0]
     df_['index']=df_['index'].astype(bool)
 
+    # percentage of packets with fragmentation
     try:
         frag_percentage = df_[(df_['fragmentation']>SIMILARITY_THRESHOLD) & (df_['index'].values)[0]==True].values[0][1]
     except (ValueError,IndexError):
@@ -1130,8 +1128,6 @@ def build_attack_fingerprint(df,df_attack_vector,n_type,multi_vector_attack_flag
         logger.info("HEURISTIC 1: matching ratio 0%")
 
     ### SECOND HEURISTIC
-
-
     fingerprint = clusterization_multifrag(df_attack_vector,n_type)
    
     if (multi_vector_attack_flag):
@@ -1390,6 +1386,11 @@ def prepare_fingerprint_upload(df_fingerprint,df,fingerprints,n_type,labels,fing
 
 #------------------------------------------------------------------------------
 def print_fingerprint(fingerprint):
+    """
+	Print a summarized version of the fingerprint generated using
+	the highlight module.
+
+    """
 
     fingerprint_anon = fingerprint 
 
@@ -1404,6 +1405,12 @@ def print_fingerprint(fingerprint):
 
 #------------------------------------------------------------------------------
 def evaluate_fingerprint_ratio(df,fingerprints,fragmentation_attack_flag):
+    """
+        Get the fingerprint and get matching ratio using the input file
+        param: df input file 
+	param: fragmentation_attack_flag fragmentation flag (network
+	       layer) used to cluster data without layer 7 info.
+    """
 
     if (len(fingerprints)==0):
         print ("Could not find a fingerprint for this network file :(" )
@@ -1484,6 +1491,7 @@ if __name__ == '__main__':
 
     # load network file
     n_type,df = load_file(args)
+
     if not isinstance(df, pd.DataFrame):
         logger.error("could not convert input file <{}>".format(args.filename))
         sys.exit(1)
@@ -1497,7 +1505,7 @@ if __name__ == '__main__':
     ## DETECT TARGET 
     ## 
 
-    # usually is only one target, but on anycast/load balanced might have more
+    # usually is only one target, but on anycast/load balanced may have more
     (target_ip_list,df) = infer_target_ip(df,n_type)
     try:
         target_ip = target_ip_list[0]
@@ -1512,7 +1520,7 @@ if __name__ == '__main__':
     logger.debug(msg)
 
     ## 
-    ## IDENTIFY ATTACK VECTORS
+    ## IDENTIFY ATTACK VECTORS (PROTOCOL)
     ## 
     (lst_attack_protocols, fragmentation_attack_flag) = infer_protocol_attack(df_target,n_type)
     multi_vector_attack_flag = False
@@ -1537,6 +1545,7 @@ if __name__ == '__main__':
 
         fingerprint = build_attack_fingerprint(df,df_attack_vector,n_type,multi_vector_attack_flag)
         fingerprints.append(fingerprint)
+
     ## 
     ## FINGERPRINT EVALUATION
     ## 
@@ -1548,12 +1557,13 @@ if __name__ == '__main__':
     # add extra fields/stats and save file locally
     (enriched_fingerprint,json_file) = prepare_fingerprint_upload(df_filtered,df,fingerprints,n_type,labels,args.fingerprint_dir)
 
-    # show anon fingerprint
+    # show summarized fingerprint
     print_fingerprint(enriched_fingerprint)
 
+    # print matching ratio
     if (args.summary): evaluate_fingerprint(df,df_filtered,enriched_fingerprint)
 
-    # generate graphic file 
+    # generate graphic file (dot)
     if (args.graph): generate_dot_file(df_fingerprint, df)
     print ("Fingerprint saved on {}".format(json_file))
 
