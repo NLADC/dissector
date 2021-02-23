@@ -410,6 +410,9 @@ def pcap_to_df(ret,filename):
     if 'icmp.type' in df.columns:
         df['icmp.type'] = df['icmp.type'].astype(int)
 
+    if 'dns.qry.type' in df.columns:
+        df['dns.qry.type'] = df['dns.qry.type'].astype(int)
+
     if 'ip.frag_offset' in df.columns:
         df['ip.frag_offset'] = df['ip.frag_offset'].astype(str)
 
