@@ -1059,12 +1059,23 @@ def check_repository(config):
 
 #------------------------------------------------------------------------------
 def get_matching_ratio(df_attack_vector,fingerprint):
+    """
+        Get matching ratio for each fingerprint found
+        :param df_attack_vector dataframe related to the fingerprint
+        :param fingerprint dictionary with matched fields
+        :return dic with ration and fingerprint
+    """
 
     if not fingerprint:
         return (NONE,NONE)
 
     df_fingerprint = df_attack_vector
+
     for key, value in fingerprint.items():
+
+        # ignore metadata field
+        if key not in df_fingerprint.columns:
+            continue
         df_fingerprint = df_fingerprint[df_fingerprint[key].isin(value)]
 
     # evaluate fingerprint matching ratio
@@ -1327,20 +1338,15 @@ def prepare_fingerprint_upload(df_fingerprint,df,fingerprints,n_type,labels,fing
         :return json file
     """
 
-    count = 0
     fingerprint_combined = {}
     fingerprint_array = []
-    fingerprint_one_line_array = []
+
     # combine attack vectors
     for fingerprint in fingerprints:
-       count = count+1
        fingerprint_array.append(fingerprint)
-       one_line_fingerprint = str(fingerprint).translate(str.maketrans("", "", "[]"))
-       fingerprint_one_line_array.append(one_line_fingerprint)
 
     # fingerprints
     fingerprint_combined.update({"attack_vector": fingerprint_array})
-    fingerprint_combined.update({"one_line_fingerprints": fingerprint_one_line_array})
     
     # timestamp fields
     initial_timestamp  = df_fingerprint['frame_time_epoch'].min()
@@ -1358,21 +1364,15 @@ def prepare_fingerprint_upload(df_fingerprint,df,fingerprints,n_type,labels,fing
       fingerprint_combined.update( {"total_packets": len(df_fingerprint)} )
 
     # keys used on the repository
-    key = str(hashlib.md5(str(fingerprint).encode()).hexdigest())
-    fingerprint_combined.update( {"key": key} )
     sha256 = hashlib.sha256(str(fingerprint).encode()).hexdigest()
-    fingerprint_combined.update( {"key_sha256": sha256} )
-    fingerprint_combined.update( {"multivector_key": sha256} )
+    fingerprint_combined.update( {"ddos_attack_key": sha256} )
     fingerprint_combined.update( {"total_ips": len(df_fingerprint['ip_src'].unique().tolist()) })
-
-    # set field name based on label 
-    fingerprint_combined.update( {"src_ip": df_fingerprint['ip_src'].unique().tolist()} )
 
     # save fingerprint to local file in order to enable the upload via POST
     if not os.path.exists(fingerprint_dir):
         os.makedirs(fingerprint_dir)
 
-    json_file = "{}/{}.json".format(fingerprint_dir,key)
+    json_file = "{}/{}.json".format(fingerprint_dir,sha256[:32])
     try:
         with open(json_file, 'w') as f_fingerprint:
             json.dump(fingerprint_combined, f_fingerprint)
@@ -1397,8 +1397,29 @@ def print_fingerprint(fingerprint):
 
     fingerprint_anon = fingerprint 
 
-    # print fingerprint and remove IPs
-    fingerprint_anon.update({"src_ip": "ommited"})
+    # anon src_ips
+    attack_vector = fingerprint_anon["attack_vector"]
+    anon_attack_vector = []
+    anon_one_line = []
+
+    for vector in attack_vector:
+        vector.update({"src_ips": "ommited"})
+        del vector['attack_vector_key']
+        anon_attack_vector.append(vector)
+    try:
+       del fingerprint_anon['one_line_fingerprints']
+    except:
+        next
+
+    # one_line_fingerprint summary
+    anon_one_line = []
+    for vector in attack_vector:
+        one_line_fingerprint = str(vector).translate(str.maketrans("", "", "[]"))
+        anon_one_line.append(one_line_fingerprint)
+
+    one_line_fingerprint = str(fingerprint_anon['attack_vector']).translate(str.maketrans("", "", "[]"))
+    fingerprint_anon["attack_vector"] = anon_attack_vector
+    fingerprint_anon["one_line_fingerprint"] = anon_one_line 
     fingerprint_anon.update({"tags": labels})
 
     json_str = json.dumps(fingerprint_anon, indent=4, sort_keys=True)
@@ -1539,21 +1560,31 @@ if __name__ == '__main__':
     ## IDENTIFY FINGERPRINTS
     ## 
     fingerprints = []
-
     # fingerprint per attack vector
     for protocol in lst_attack_protocols:
 
         # filter database based on protocol and target
         df_attack_vector = df[(df['ip_dst'] == target_ip) & (df['highest_protocol'] == protocol)]
-
         fingerprint = build_attack_fingerprint(df,df_attack_vector,n_type,multi_vector_attack_flag)
+
+        # get src_ips per attack vector
+        src_ips = []
+        src_ips.append(fingerprint)
+        df_src_ips = evaluate_fingerprint_ratio(df,src_ips,fragmentation_attack_flag)
+        fingerprint.update( {"src_ips": df_src_ips['ip_src'].unique().tolist()})
+
+        # generate key for this attack vector
+        sha256 = hashlib.sha256(str(fingerprint).encode()).hexdigest()
+        fingerprint.update( {"attack_vector_key": sha256} )
+
         fingerprints.append(fingerprint)
+
 
     ## 
     ## FINGERPRINT EVALUATION
     ## 
     df_filtered = evaluate_fingerprint_ratio(df,fingerprints,fragmentation_attack_flag)
-
+    
     # infer tags based on the generated fingerprint
     labels = add_label(fingerprints,df_filtered)
 
