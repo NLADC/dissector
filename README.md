@@ -26,8 +26,8 @@ In order to improve software efficiency, we are working on software components t
 
 Be sure to have tskark[1] and nfdump[2] in your path.
 
-[1] https://tshark.dev/
-[2] https://github.com/phaag/nfdump
+- [1] https://tshark.dev/
+- [2] https://github.com/phaag/nfdump
 
 
 ## How to start?
