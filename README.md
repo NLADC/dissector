@@ -22,6 +22,14 @@ DDos_Dissector is responsible for summarizing DDoS attack traffic from stored tr
 
 In order to improve software efficiency, we are working on software components that can parse specific DDoS attacks, such as amplification and TCP Syn flood attacks. 
 
+## External Dependencies
+
+Be sure to have tskark[1] and nfdump[2] in your path.
+
+[1] https://tshark.dev/
+[2] https://github.com/phaag/nfdump
+
+
 ## How to start?
 
 1. Install the dissector
