@@ -1367,6 +1367,7 @@ def prepare_fingerprint_upload(df_fingerprint,df,fingerprints,n_type,labels,fing
     sha256 = hashlib.sha256(str(fingerprint).encode()).hexdigest()
     fingerprint_combined.update( {"ddos_attack_key": sha256} )
     fingerprint_combined.update( {"total_ips": len(df_fingerprint['ip_src'].unique().tolist()) })
+    fingerprint_combined.update( {"tags": labels})
 
     # save fingerprint to local file in order to enable the upload via POST
     if not os.path.exists(fingerprint_dir):
@@ -1588,6 +1589,8 @@ if __name__ == '__main__':
     # infer tags based on the generated fingerprint
     labels = add_label(fingerprints,df_filtered)
 
+
+    print (labels)
     # add extra fields/stats and save file locally
     (enriched_fingerprint,json_file) = prepare_fingerprint_upload(df_filtered,df,fingerprints,n_type,labels,args.fingerprint_dir)
 
