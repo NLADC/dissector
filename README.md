@@ -157,7 +157,7 @@ Input file not provided. Use '-f' for that.
 An important component in this sharing infrastructure is the software “ddos-dissector”. It is responsible for analyzing DDoS traffic and extract a set of characteristics (protocol, ports, source IPs, packet payload) that identify the DDoS attack pattern. Figure 1 describes the overall process used to generate the fingerprints.  
 
  <p align="center">
-  <img width=60.5% src="https://raw.githubusercontent.com/ddos-clearing-house/ddos_dissector/3.0/media/fingerprint_classification.png"> <br>
+  <img width=60.5% src="https://raw.githubusercontent.com/ddos-clearing-house/ddos_dissector/3.0/media/fingerprints_classification.png"> <br>
  Figure 1: Fingerprint generation process.
 </p>
 
