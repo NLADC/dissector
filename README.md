@@ -124,6 +124,8 @@ optional arguments:
   -s, --summary         present fingerprint evaluation summary
   -u, --upload          upload to the selected repository
   --log [LOG]           Log filename. Default =./log.txt"
+  --fingerprint_dir [FINGERPRINT_DIR]
+                        Fingerprint storage directory. Default =./fingerprints"
   --config [CONFIG]     Configuration File. Default =./ddosdb.conf"
   --host [HOST]         Upload host.
   --user [USER]         repository user.
@@ -134,8 +136,6 @@ optional arguments:
   -f [FILENAME], --filename [FILENAME]
 
 Example: ./ddos_dissector.py -f ./pcap_samples/sample1.pcap --summary --upload
-
-Input file not provided. Use '-f' for that.
 ````
 
 ## Examples
