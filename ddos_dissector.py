@@ -1257,9 +1257,9 @@ def add_label(fingerprints,df):
     for fingerprint in fingerprints:
 
         if (len(fingerprints)>1):
-            label.append("MULTIVECTOR_ATTACK")
+            label.append("MULTI_VECTOR_ATTACK")
         else: 
-            label.append("SINGLEVECTOR_ATTACK")
+            label.append("SINGLE_VECTOR_ATTACK")
 
         # add protocol name to label list
         if 'highest_protocol' in fingerprint:
@@ -1359,13 +1359,16 @@ def prepare_fingerprint_upload(df_fingerprint,df,fingerprints,n_type,labels,fing
     initial_timestamp = datetime.utcfromtimestamp(initial_timestamp).strftime('%Y-%m-%d %H:%M:%S')
     fingerprint_combined.update( {"start_time": initial_timestamp} )
     duration_sec = df_fingerprint['frame_time_epoch'].max() - df_fingerprint['frame_time_epoch'].min()
-    fingerprint_combined.update( {"duration_sec": int(duration_sec)} )
+    duration_sec = '{:.2}'.format(duration_sec)
+    fingerprint_combined.update( {"duration_sec": float(duration_sec)} )
     fingerprint_combined.update( {"total_dst_ports": len(df_fingerprint['dstport'].unique().tolist())} )
 
     if (n_type == FLOW_TYPE):
+      # FIXME - should consider the sample rate
       fingerprint_combined.update( {"avg_bps": int(df_fingerprint.in_packets.mean())})
       fingerprint_combined.update( {"total_packets": int(df_fingerprint.in_packets.sum())})
     else:
+      duration_sec = float(duration_sec)
       fingerprint_combined.update( {"avg_bps": int(df_fingerprint.frame_len.sum()/duration_sec) })
       fingerprint_combined.update( {"total_packets": len(df_fingerprint)} )
 
@@ -1430,8 +1433,6 @@ def evaluate_fingerprint_ratio(df,fingerprints,fragmentation_attack_flag):
     if (len(fingerprints)==0):
         print ("Could not find a fingerprint for this network file :(" )
         sys.exit()
-    else:
-        logger.info("Found {} fingerprints for this attack".format(len(fingerprints)))
 
     if (len(fingerprints)==1):
 
@@ -1595,7 +1596,7 @@ if __name__ == '__main__':
         (user,passw,host) = get_repository(args,config)
 
         # upload to the repository
-        ret = upload(enriched_fingerprint, json_file, user, passw, host, fingerprint.get("key"))
+        ret = upload(enriched_fingerprint, json_file, user, passw, host, enriched_fingerprint.get("key"))
 
     sys.exit(0)
 #EOF
