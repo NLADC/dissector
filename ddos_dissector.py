@@ -21,6 +21,7 @@ import signal
 import shutil
 import requests
 import re
+import copy
 import queue as queue
 import pandas as pd
 import os
@@ -1256,9 +1257,9 @@ def add_label(fingerprints,df):
     for fingerprint in fingerprints:
 
         if (len(fingerprints)>1):
-            label.append("MULTIVECTOR ATTACK")
+            label.append("MULTIVECTOR_ATTACK")
         else: 
-            label.append("SINGLEVECTOR ATTACK")
+            label.append("SINGLEVECTOR_ATTACK")
 
         # add protocol name to label list
         if 'highest_protocol' in fingerprint:
@@ -1341,9 +1342,14 @@ def prepare_fingerprint_upload(df_fingerprint,df,fingerprints,n_type,labels,fing
     fingerprint_combined = {}
     fingerprint_array = []
 
-    # combine attack vectors
-    for fingerprint in fingerprints:
-       fingerprint_array.append(fingerprint)
+    # add one_line_fingerprint (summary) to each attack_vector fingerprint
+    for attack_vector in fingerprints:
+        attack_vector_anon = copy.deepcopy(attack_vector)
+        attack_vector_anon.update({"src_ips": "omitted"})
+        del attack_vector_anon['attack_vector_key']
+        one_line_fingerprint = str(attack_vector_anon).translate(str.maketrans("", "", "[]"))
+        attack_vector.update({"one_line_fingerprint": one_line_fingerprint })
+        fingerprint_array.append(attack_vector)
 
     # fingerprints
     fingerprint_combined.update({"attack_vector": fingerprint_array})
@@ -1366,6 +1372,7 @@ def prepare_fingerprint_upload(df_fingerprint,df,fingerprints,n_type,labels,fing
     # keys used on the repository
     sha256 = hashlib.sha256(str(fingerprint).encode()).hexdigest()
     fingerprint_combined.update( {"ddos_attack_key": sha256} )
+    fingerprint_combined.update( {"key": sha256[:15]} )
     fingerprint_combined.update( {"total_ips": len(df_fingerprint['ip_src'].unique().tolist()) })
     fingerprint_combined.update( {"tags": labels})
 
@@ -1396,34 +1403,17 @@ def print_fingerprint(fingerprint):
 
     """
 
-    fingerprint_anon = fingerprint 
-
     # anon src_ips
-    attack_vector = fingerprint_anon["attack_vector"]
+    attack_vectors_array = fingerprint["attack_vector"]
+
     anon_attack_vector = []
-    anon_one_line = []
-
-    for vector in attack_vector:
+    for vector in attack_vectors_array:
         vector.update({"src_ips": "ommited"})
-        del vector['attack_vector_key']
         anon_attack_vector.append(vector)
-    try:
-       del fingerprint_anon['one_line_fingerprints']
-    except:
-        next
 
-    # one_line_fingerprint summary
-    anon_one_line = []
-    for vector in attack_vector:
-        one_line_fingerprint = str(vector).translate(str.maketrans("", "", "[]"))
-        anon_one_line.append(one_line_fingerprint)
-
-    one_line_fingerprint = str(fingerprint_anon['attack_vector']).translate(str.maketrans("", "", "[]"))
-    fingerprint_anon["attack_vector"] = anon_attack_vector
-    fingerprint_anon["one_line_fingerprint"] = anon_one_line 
-    fingerprint_anon.update({"tags": labels})
-
-    json_str = json.dumps(fingerprint_anon, indent=4, sort_keys=True)
+    fingerprint["attack_vector"] = anon_attack_vector
+    fingerprint.update({"tags": labels})
+    json_str = json.dumps(fingerprint, indent=4, sort_keys=True)
     msg = "Generated fingerprint"
     sys.stdout.write('\r'+'['+'\u2713'+'] '+ msg+'\n')
     print(highlight(json_str, JsonLexer(), TerminalFormatter()))
@@ -1577,7 +1567,6 @@ if __name__ == '__main__':
         # generate key for this attack vector
         sha256 = hashlib.sha256(str(fingerprint).encode()).hexdigest()
         fingerprint.update( {"attack_vector_key": sha256} )
-
         fingerprints.append(fingerprint)
 
 
@@ -1589,8 +1578,6 @@ if __name__ == '__main__':
     # infer tags based on the generated fingerprint
     labels = add_label(fingerprints,df_filtered)
 
-
-    print (labels)
     # add extra fields/stats and save file locally
     (enriched_fingerprint,json_file) = prepare_fingerprint_upload(df_filtered,df,fingerprints,n_type,labels,args.fingerprint_dir)
 
