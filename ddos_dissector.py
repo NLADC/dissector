@@ -1377,6 +1377,12 @@ def prepare_fingerprint_upload(df_fingerprint,df,fingerprints,n_type,labels,fing
     fingerprint_combined.update( {"ddos_attack_key": sha256} )
     fingerprint_combined.update( {"key": sha256[:15]} )
     fingerprint_combined.update( {"total_ips": len(df_fingerprint['ip_src'].unique().tolist()) })
+
+    if (n_type == 0):
+        n_type = "FLOW"
+    else:
+        n_type = "PCAP"
+    fingerprint_combined.update( {"file_type": n_type})
     fingerprint_combined.update( {"tags": labels})
 
     # save fingerprint to local file in order to enable the upload via POST
