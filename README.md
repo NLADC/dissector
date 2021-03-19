@@ -82,7 +82,7 @@ We do provide some pcap samples. Check the directory *pcap_samples*. Note, you c
       ],
       "src_ips": [
         ommited
-      ]
+      ],
       "attack_vector_key": "66f2e83fde0e6351d3f5ad967c6230aa3b60dbc498ad13b074296cb5f84c7734",
       "one_line_fingerprint": "{'dns_qry_type': 1, 'ip_proto': 'UDP',
       'highest_protocol': 'DNS', 'dns_qry_name': 'a.packetdevil.com',
@@ -110,44 +110,6 @@ We do provide some pcap samples. Check the directory *pcap_samples*. Note, you c
 <snip>
 ```
 
-```json
-<snip>
-{
-  "dns_qry_type": [
-    255
-  ],
-  "ip_proto": [
-    "UDP"
-  ],
-  "highest_protocol": [
-    "DNS"
-  ],
-  "dns_qry_name": [
-    "evil.com"
-  ],
-  "eth_type": [
-    "0x00000800"
-  ],
-  "srcport": [
-    53
-  ],
-  "fragmentation": [
-    false
-  ],
-  "tags": [
-    "DNS",
-    "DNS_QUERY",
-    "AMPLIFICATION"
-  ],  
-"start_time": "2013-08-14 23:32:40",
-"total_dst_ports": 1043,
-"avg_bps": 28406714,
-"total_packets": 19183,
-"total_ips": 393, 
-}
-
-<snip>
-```
 
    <p align="center"><img width=80% src="https://github.com/ddos-clearing-house/ddos_dissector/blob/3.0/media/dissector.gif"></p>
 
