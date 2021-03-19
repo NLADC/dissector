@@ -50,7 +50,66 @@ We do provide some pcap samples. Check the directory *pcap_samples*. Note, you c
 
 4. Check the generated fingerprint (json file). 
 
-     
+```json
+<snip>
+
+{
+  "attack_vector": [
+    {
+      "dns_qry_type": [
+        1
+      ],
+      "ip_proto": [
+        "UDP"
+      ],
+      "highest_protocol": [
+        "DNS"
+      ],
+      "dns_qry_name": [
+        "a.packetdevil.com"
+      ],
+      "frame_len": [
+        1514
+      ],
+      "udp_length": [
+        4103
+      ],
+      "srcport": [
+        53
+      ],
+      "fragmentation": [
+        true
+      ],
+      "src_ips": [
+        ommited
+      ]
+      "attack_vector_key": "66f2e83fde0e6351d3f5ad967c6230aa3b60dbc498ad13b074296cb5f84c7734",
+      "one_line_fingerprint": "{'dns_qry_type': 1, 'ip_proto': 'UDP',
+      'highest_protocol': 'DNS', 'dns_qry_name': 'a.packetdevil.com',
+      'frame_len': 1514, 'udp_length': 4103, 'srcport': 53,
+      'fragmentation': True, 'src_ips': 'omitted'}"
+    }
+  ],
+  "start_time": "2013-08-14 23:04:00",
+  "duration_sec": 0.16,
+  "total_dst_ports": 4649,
+  "avg_bps": 143426993,
+  "total_packets": 16471,
+  "ddos_attack_key": "44518107642b9ac7098174a16cbf220395c862bf26389c734e0b109b318e9291",
+  "key": "44518107642b9ac",
+  "total_ips": 2065,
+  "tags": [
+    "AMPLIFICATION",
+    "DNS",
+    "FRAGMENTATION",
+    "UDP_SUSPECT_LENGTH",
+    "DNS_QUERY",
+    "SINGLE_VECTOR_ATTACK"
+  ]
+}
+<snip>
+```
+
 ```json
 <snip>
 {
