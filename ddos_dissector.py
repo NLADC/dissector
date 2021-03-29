@@ -733,7 +733,7 @@ def determine_file_type(input_file):
         return "pcap"
     if file_type == "pcap":
         return "pcap"
-    elif file_type == "pcap-ng":
+    elif file_type == "pcap-ng" or file_type == "pcapng":
         return "pcapng"
     elif file_type == "data" and (b"nfdump" in file_info or b"nfcapd" in file_info):
         return "nfdump"
