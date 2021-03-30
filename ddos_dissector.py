@@ -78,7 +78,9 @@ def parser_add_arguments():
     parser.add_argument("--passwd", nargs='?',help="repository password.")
     parser.add_argument("-g","--graph", help="build dot file (graphviz). It can be used to plot a visual representation\n of the attack using the tool graphviz. When this option is set, youn will\n received information how to convert the generate file (.dot) to image (.png).", action="store_true")
 
-    parser.add_argument('-f','--filename', nargs='?', required=False, help="")
+    #parser.add_argument('-f','--filename', nargs='?', required=False, help="")
+    parser.add_argument ('-f','--filename', required=True, nargs='+')
+
     return parser
 
 #------------------------------------------------------------------------------
@@ -742,7 +744,7 @@ def determine_file_type(input_file):
         sys.exit(0)
 
 #------------------------------------------------------------------------------
-def load_file(args):
+def load_file(args,filename):
     """
         Wrapper to call attack file to dataframe
         :param args: command line parameters
@@ -750,7 +752,7 @@ def load_file(args):
         :return df: dataframe itself
     """
 
-    file_type = determine_file_type(args.filename)
+    file_type = determine_file_type(filename)
     if (file_type == NONE):
         return (NONE,NONE)
 
@@ -765,9 +767,9 @@ def load_file(args):
     # load dataframe using threading
     ret = queue.Queue()
 
-    the_process = threading.Thread(name='process', target=load_function, args=(ret,args.filename))
+    the_process = threading.Thread(name='process', target=load_function, args=(ret,filename))
     the_process.start()
-    msg = "Loading network file: `{}' ".format(args.filename)
+    msg = "Loading network file: `{}' ".format(filename)
 
     try:
         while the_process.is_alive():
@@ -1502,17 +1504,21 @@ if __name__ == '__main__':
 
     if (args.status):
         check_repository(config)
-    
-    if (not args.filename):
-        parser.print_help()
-        sys.exit(IOError("\nInput file not provided. Use '-f' for that."))
+ 
+    df = pd.DataFrame()
+    for filename in args.filename:
+        
+        if (not filename):
+            parser.print_help()
+            sys.exit(IOError("\nInput file not provided. Use '-f' for that."))
 
-    if (not os.path.exists(args.filename)):
-        logger.error(IOError("File " + args.filename + " is not readble"))
-        sys.exit(IOError("File " + args.filename + " is not readble"))
+        if (not os.path.exists(filename)):
+            logger.error(IOError("File " + filename + " is not readble"))
+            sys.exit(IOError("File " + filename + " is not readble"))
 
-    # load network file
-    n_type,df = load_file(args)
+        # load network file
+        n_type,df_ = load_file(args,filename)
+        df = pd.concat([df_, df],sort=False)
 
     if not isinstance(df, pd.DataFrame):
         logger.error("could not convert input file <{}>".format(args.filename))
@@ -1575,7 +1581,6 @@ if __name__ == '__main__':
         sha256 = hashlib.sha256(str(fingerprint).encode()).hexdigest()
         fingerprint.update( {"attack_vector_key": sha256} )
         fingerprints.append(fingerprint)
-
 
     ## 
     ## FINGERPRINT EVALUATION
