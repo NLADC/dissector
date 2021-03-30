@@ -81,7 +81,7 @@ We do provide some pcap samples. Check the directory *pcap_samples*. Note, you c
         true
       ],
       "src_ips": [
-        ommited
+        "ommited"
       ],
       "attack_vector_key": "66f2e83fde0e6351d3f5ad967c6230aa3b60dbc498ad13b074296cb5f84c7734",
       "one_line_fingerprint": "{'dns_qry_type': 1, 'ip_proto': 'UDP',
@@ -167,10 +167,17 @@ Example: ./ddos_dissector.py -f ./pcap_samples/sample1.pcap --summary --upload
 ./ddos_dissector.py -f pcap_samples/sample1.pcap -g        [generate a .dot file used to represent a graphical visualization]
 ```
 
+
+<hr>
+<h3>Simple Visualization</h3>
+<hr>
+
+Dissector can generate [dot files](https://en.wikipedia.org/wiki/DOT_(graph_description_language)) to provide an attack graphical representation. We combine all the source and destination IPs to determine the attack concentration and spot the attack target.
+
+
 <p align="center"><img width=80% border=2 src="https://github.com/ddos-clearing-house/ddos_dissector/blob/3.0/media/dot2.gif?raw=true"></p>
 
-- Green: benign traffic
-- Red:  malicious traffic 
+The animation below shows this process. Once the fingerprint is generated a dot file is also generated (upon request). This dot file can be converted to an image using the software [graphiz](https://graphviz.org/), as illustrated. The red tuples represent the traffic that matches the fingerprint and the green one represents the remaining.
  
 
 ## DDoS Fingerprints: the process behind fingerprint generation
