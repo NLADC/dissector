@@ -70,7 +70,7 @@ def parser_add_arguments():
     parser.add_argument("--status", dest='status', help="check available repositories", action="store_true")
     parser.add_argument("-s","--summary", help="present fingerprint evaluation summary", action="store_true")
     parser.add_argument("-u","--upload", help="upload to the selected repository", action="store_true")
-    parser.add_argument("--log", default='log.txt', nargs='?',help="Log filename. Default =./log.txt\"")
+    parser.add_argument("--log", default='ddos_dissector.log', nargs='?',help="Log filename. Default =./ddos_dissector.log\"")
     parser.add_argument("--fingerprint_dir", default='fingerprints', nargs='?',help="Fingerprint storage directory. Default =./fingerprints\"")
     parser.add_argument("--config", default='ddosdb.conf', nargs='?',help="Configuration File. Default =./ddosdb.conf\"")
     parser.add_argument("--host", nargs='?',help="Upload host. ")
@@ -135,28 +135,30 @@ def logger(args):
     """
     logger = logging.getLogger(__name__)
 
-    # root logging
-    if (args.debug):
-       logger.setLevel(logging.DEBUG)
-    elif (args.verbose):
-       logger.setLevel(logging.INFO)
-
-    # Create handlers
-    console_handler = logging.StreamHandler()
-    file_handler = logging.FileHandler(args.log)
-    #console_handler.setLevel(logging.DEBUG)
-    file_handler.setLevel(logging.INFO)
 
     # add custom formater
     my_formatter = CustomConsoleFormatter()
-    console_handler.setFormatter(my_formatter)
 
-    f_format = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s (%(filename)s:%(lineno)d)")
-    file_handler.setFormatter(f_format)
+    # Create handlers
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(my_formatter)
+    
+    # enable file logging when verbose/debug is set
+    if args.debug or args.verbose:
+        file_handler = logging.FileHandler(args.log)
+        if (args.debug):
+           logger.setLevel(logging.DEBUG)
+           file_handler.setLevel(logging.DEBUG)
+        elif (args.verbose):
+           logger.setLevel(logging.INFO)
+           file_handler.setLevel(logging.INFO)
+
+        f_format = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s (%(filename)s:%(lineno)d)")
+        file_handler.setFormatter(f_format)
+        logger.addHandler(file_handler)
 
     # add handlers to the logger
     logger.addHandler(console_handler)
-    logger.addHandler(file_handler)
 
     return logger
 
