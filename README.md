@@ -259,8 +259,8 @@ TCP destination port | TCP
 TCP flags | TCP
 TCP source port | TCP
 TCP Type of Service | TCP
-UDP destination port | TCP
-UDP source port | TCP
+UDP destination port | UDP
+UDP source port | UDP
 [Table 2: Subset of attributes extract from FLOW files.]
 
 This means that our fingerprints could have the set of attributes described in the Table 1 and Table 2.
