@@ -54,7 +54,9 @@ SIMILARITY_THRESHOLD = 80
 NONE = -1
 FLOW_TYPE = 0
 PCAP_TYPE = 1 
-
+CARPET_BOMBING_SIMILARITY_THRESHOLD = 20
+# define local subnet (CIDR size)
+CARPET_BOMBING_SUBNET = 20
 ###############################################################################
 ### Subrotines
 #------------------------------------------------------------------------------
@@ -77,8 +79,6 @@ def parser_add_arguments():
     parser.add_argument("--user", nargs='?',help="repository user. ")
     parser.add_argument("--passwd", nargs='?',help="repository password.")
     parser.add_argument("-g","--graph", help="build dot file (graphviz). It can be used to plot a visual representation\n of the attack using the tool graphviz. When this option is set, youn will\n received information how to convert the generate file (.dot) to image (.png).", action="store_true")
-
-    #parser.add_argument('-f','--filename', nargs='?', required=False, help="")
     parser.add_argument ('-f','--filename', required=True, nargs='+')
 
     return parser
@@ -501,8 +501,11 @@ def infer_target_ip (df,n_type):
     n_type: network file type (flows,pcap)
     return: list of target IPs 
     """
-    # check if the second most common value is grouped in 'others'
-    #
+
+    # Check the dst_ip frequency distribution.
+    # When the second most often dst_ip is grouped in the category "others" (remains)
+    # this means that we have a high entropy in the set.
+    # A lot of requests targeting multiples dst_ip
     #   ip_dst	        count	percent	zscore
     # 	94.198.154.130	2799	50	4.0
     #	others	        1842	33	2.0 <-- not an outlier
@@ -521,12 +524,14 @@ def infer_target_ip (df,n_type):
         
         data = top_n_dataframe(df['ip_dst'],df,n_type)
 
-        # Outlier was not found (attack targeting multiples IP address)
+        # Outlier was not found (i.e the processed attack targeting multiples IP address)
+        # Check for Carpet Bombing attack (which target multiple IP addresses in the same subnet) 
+        # 
         # Try to cluster the victim IPs. Usually, there are (IPs) part of the same network block.
         # Select IPs responsible for more than 20% of the traffic and try to cluster them.
         # If we succeed IPs are in the same range (network mask bigger than 21) we combine than and set as target.
-        data_ = data[(data['percent']> 20)]['ip_dst'].tolist()
-        ip_lst = sorted(data[(data['percent']> 20)]['ip_dst'].tolist())
+        data_ = data[(data['percent']> CARPET_BOMBING_SIMILARITY_THRESHOLD)]['ip_dst'].tolist()
+        ip_lst = sorted(data[(data['percent']> CARPET_BOMBING_SUBNET)]['ip_dst'].tolist())
 
         # filter ipv4|ipv6 only
         ips = []
