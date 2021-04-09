@@ -299,13 +299,11 @@ def flow_to_df(ret,filename):
         logger.error("NFDUMP software not found. It should be on the path.")
         ret.put(NONE)
 
-    cmd = [nfdump, '-r', args.filename, '-o', 'extended', '-o', 'json' ]
-
+    cmd = [nfdump, '-r', filename, '-o', 'extended', '-o', 'json' ]
     try:
         cmd_stdout = check_output(cmd, stderr=subprocess.DEVNULL)
     except:
         ret.put(NONE)
-        sys.exit()
 
     if not cmd_stdout:
         ret.put(NONE)
@@ -773,7 +771,6 @@ def load_file(args,filename):
 
     # load dataframe using threading
     ret = queue.Queue()
-
     the_process = threading.Thread(name='process', target=load_function, args=(ret,filename))
     the_process.start()
     msg = "Loading network file: `{}' ".format(filename)
@@ -787,7 +784,6 @@ def load_file(args,filename):
         signal_handler(None,None)
 
     df = ret.get()
-
     # not a dataframe
     if not isinstance(df, pd.DataFrame):
         print ("\n")
@@ -826,6 +822,10 @@ def clusterization_multifrag(df_filtered,n_type):
         :param n_type: network file type (flows,pcap)
         :return fingerprint: json file
     """
+
+    # flow does not have fragmentation info
+    if (n_type == FLOW_TYPE):
+        return (None)
 
     fingerprint  = {}
     df_ = df.fragmentation.value_counts(normalize=True).mul(100).reset_index()
@@ -978,13 +978,21 @@ def evaluate_fingerprint(df,df_fingerprint,fingerprints):
     if (args.verbose) or (args.debug):
 
         count = 0
-        df.fragmentation = df.fragmentation.astype(str)
+
+        try:
+            df.fragmentation = df.fragmentation.astype(str)
+        except:
+            next
+
 
         # for each fingerprint generated
         for fingerprint in (fingerprints['attack_vector']):
             count = count + 1 
             results =  {}
             for key, value in fingerprint.items():
+
+                if key in ["src_ips","attack_vector_key","one_line_fingerprint"]:
+                    continue
                 val = ','.join(str(v) for v in value)
                 val = val.split()
                 total_rows_matched = len(df[df[key].isin(val)])
