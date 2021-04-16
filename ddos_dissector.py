@@ -793,7 +793,7 @@ def load_file(args,filename):
     return (n_type,df)
 
 #------------------------------------------------------------------------------
-def clusterization_non_multifrag(df_filtered,n_type):
+def multi_attack_vector_heuristic(df_filtered,n_type):
     """
         Generic heuristic to deal with low accuracy ratio fingerprint
         :param df: dataframe filtered by target_ip
@@ -815,7 +815,7 @@ def clusterization_non_multifrag(df_filtered,n_type):
     return (fingerprint)
 
 #------------------------------------------------------------------------------
-def clusterization_multifrag(df_filtered,n_type):
+def multifragmentation_heuristic(df_filtered,n_type):
     """
         Determine if multiples protocol were used for fragmentation attack
         :param df: dataframe filtered by target_ip
@@ -1105,7 +1105,7 @@ def get_matching_ratio(df_attack_vector,fingerprint):
     return (df_fingerprint,d)
 
 #------------------------------------------------------------------------------
-def clusterization_heuristic_generic(df_attack_vector,n_type):
+def single_vector_heuristic(df_attack_vector,n_type):
 
     fields = df_attack_vector.columns.tolist()
     if "eth_type" in fields: fields.remove("eth_type")
@@ -1138,7 +1138,7 @@ def build_attack_fingerprint(df,df_attack_vector,n_type,multi_vector_attack_flag
     dic_ratio_array = []
 
     ### FIRST HEURISTIC
-    fingerprint = clusterization_heuristic_generic(df_attack_vector,n_type)
+    fingerprint = single_vector_heuristic(df_attack_vector,n_type)
     
     if (multi_vector_attack_flag):
         (df_fingerprint,dict_accuracy_ratio) = get_matching_ratio(df_attack_vector,fingerprint)
@@ -1160,7 +1160,7 @@ def build_attack_fingerprint(df,df_attack_vector,n_type,multi_vector_attack_flag
         logger.info("HEURISTIC 1: matching ratio 0%")
 
     ### SECOND HEURISTIC
-    fingerprint = clusterization_multifrag(df_attack_vector,n_type)
+    fingerprint = multifragmentation_heuristic(df_attack_vector,n_type)
    
     if (multi_vector_attack_flag):
         (df_fingerprint,dict_accuracy_ratio) = get_matching_ratio(df_attack_vector,fingerprint)
@@ -1182,7 +1182,7 @@ def build_attack_fingerprint(df,df_attack_vector,n_type,multi_vector_attack_flag
         logger.info("HEURISTIC 2: matching ratio 0%")
 
     ### THIRD HEURISTIC
-    fingerprint = clusterization_non_multifrag(df_attack_vector,n_type)
+    fingerprint = multi_attack_vector_heuristic(df_attack_vector,n_type)
 
     if (multi_vector_attack_flag):
         (df_fingerprint,dict_accuracy_ratio) = get_matching_ratio(df_attack_vector,fingerprint)
