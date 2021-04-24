@@ -3,16 +3,16 @@
 
 ###############################################################################
 # Concordia Project
-#  
+#
 # This project has received funding from the European Union’s Horizon
 # 2020 Research and Innovation program under Grant Agreement No 830927.
-#  
+#
 # Joao Ceron - joaoceron@sidn.nl
 ###############################################################################
 
 ###############################################################################
 ### Python modules
-import time 
+import time
 import threading
 import sys
 import subprocess
@@ -53,7 +53,7 @@ version = "3.1"
 SIMILARITY_THRESHOLD = 80
 NONE = -1
 FLOW_TYPE = 0
-PCAP_TYPE = 1 
+PCAP_TYPE = 1
 CARPET_BOMBING_SIMILARITY_THRESHOLD = 20
 # define local subnet (CIDR size)
 CARPET_BOMBING_SUBNET = 20
@@ -142,7 +142,7 @@ def logger(args):
     # Create handlers
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(my_formatter)
-    
+
     # enable file logging when verbose/debug is set
     if args.debug or args.verbose:
         file_handler = logging.FileHandler(args.log)
@@ -191,7 +191,7 @@ def upload(fingerprint, json_file, user, passw, host, key):
 
     try:
         r = requests.post(host+"upload-file", files=files, headers=headers,verify=True)
-    except requests.exceptions.RequestException as e:  
+    except requests.exceptions.RequestException as e:
         logger.critical("Cannot connect to the server to upload fingerprint")
         logger.debug("Cannot connect to the server to upload fingerprint: {}".format(e))
         print (e)
@@ -202,7 +202,7 @@ def upload(fingerprint, json_file, user, passw, host, key):
     elif (r.status_code==201):
         print ("Upload success: \n\tHTTP CODE [{}] \n\tFingerprint ID [{}]".format(r.status_code,key))
         print ("\tURL: {}query?q={}".format(host,key))
-    else: 
+    else:
         print ("Internal Server Error. Check repository Django logs.")
         print ("Error Code: {}".format(r.status_code))
     return r.status_code
@@ -213,7 +213,7 @@ def get_repository(args,config):
     Check credentials and repository based on configuration file or cmd line args
     :param args: cmd args
     :param config: configuration file
-    return: user,pass,host: credentials for the repository 
+    return: user,pass,host: credentials for the repository
     """
     user,passw,host = (None,)*3
 
@@ -223,7 +223,7 @@ def get_repository(args,config):
         config_host =  config.sections()[0]
         if not (config_host):
             logger.critical("Could not find repository configuration. Check configuration file [dddosdb.conf].")
-        else: 
+        else:
             logger.info("Assumming configuration section [{}].".format(config_host))
             user  = config[config_host]['user']
             passw = config[config_host]['passwd']
@@ -241,7 +241,7 @@ def get_repository(args,config):
                 logger.info("Host found in the configuration file")
                 user = config[args.host]['user']
                 passw = config[args.host]['passwd']
-            else:    
+            else:
                 logger.critical("Credentials not found for [{}].".format(args.host))
     else:
         logger.critical("Cannot find repository {} credentials. You should define in the cmd line or configuration file [dddosdb.conf].".format(args.host))
@@ -260,7 +260,7 @@ def prepare_tshark_cmd(input_path):
     tshark =  shutil.which("tshark")
     if not tshark:
         logger.error("Tshark software not found. It should be on the path.\n")
-        return 
+        return
 
     cmd = [tshark, '-r', input_path, '-T', 'fields']
 
@@ -294,7 +294,7 @@ def flow_to_df(ret,filename):
         return ret: dataframe
     """
     nfdump =  shutil.which("nfdump")
-   
+
     if not nfdump:
         logger.error("NFDUMP software not found. It should be on the path.")
         ret.put(NONE)
@@ -316,19 +316,19 @@ def flow_to_df(ret,filename):
     df = df[['t_first', 't_last', 'proto', 'src4_addr', 'dst4_addr',
 	     'src_port', 'dst_port', 'fwd_status', 'tcp_flags',
 	     'src_tos', 'in_packets', 'in_bytes', 'icmp_type',
-	     'icmp_code', 
+	     'icmp_code',
 	 ]]
     df = df.rename(columns={'dst4_addr': 'ip_dst',
-			     'src4_addr': 'ip_src', 
-                             'src_port': 'srcport', 
+			     'src4_addr': 'ip_src',
+                             'src_port': 'srcport',
                              'dst_port': 'dstport',
                              't_start' : 'frame_time_epoch',
 			    })
-    df.dstport = df.dstport.astype(float).astype(int) 
-    df.srcport = df.srcport.astype(float).astype(int) 
+    df.dstport = df.dstport.astype(float).astype(int)
+    df.srcport = df.srcport.astype(float).astype(int)
 
     # convert protocol number to name
-    protocol_names = {num:name[8:] for name,num in vars(socket).items() if name.startswith("IPPROTO")} 
+    protocol_names = {num:name[8:] for name,num in vars(socket).items() if name.startswith("IPPROTO")}
     df['proto'] = df['proto'].apply(lambda x: protocol_names[x])
 
     # convert protocol/port to service
@@ -341,7 +341,7 @@ def flow_to_df(ret,filename):
     df['highest_protocol'] = df[['dstport','proto']].apply(convert_protocol_service,axis=1)
     # convert to unix epoch (sec)
     df['frame_time_epoch'] = pd.to_datetime(df['t_first']).astype(int) / 10**9
-    df = df.drop(['t_last','t_first','fwd_status'],axis=1) 
+    df = df.drop(['t_last','t_first','fwd_status'],axis=1)
     ret.put(df)
 
 #------------------------------------------------------------------------------
@@ -367,7 +367,7 @@ def pcap_to_df(ret,filename):
     if not cmd_stdout:
         ret.put(NONE)
         sys.exit()
-            
+
     data = str(cmd_stdout, 'utf-8')
     data = StringIO(data)
 
@@ -384,7 +384,7 @@ def pcap_to_df(ret,filename):
 
     if (set(['ip.src','ip.dst','_ws.col.Source','_ws.col.Destination']).issubset(df.columns)):
 
-        # Combine source and destination IP - works for IPv6 
+        # Combine source and destination IP - works for IPv6
         df['ip.src'] = df['ip.src'].fillna(df['_ws.col.Source'])
         df['ip.dst'] = df['ip.dst'].fillna(df['_ws.col.Destination'])
 
@@ -400,7 +400,7 @@ def pcap_to_df(ret,filename):
     df['udp.length'] = df['udp.length'].fillna(NONE).astype(float).astype(int)
     df['ntp.priv.reqcode'] = df['ntp.priv.reqcode'].fillna(NONE).astype(float).astype(int)
 
-    # timestamp 
+    # timestamp
     df['start_timestamp'] = df['frame.time_epoch'].iloc[0]
 
     # Remove columns: 'tcp.srcport', 'udp.srcport','tcp.dstport', 'udp.dstport', _ws.col.Source, _ws.col.Destination
@@ -431,7 +431,7 @@ def pcap_to_df(ret,filename):
 #     if 'tcp.flags.str' in df.columns:
 #         df['tcp.flags.str'] = df['tcp.flags.str'].str.encode("utf-8")
 
-    df.columns = [c.replace('.', '_') for c in df.columns]    
+    df.columns = [c.replace('.', '_') for c in df.columns]
 
     # remove info field
     del df['_ws_col_Info']
@@ -452,7 +452,7 @@ def top_n_dataframe(dataframe_field,df,n_type,top_n=20):
     field_name = dataframe_field.name
     if (field_name == "frame_time_epoch" or field_name=="start_timestamp"):
         return  pd.DataFrame()
-    
+
     # flow - different heuristic
     if (n_type==FLOW_TYPE):
 
@@ -484,10 +484,10 @@ def top_n_dataframe(dataframe_field,df,n_type,top_n=20):
     df['percent'] = df.transform(lambda x: (x/np.sum(x)*100).round()).astype(int)
 
     if (len(df)< 16):
-        # z-score useless when few elements 
+        # z-score useless when few elements
         df['zscore'] = NONE
     else:
-        # z-score of 2 indicates that an observation is two standard deviations above the average 
+        # z-score of 2 indicates that an observation is two standard deviations above the average
         # a z-score of zero represents a value that equals the mean.
         df['zscore'] = ((df['count'] - df['count'].mean())/df['count'].std(ddof=0)).round().fillna(NONE)
     return (df.reset_index())
@@ -497,7 +497,7 @@ def infer_target_ip (df,n_type):
     """
     df: dataframe from pcap
     n_type: network file type (flows,pcap)
-    return: list of target IPs 
+    return: list of target IPs
     """
 
     # Check the dst_ip frequency distribution.
@@ -517,14 +517,14 @@ def infer_target_ip (df,n_type):
     outlier = find_outlier(df['ip_dst'],df,n_type)
 
     if (not outlier or len(outlier)<1):
-        logger.debug("We cannot find the DDoS target IP address. Not enought info to find the outlier.") 
+        logger.debug("We cannot find the DDoS target IP address. Not enought info to find the outlier.")
         logger.debug("Trying to aggregate top IPs")
-        
+
         data = top_n_dataframe(df['ip_dst'],df,n_type)
 
         # Outlier was not found (i.e the processed attack targeting multiples IP address)
-        # Check for Carpet Bombing attack (which target multiple IP addresses in the same subnet) 
-        # 
+        # Check for Carpet Bombing attack (which target multiple IP addresses in the same subnet)
+        #
         # Try to cluster the victim IPs. Usually, there are (IPs) part of the same network block.
         # Select IPs responsible for more than 20% of the traffic and try to cluster them.
         # If we succeed IPs are in the same range (network mask bigger than 21) we combine than and set as target.
@@ -539,13 +539,13 @@ def infer_target_ip (df,n_type):
             except:
                 continue
             ips.append(ip)
-        
+
         # only one IP address has return
         if (len(ips)<2):
             return (ips,df)
 
-        lowest_ip  = ips[0]  
-        highest_ip = ips[-1] 
+        lowest_ip  = ips[0]
+        highest_ip = ips[-1]
 
         # aggregation mask size
         mask_length = ipaddr._get_prefix_length(int(lowest_ip), int(highest_ip), lowest_ip.max_prefixlen)
@@ -565,20 +565,26 @@ def infer_target_ip (df,n_type):
         return (outlier,df)
 
 #------------------------------------------------------------------------------
-def animated_loading(msg="loading "):
+def animated_loading(msg="loading ", count=-1):
     """
         print loading animation
         :param msg: prefix label
     """
-    
-    chars = "▁▂▃▄▅▆▇▇▇▆▅▄▃▁"
-    cursor.hide()
-    for char in chars:
-        #sys.stdout.write('\r'+msg+''+char)
-        sys.stdout.write('\r'+'['+char+'] '+msg)
-        time.sleep(.1)
+
+    chars = " ▁▂▃▄▅▆▇▇▇▆▅▄▃▂▁ "
+    if (count == -1):
+        cursor.hide()
+        for char in chars:
+            #sys.stdout.write('\r'+msg+''+char)
+            sys.stdout.write('\r'+'['+char+'] '+msg)
+            time.sleep(.05)
+            sys.stdout.flush()
+            cursor.show()
+    else:
+        char = chars[ int(count/2) % len(chars)]
+        sys.stdout.write('\r' + '[' + char + '] ' + msg)
+        time.sleep(.05)
         sys.stdout.flush()
-    cursor.show()
 
 #------------------------------------------------------------------------------
 def find_outlier(df_filtered,df,n_type,strict=0):
@@ -594,15 +600,15 @@ def find_outlier(df_filtered,df,n_type,strict=0):
 
     # summarization dataframe
     data = top_n_dataframe(df_filtered,df,n_type)
-    if (data.empty): 
-        return 
+    if (data.empty):
+        return
 
     outlier_field = data.columns[0]
 
-    # be more strict in the filter 
+    # be more strict in the filter
     if (strict):
         data_ = data[(data['percent']> SIMILARITY_THRESHOLD) & (data['zscore']>2)]
-    
+
         # if the filter does not return anything, check if the df is
         # composed by only one field
         if (data_.size==0):
@@ -611,9 +617,9 @@ def find_outlier(df_filtered,df,n_type,strict=0):
             data = data.head(1)
 
             # ignore zscore, use frequency threshold
-            data = data[(data['percent']> SIMILARITY_THRESHOLD) & (data['zscore']<0) & (data[outlier_field]!="others")] 
+            data = data[(data['percent']> SIMILARITY_THRESHOLD) & (data['zscore']<0) & (data[outlier_field]!="others")]
 
-            if (data.empty): return 
+            if (data.empty): return
             outliers = data.iloc[:,0].tolist()
             logger.debug("Outliers for .:{}:. --> {} \n {}" .format(outlier_field, outliers, data.head(5).to_string(index=False) ))
             logger.debug('-' * 60)
@@ -679,7 +685,7 @@ def infer_protocol_attack(df,n_type):
             if (data['percent'].iloc[0] > 50):
                 logger.debug("Frag Attack: a large fraction of traffic {}% is related to fragmentation attack".format(data['percent'].iloc[0]))
 
-                # remove fragmentation protocol from the dataframe 
+                # remove fragmentation protocol from the dataframe
                 data = top_n_dataframe(df['highest_protocol'],df[df['highest_protocol'] != "IPv4"],n_type)
 
                 # find outlier again by ignoring fragmentation protocol (just removed)
@@ -697,7 +703,7 @@ def infer_protocol_attack(df,n_type):
 
         else:
             # did not get outliers and it is not fragmentation attack
-            # multiprotocol attack with no fragmentation 
+            # multiprotocol attack with no fragmentation
             frag = False
             data = top_n_dataframe(df['highest_protocol'],df,n_type)
 
@@ -708,9 +714,9 @@ def infer_protocol_attack(df,n_type):
 
     else:
 
-        # outlier found 
+        # outlier found
         logger.debug("Protocol outlier found: {}".format(outlier))
-        
+
         # return the top1
         logger.debug("Top1 protocol could be classified as outlier")
         top1_protocol = df["highest_protocol"].value_counts().reset_index().head(1)['index'].tolist()
@@ -735,7 +741,7 @@ def determine_file_type(input_file):
 
     file_info, error = subprocess.Popen([file_, input_file], stdout=subprocess.PIPE).communicate()
     file_type = file_info.decode("utf-8").split()[1]
-   
+
     if file_type == "tcpdump":
         return "pcap"
     if file_type == "pcap":
@@ -776,11 +782,16 @@ def load_file(args,filename):
     msg = "Loading network file: `{}' ".format(filename)
 
     try:
+        count = 0
+        cursor.hide()
         while the_process.is_alive():
             if the_process:
-                animated_loading(msg) if not (args.quiet) else 0
+                animated_loading(msg, count=count) if not args.quiet else 0
+                count += 1
+        cursor.show()
         the_process.join()
     except (KeyboardInterrupt, SystemExit):
+        cursor.show()
         signal_handler(None,None)
 
     df = ret.get()
@@ -788,7 +799,7 @@ def load_file(args,filename):
     if not isinstance(df, pd.DataFrame):
         print ("\n")
         return(NONE,NONE)
-        
+
     sys.stdout.write('\r'+'['+'\u2713'+'] '+ msg+'\n')
     return (n_type,df)
 
@@ -858,7 +869,7 @@ def multifragmentation_heuristic(df_filtered,n_type):
                     (df_.percent_frag>SIMILARITY_THRESHOLD) ]['highest_protocol'].tolist()
 
         if not protocols:
-            return 
+            return
 
         # find respective src_port
         logger.info("Reprocessing attack based on protocols: {}".format(protocols))
@@ -900,7 +911,7 @@ def generate_dot_file(df_fingerprint, df):
     Build .dot file that is used to generate a png file showing the
     fingerprint match visualization
     :param df_fingerprint: dataframe filtered based on matched fingerprint
-    :param df: dataframe itself 
+    :param df: dataframe itself
     """
     # sum up dataframe to plot
     df_fingerprint = df_fingerprint[['ip_src','ip_dst']].drop_duplicates(keep="first")
@@ -933,7 +944,7 @@ def generate_dot_file(df_fingerprint, df):
 #------------------------------------------------------------------------------
 def printProgressBar(value,label,fill_chars="■-"):
     """
-        Print progress bar 
+        Print progress bar
         :param value: value to be printed
         :param label: label used as title
         :param fill_chars: char used in the animation
@@ -954,7 +965,7 @@ def printProgressBar(value,label,fill_chars="■-"):
 #------------------------------------------------------------------------------
 def evaluate_fingerprint(df,df_fingerprint,fingerprints):
     """
-        :param df: datafram itself       
+        :param df: datafram itself
         :param df_fingerprint: dataframe filtered based on matched fingerprint
         :param fingerprint: json file
         :return accuracy_ratio: the percentage that generated fingerprint can match in the full dataframe
@@ -974,7 +985,7 @@ def evaluate_fingerprint(df,df_fingerprint,fingerprints):
         printProgressBar(round(percentage_of_ips_matched),"IPs MATCHED")
     #
     # Fields breakdown
-    # 
+    #
     if (args.verbose) or (args.debug):
 
         count = 0
@@ -987,7 +998,7 @@ def evaluate_fingerprint(df,df_fingerprint,fingerprints):
 
         # for each fingerprint generated
         for fingerprint in (fingerprints['attack_vector']):
-            count = count + 1 
+            count = count + 1
             results =  {}
             for key, value in fingerprint.items():
 
@@ -1001,7 +1012,7 @@ def evaluate_fingerprint(df,df_fingerprint,fingerprints):
                 # dict with all the fields and results
                 results.update( {key: percentage} )
             results_sorted = {k: v for k, v in sorted(results.items(), key=lambda item: item[1],  reverse=True)}
-            
+
 
             logger.info(" ============= FIELDS BREAKDOWN === ATTACK_VECTOR {} ============= ".format(count))
             for label, percentage in results_sorted.items():
@@ -1030,10 +1041,10 @@ def check_repository(config):
     for server in servers:
         try:
             code = requests.get(server, timeout=2).status_code
-        except: 
+        except:
             code = "OFFLINE"
 
-        if (code ==200): 
+        if (code ==200):
             code = "ONLINE"
 
             # check credentials
@@ -1059,7 +1070,7 @@ def check_repository(config):
             try:
                 r = requests.get(server+"/my-permissions", headers=headers,verify=False)
 
-            except requests.exceptions.RequestException as e:  
+            except requests.exceptions.RequestException as e:
                 logger.critical("Cannot connect to the server to check credentials")
                 logger.debug("{}".format(e))
                 print (e)
@@ -1070,7 +1081,7 @@ def check_repository(config):
 
             elif (r.status_code==200):
                  login = "SUCCESS"
- 
+
         row_format ="{:>15}" * (table_column)
         print(row_format.format(server, code, login))
     sys.exit(0)
@@ -1099,7 +1110,7 @@ def get_matching_ratio(df_attack_vector,fingerprint):
     # evaluate fingerprint matching ratio
     accuracy_ratio = round(len(df_fingerprint)*100/len(df_attack_vector))
 
-    d = { "ratio"       : accuracy_ratio, 
+    d = { "ratio"       : accuracy_ratio,
           "fingerprint" : fingerprint
         }
     return (df_fingerprint,d)
@@ -1130,16 +1141,16 @@ def build_attack_fingerprint(df,df_attack_vector,n_type,multi_vector_attack_flag
     """
     # remove target IP from dataframe since it will be anonymized
     del df_attack_vector['ip_dst']
- 
+
     attack_vector_protocol = df_attack_vector['highest_protocol'].iloc[0]
     logger.info("Processing attack_vector based on {}".format(attack_vector_protocol))
 
-    # DETECTION RATE HEURISTIC 
+    # DETECTION RATE HEURISTIC
     dic_ratio_array = []
 
     ### FIRST HEURISTIC
     fingerprint = single_vector_heuristic(df_attack_vector,n_type)
-    
+
     if (multi_vector_attack_flag):
         (df_fingerprint,dict_accuracy_ratio) = get_matching_ratio(df_attack_vector,fingerprint)
     else:
@@ -1161,7 +1172,7 @@ def build_attack_fingerprint(df,df_attack_vector,n_type,multi_vector_attack_flag
 
     ### SECOND HEURISTIC
     fingerprint = multifragmentation_heuristic(df_attack_vector,n_type)
-   
+
     if (multi_vector_attack_flag):
         (df_fingerprint,dict_accuracy_ratio) = get_matching_ratio(df_attack_vector,fingerprint)
     else:
@@ -1214,7 +1225,7 @@ def build_attack_fingerprint(df,df_attack_vector,n_type,multi_vector_attack_flag
     # If the signature has less detection ratio (-10) get the biggest fingerprint
     fingerprint = data[data['diff']>-10].sort_values(by="size",ascending=False).head(1)['fingerprint'].values[0]
 
-    # did not get bigger length fingerprint, then get the best ratio  
+    # did not get bigger length fingerprint, then get the best ratio
     if not fingerprint:
         fingerprint = df_.sort_values(by="ratio",ascending=False).loc[0,"fingerprint"]
         print (df_.sort_values(by="ratio",ascending=False).loc[0,"ratio"])
@@ -1224,7 +1235,7 @@ def build_attack_fingerprint(df,df_attack_vector,n_type,multi_vector_attack_flag
 #------------------------------------------------------------------------------
 def bar(row):
     """
-        Plot ASCII bar 
+        Plot ASCII bar
         :param row: line to be printed
     """
     percent = int(row['percent'])
@@ -1252,20 +1263,20 @@ def add_label(fingerprints,df):
         25:    'SMTP',
         123:   'NTP',
         1121:  'Memcached',
-        1194:  'OpenVPN', 
+        1194:  'OpenVPN',
         1434:  'SQL server',
         1718:  'H323',
-        1900:  'SSDP', 
+        1900:  'SSDP',
         3074:  'Game Server',
         3283:  'Apple Remote Desktop',
-        3702:  'WSD - Web Services Discovery', 
+        3702:  'WSD - Web Services Discovery',
         5683:  'CoAP',
         20800: 'Game Server',
         27015: 'Game Server',
         30718: 'IoT Lantronix',
         33848: 'Jenkins Server',
         37810: 'DVR DHCPDiscover',
-        47808: 'BACnet', 
+        47808: 'BACnet',
     }
 
     generic_amplification_ports = [53, 389, 123, 161, 672]
@@ -1275,18 +1286,18 @@ def add_label(fingerprints,df):
 
         if (len(fingerprints)>1):
             label.append("MULTI_VECTOR_ATTACK")
-        else: 
+        else:
             label.append("SINGLE_VECTOR_ATTACK")
 
         # add protocol name to label list
         if 'highest_protocol' in fingerprint:
             label.append(", ".join(fingerprint['highest_protocol']))
-    
+
         if 'dns_qry_name' in fingerprint:
             label.append("DNS_QUERY")
-    
+
         if 'udp_length' in fingerprint:
-    
+
             # Based on FBI Flash Report MU-000132-DD
             df_length = (df.groupby(['srcport'])['udp_length'].max()).reset_index()
             if (len(df_length.udp_length>468)):
@@ -1297,7 +1308,7 @@ def add_label(fingerprints,df):
                             label.append("AMPLIFICATION")
                             label.append("RDDoS")
                             label.append(udp_service[port])
-    
+
         # Frag attack
         if 'fragmentation' in fingerprint:
             value = fingerprint.get('fragmentation')[0]
@@ -1318,12 +1329,12 @@ def add_label(fingerprints,df):
 def logo():
 
    print ('''
- _____  _____        _____ _____  ____  
-|  __ \|  __ \      / ____|  __ \|  _ \ 
+ _____  _____        _____ _____  ____
+|  __ \|  __ \      / ____|  __ \|  _ \\
 | |  | | |  | | ___| (___ | |  | | |_) |
-| |  | | |  | |/ _ \\\___ \| |  | |  _ < 
+| |  | | |  | |/ _ \\ ___ \| |  | |  _ <
 | |__| | |__| | (_) |___) | |__| | |_) |
-|_____/|_____/ \___/_____/|_____/|____/ 
+|_____/|_____/ \___/_____/|_____/|____/
 ''')
 
 #------------------------------------------------------------------------------
@@ -1341,7 +1352,7 @@ def import_logfile(args):
             config = configparser.ConfigParser()
             config.read(args.config)
             return (config)
-        else: 
+        else:
             print ("Configuration file provided [{}] not found ".format(args.config))
             return None
 
@@ -1370,7 +1381,7 @@ def prepare_fingerprint_upload(df_fingerprint,df,fingerprints,n_type,labels,fing
 
     # fingerprints
     fingerprint_combined.update({"attack_vector": fingerprint_array})
-    
+
     # timestamp fields
     initial_timestamp  = df_fingerprint['frame_time_epoch'].min()
     initial_timestamp = datetime.utcfromtimestamp(initial_timestamp).strftime('%Y-%m-%d %H:%M:%S')
@@ -1410,7 +1421,7 @@ def prepare_fingerprint_upload(df_fingerprint,df,fingerprints,n_type,labels,fing
     try:
         with open(json_file, 'w') as f_fingerprint:
             json.dump(fingerprint_combined, f_fingerprint)
-    
+
         files = {
             "json": open(json_file, "rb"),
             # ignoring pcap file upload for now
@@ -1448,7 +1459,7 @@ def print_fingerprint(fingerprint):
 def evaluate_fingerprint_ratio(df,fingerprints,fragmentation_attack_flag):
     """
         Get the fingerprint and get matching ratio using the input file
-        param: df input file 
+        param: df input file
 	param: fragmentation_attack_flag fragmentation flag (network
 	       layer) used to cluster data without layer 7 info.
     """
@@ -1519,10 +1530,10 @@ if __name__ == '__main__':
 
     if (args.status):
         check_repository(config)
- 
+
     df = pd.DataFrame()
     for filename in args.filename:
-        
+
         if (not filename):
             parser.print_help()
             sys.exit(IOError("\nInput file not provided. Use '-f' for that."))
@@ -1544,16 +1555,16 @@ if __name__ == '__main__':
         logger.error("could not read data from file <{}>".format(args.filename))
         sys.exit(1)
 
-    ## 
-    ## DETECT TARGET 
-    ## 
+    ##
+    ## DETECT TARGET
+    ##
 
     # usually is only one target, but on anycast/load balanced may have more
     (target_ip_list,df) = infer_target_ip(df,n_type)
     try:
         target_ip = target_ip_list[0]
     except:
-        print ("Target IP could not be infered.") 
+        print ("Target IP could not be infered.")
         sys.exit(0)
 
     # build filter for victim IP
@@ -1562,22 +1573,22 @@ if __name__ == '__main__':
     sys.stdout.write('\r'+'['+'\u2713'+'] '+ msg+'\n')
     logger.debug(msg)
 
-    ## 
+    ##
     ## IDENTIFY ATTACK VECTORS (PROTOCOL)
-    ## 
+    ##
     (lst_attack_protocols, fragmentation_attack_flag) = infer_protocol_attack(df_target,n_type)
     multi_vector_attack_flag = False
 
-    # more than one protocol as outliers 
+    # more than one protocol as outliers
     if (len(lst_attack_protocols)>1):
         multi_vector_attack_flag = True
         logger.info("Multi-vector attack based on: {} : fragmentation [{}]".format(lst_attack_protocols,fragmentation_attack_flag))
-    else: 
+    else:
         logger.info("Single attack based on: {} : fragmentation [{}]".format(lst_attack_protocols,fragmentation_attack_flag))
 
-    ## 
+    ##
     ## IDENTIFY FINGERPRINTS
-    ## 
+    ##
     fingerprints = []
     # fingerprint per attack vector
     for protocol in lst_attack_protocols:
@@ -1597,11 +1608,11 @@ if __name__ == '__main__':
         fingerprint.update( {"attack_vector_key": sha256} )
         fingerprints.append(fingerprint)
 
-    ## 
+    ##
     ## FINGERPRINT EVALUATION
-    ## 
+    ##
     df_filtered = evaluate_fingerprint_ratio(df,fingerprints,fragmentation_attack_flag)
-    
+
     # infer tags based on the generated fingerprint
     labels = add_label(fingerprints,df_filtered)
 
