@@ -33,6 +33,7 @@ import cursor
 import configparser
 import ipaddr
 import argparse
+import urllib3
 from subprocess import check_output, STDOUT
 from pygments.lexers import JsonLexer
 from pygments.formatters import TerminalFormatter
@@ -78,6 +79,7 @@ def parser_add_arguments():
     parser.add_argument("--host", nargs='?',help="Upload host. ")
     parser.add_argument("--user", nargs='?',help="repository user. ")
     parser.add_argument("--passwd", nargs='?',help="repository password.")
+    parser.add_argument("-n", "--noverify", help="disable verification of the host certificate (for self-signed certificates)", action="store_true")
     parser.add_argument("-g","--graph", help="build dot file (graphviz). It can be used to plot a visual representation\n of the attack using the tool graphviz. When this option is set, youn will\n received information how to convert the generate file (.dot) to image (.png).", action="store_true")
     parser.add_argument ('-f','--filename', required=True, nargs='+')
 
@@ -190,7 +192,8 @@ def upload(fingerprint, json_file, user, passw, host, key):
     }
 
     try:
-        r = requests.post(host+"upload-file", files=files, headers=headers,verify=True)
+        urllib3.disable_warnings()
+        r = requests.post(host+"upload-file", files=files, headers=headers, verify=not args.noverify)
     except requests.exceptions.RequestException as e:
         logger.critical("Cannot connect to the server to upload fingerprint")
         logger.debug("Cannot connect to the server to upload fingerprint: {}".format(e))
