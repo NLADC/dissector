@@ -34,6 +34,7 @@ import configparser
 import ipaddr
 import argparse
 import urllib3
+
 from subprocess import check_output, STDOUT
 from pygments.lexers import JsonLexer
 from pygments.formatters import TerminalFormatter
@@ -194,6 +195,12 @@ def upload(fingerprint, json_file, user, passw, host, key):
     try:
         urllib3.disable_warnings()
         r = requests.post(host+"upload-file", files=files, headers=headers, verify=not args.noverify)
+    except requests.exceptions.SSLError as e:
+        logger.critical("SSL Certificate verification of the server {} failed".format(host))
+        print("If you trust {} re-run with --noverify / -n flag to disable certificate verification".format(host))
+        logger.debug("Cannot connect to the server to upload fingerprint: {}".format(e))
+        return None
+
     except requests.exceptions.RequestException as e:
         logger.critical("Cannot connect to the server to upload fingerprint")
         logger.debug("Cannot connect to the server to upload fingerprint: {}".format(e))
