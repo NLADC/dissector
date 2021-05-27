@@ -201,7 +201,7 @@ def upload(fingerprint, json_file, user, passw, host, key):
         print ("Invalid credentials or no permission to upload fingerprints:")
     elif (r.status_code==201):
         print ("Upload success: \n\tHTTP CODE [{}] \n\tFingerprint ID [{}]".format(r.status_code,key))
-        print ("\tURL: {}query?q={}".format(host,key))
+        print ("\tURL: {}details?key={}".format(host,key))
     else: 
         print ("Internal Server Error. Check repository Django logs.")
         print ("Error Code: {}".format(r.status_code))
