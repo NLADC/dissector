@@ -46,7 +46,7 @@ from hashlib import sha256
 ### Program settings
 verbose = False
 program_name = os.path.basename(__file__)
-version = "3.1"
+version = "3.2"
 
 # GLOBAL parameters
 # percentage used to determine correlation between to lists
