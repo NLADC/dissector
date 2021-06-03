@@ -33,6 +33,8 @@ import cursor
 import configparser
 import ipaddr
 import argparse
+import urllib3
+
 from subprocess import check_output, STDOUT
 from pygments.lexers import JsonLexer
 from pygments.formatters import TerminalFormatter
@@ -78,6 +80,7 @@ def parser_add_arguments():
     parser.add_argument("--host", nargs='?',help="Upload host. ")
     parser.add_argument("--user", nargs='?',help="repository user. ")
     parser.add_argument("--passwd", nargs='?',help="repository password.")
+    parser.add_argument("-n", "--noverify", help="disable verification of the host certificate (for self-signed certificates)", action="store_true")
     parser.add_argument("-g","--graph", help="build dot file (graphviz). It can be used to plot a visual representation\n of the attack using the tool graphviz. When this option is set, youn will\n received information how to convert the generate file (.dot) to image (.png).", action="store_true")
     parser.add_argument ('-f','--filename', required=True, nargs='+')
 
@@ -190,8 +193,15 @@ def upload(fingerprint, json_file, user, passw, host, key):
     }
 
     try:
-        r = requests.post(host+"upload-file", files=files, headers=headers,verify=True)
-    except requests.exceptions.RequestException as e:  
+        urllib3.disable_warnings()
+        r = requests.post(host+"upload-file", files=files, headers=headers, verify=not args.noverify)
+    except requests.exceptions.SSLError as e:
+        logger.critical("SSL Certificate verification of the server {} failed".format(host))
+        print("If you trust {} re-run with --noverify / -n flag to disable certificate verification".format(host))
+        logger.debug("Cannot connect to the server to upload fingerprint: {}".format(e))
+        return None
+
+    except requests.exceptions.RequestException as e:
         logger.critical("Cannot connect to the server to upload fingerprint")
         logger.debug("Cannot connect to the server to upload fingerprint: {}".format(e))
         print (e)
@@ -201,7 +211,7 @@ def upload(fingerprint, json_file, user, passw, host, key):
         print ("Invalid credentials or no permission to upload fingerprints:")
     elif (r.status_code==201):
         print ("Upload success: \n\tHTTP CODE [{}] \n\tFingerprint ID [{}]".format(r.status_code,key))
-        print ("\tURL: {}details?key={}".format(host,key))
+        print ("\tURL: {}query?q={}".format(host,key))
     else: 
         print ("Internal Server Error. Check repository Django logs.")
         print ("Error Code: {}".format(r.status_code))
@@ -565,20 +575,26 @@ def infer_target_ip (df,n_type):
         return (outlier,df)
 
 #------------------------------------------------------------------------------
-def animated_loading(msg="loading "):
+def animated_loading(msg="loading ", count=-1):
     """
         print loading animation
         :param msg: prefix label
     """
-    
-    chars = "▁▂▃▄▅▆▇▇▇▆▅▄▃▁"
-    cursor.hide()
-    for char in chars:
-        #sys.stdout.write('\r'+msg+''+char)
-        sys.stdout.write('\r'+'['+char+'] '+msg)
-        time.sleep(.1)
+
+    chars = " ▁▂▃▄▅▆▇▇▇▆▅▄▃▂▁ "
+    if (count == -1):
+        cursor.hide()
+        for char in chars:
+            #sys.stdout.write('\r'+msg+''+char)
+            sys.stdout.write('\r'+'['+char+'] '+msg)
+            time.sleep(.05)
+            sys.stdout.flush()
+            cursor.show()
+    else:
+        char = chars[ int(count/2) % len(chars)]
+        sys.stdout.write('\r' + '[' + char + '] ' + msg)
+        time.sleep(.05)
         sys.stdout.flush()
-    cursor.show()
 
 #------------------------------------------------------------------------------
 def find_outlier(df_filtered,df,n_type,strict=0):
@@ -776,11 +792,16 @@ def load_file(args,filename):
     msg = "Loading network file: `{}' ".format(filename)
 
     try:
+        count = 0
+        cursor.hide()
         while the_process.is_alive():
             if the_process:
-                animated_loading(msg) if not (args.quiet) else 0
+                animated_loading(msg, count=count) if not args.quiet else 0
+                count += 1
+        cursor.show()
         the_process.join()
     except (KeyboardInterrupt, SystemExit):
+        cursor.show()
         signal_handler(None,None)
 
     df = ret.get()
@@ -1321,7 +1342,7 @@ def logo():
  _____  _____        _____ _____  ____  
 |  __ \|  __ \      / ____|  __ \|  _ \ 
 | |  | | |  | | ___| (___ | |  | | |_) |
-| |  | | |  | |/ _ \\\___ \| |  | |  _ < 
+| |  | | |  | |/ _ \\ ___ \| |  | |  _ < 
 | |__| | |__| | (_) |___) | |__| | |_) |
 |_____/|_____/ \___/_____/|_____/|____/ 
 ''')
