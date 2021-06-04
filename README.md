@@ -24,11 +24,15 @@ In order to improve software efficiency, we are working on software components t
 
 ## External Dependencies
 
-Be sure to have tskark[1] and nfdump[2] in your path.
+Be sure to have tskark[1], nfdump[2] and python3[3] in your path.
 
 - [1] https://tshark.dev/
 - [2] https://github.com/phaag/nfdump
+- [3] https://github.com/python3
 
+On Debian 10, install via apt
+```apt install tshark nfdump python3
+```
 
 ## How to start?
 
@@ -36,7 +40,13 @@ Be sure to have tskark[1] and nfdump[2] in your path.
 
 ```bash
 git clone https://github.com/ddos-clearing-house/ddos_dissector
+cd ddos_dissector
+
 pip install -r requirements.txt
+
+# On Debian 10:
+pip3 install -r requirements.txt
+
 ```
 
 2. Provide a pcap to be analized
