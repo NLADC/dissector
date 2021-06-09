@@ -24,7 +24,7 @@ In order to improve software efficiency, we are working on software components t
 
 ## External Dependencies
 
-Be sure to have tskark[1], nfdump[2] and python3[3] in your path.
+Be sure to have tshark[1], nfdump[2] and python3[3] in your path.
 
 - [1] https://tshark.dev/
 - [2] https://github.com/phaag/nfdump
