@@ -567,7 +567,6 @@ def infer_target_ip(df, n_type):
         # Try to cluster the victim IPs. Usually, there are (IPs) part of the same network block.
         # Select IPs responsible for more than 20% of the traffic and try to cluster them.
         # If we succeed IPs are in the same range (network mask bigger than 21) we combine than and set as target.
-        # data_ =       data[(data['percent'] > CARPET_BOMBING_SIMILARITY_THRESHOLD)]['ip_dst'].tolist()
         ip_lst = sorted(data[(data['percent'] > CARPET_BOMBING_SUBNET)]['ip_dst'].tolist())
 
         # filter ipv4|ipv6 only
@@ -577,11 +576,11 @@ def infer_target_ip(df, n_type):
                 ipaddr.IPAddress(ip)
             except ValueError:
                 continue
-            ips.append(ip)
+            ips.append(ipaddr.IPAddress(ip))
 
         # only one IP address
-        if len(ips) < 2:
-            return ips, df
+        if len(ips) == 1:
+            return [str(ips[0])], df
 
         lowest_ip = ips[0]
         highest_ip = ips[-1]
@@ -599,7 +598,7 @@ def infer_target_ip(df, n_type):
 
         else:
             # return the top 1
-            return list(df['ip_dst'].value_counts().keys()[0]), df
+            return [df['ip_dst'].value_counts().keys()[0]], df
     else:
         return outlier, df
 
@@ -678,7 +677,7 @@ def find_outlier(df_filtered, df, n_type, strict=0):
             return None
 
     outliers = data.iloc[:, 0].tolist()
-    if outliers == NONE:
+    if outliers == [NONE]:
         LOGGER.debug("Outliers for .:{}:. --> None \n {}".format(data.columns[0], data.head(5).to_string(index=False)))
         return
 
@@ -884,7 +883,7 @@ def multi_attack_vector_heuristic(df_filtered, n_type):
 # ------------------------------------------------------------------------------
 def multifragmentation_heuristic(df_filtered, n_type):
     """
-        Determine if multiples protocol were used for fragmentation attack
+        Determine if multiple protocols were used for fragmentation attack
         :param df_filtered: dataframe filtered by target_ip
         :param n_type: network file type (flows,pcap)
         :return fingerprint: json file
@@ -1371,8 +1370,8 @@ def add_label(fingerprints, df):
             df_length = (df.groupby(['srcport'])['udp_length'].max()).reset_index()
             if len(df_length.udp_length > 468):
                 label.append("UDP_SUSPECT_LENGTH")
-                for port in udp_service:
-                    if "sport" in fingerprint:
+                if "srcport" in fingerprint:
+                    for port in udp_service:
                         if fingerprint['srcport'] == [port]:
                             label.append("AMPLIFICATION")
                             label.append("RDDoS")
@@ -1384,10 +1383,10 @@ def add_label(fingerprints, df):
             if value:
                 label.append("FRAGMENTATION")
 
-        # Generic amplification attack
         if "srcport" in fingerprint:
             if len(fingerprint['srcport']) > 1:
                 label.append("MULTIPROTOCOL")
+            # Generic amplification attack
             for port in generic_amplification_ports:
                 if port in list(fingerprint['srcport']):
                     label.append("AMPLIFICATION")
