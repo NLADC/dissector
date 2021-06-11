@@ -39,6 +39,7 @@ docker container. Make sure you are in the root of this repository when calling 
    
     **Note:** If you have an instance of [DDoSDB](https://github.com/ddos-clearing-house/ddosdb) running locally on localhost and wish to upload fingerprints to it, 
 add the following flag to the `docker run` command to use the host network instead of the docker-created network: `--network="host"`
+
     **Example command:**
    ```bash
    docker run --network="host" -v $(pwd):/app dissector -f /app/pcap_samples/sample1.pcap -u -n --host https://localhost/ --user user --passwd pass
