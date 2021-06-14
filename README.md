@@ -35,7 +35,7 @@ The only requirement is to have [Docker](https://docs.docker.com/get-docker/) in
     docker run -v $(pwd):/app dissector [arguments]
     ```
     **Note:** the volume specified with the `-v` flag mounts the current working directory to /app in the
-docker container. Make sure you are in the root of this repository when calling the command.
+docker container. Make sure you are in the root of this repository when calling the command and the pcap file you wish to analyze is also somewhere in this directory. Alternatively, add an additional volume to mount the location of your traffic file to the docker container, e.g., `-v /home/me/pcaps:/data`
    
     **Note:** If you have an instance of [DDoSDB](https://github.com/ddos-clearing-house/ddosdb) running locally on localhost and wish to upload fingerprints to it, 
 add the following flag to the `docker run` command to use the host network instead of the docker-created network: `--network="host"`
