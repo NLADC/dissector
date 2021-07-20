@@ -430,14 +430,17 @@ def pcap_to_df(ret, filename):
     # protocol number to name
     protocol_names = {num: name[8:] for name, num in vars(socket).items() if name.startswith("IPPROTO")}
     df['ip.proto'] = df['ip.proto'].fillna(NONE).astype(float).astype(int)
-    df['ip.proto'] = df['ip.proto'].apply(lambda x: protocol_names[x] if (x > 0) else -1)
+    df['ip.proto'] = df['ip.proto'].apply(lambda x: protocol_names[x] if (x in protocol_names) else -1)
 
     df['ip.ttl'] = df['ip.ttl'].fillna(NONE).astype(float).astype(int)
     df['udp.length'] = df['udp.length'].fillna(NONE).astype(float).astype(int)
     df['ntp.priv.reqcode'] = df['ntp.priv.reqcode'].fillna(NONE).astype(float).astype(int)
 
-    # timestamp 
-    df['start_timestamp'] = df['frame.time_epoch'].iloc[0]
+    # timestamp
+    try:
+        df['start_timestamp'] = df['frame.time_epoch'].iloc[0]
+    except IndexError:
+        LOGGER.info("Could not find a timestamp.")
 
     # Remove columns: 'tcp.srcport', 'udp.srcport','tcp.dstport', 'udp.dstport', _ws.col.Source, _ws.col.Destination
     df.drop(['tcp.srcport', 'udp.srcport', 'tcp.dstport', 'udp.dstport', '_ws.col.Source', '_ws.col.Destination'],
@@ -471,7 +474,10 @@ def pcap_to_df(ret, filename):
     df.columns = [c.replace('.', '_') for c in df.columns]
 
     # remove info field
-    del df['_ws_col_Info']
+    try:
+        del df['_ws_col_Info']
+    except KeyError:
+        pass
     ret.put(df)
 
 
