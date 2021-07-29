@@ -301,7 +301,7 @@ def prepare_tshark_cmd(input_path):
     fields = [
         'dns.qry.type', 'ip.dst', 'ip.flags.mf', 'tcp.flags', 'ip.proto',
         'ip.src', '_ws.col.Destination', '_ws.col.Protocol', '_ws.col.Source',
-        'dns.qry.name', 'eth.type', 'frame.len', '_ws.col.Info', 'udp.length',
+        'dns.qry.name', 'eth.type', 'frame.len', 'udp.length',
         'http.request', 'http.response', 'http.user_agent', 'icmp.type',
         'ip.frag_offset', 'ip.ttl', 'ntp.priv.reqcode', 'tcp.dstport',
         'tcp.srcport', 'udp.dstport', 'udp.srcport', 'frame.time_epoch',
@@ -457,27 +457,18 @@ def pcap_to_df(ret, filename):
         df['dns.qry.type'] = df['dns.qry.type'].astype(int)
 
     if 'ip.frag_offset' in df.columns:
-        df['ip.frag_offset'] = df['ip.frag_offset'].astype(str)
+        df['ip.frag_offset'] = df['ip.frag_offset'].astype(int)
 
     if 'ip.flags.mf' in df.columns:
-        df['ip.flags.mf'] = df['ip.flags.mf'].astype(str)
+        df['ip.flags.mf'] = df['ip.flags.mf'].astype(int)
 
     if ('ip.flags.mf' in df.columns) and ('ip.frag_offset' in df.columns):
         # Analyse fragmented packets
-        df['fragmentation'] = (df['ip.flags.mf'] == '1') | (df['ip.frag_offset'] != '0')
+        df['fragmentation'] = (df['ip.flags.mf'] == 1) | (df['ip.frag_offset'] != 0)
         df.drop(['ip.flags.mf', 'ip.frag_offset'], axis=1, inplace=True)
-
-    # translate flags to string
-    #     if 'tcp.flags.str' in df.columns:
-    #         df['tcp.flags.str'] = df['tcp.flags.str'].str.encode("utf-8")
 
     df.columns = [c.replace('.', '_') for c in df.columns]
 
-    # remove info field
-    try:
-        del df['_ws_col_Info']
-    except KeyError:
-        pass
     ret.put(df)
 
 
@@ -598,7 +589,7 @@ def infer_target_ip(df, n_type):
             LOGGER.debug("Top IPs are correlated")
 
             # rewrite to one IP address
-            for ip in ip_lst[1:]:  # FIXME I changed this from [:1] to [1:] which I believe to be correct
+            for ip in ip_lst[1:]:
                 df.loc[df['ip_dst'] == ip, "ip_dst"] = ip_lst[0]
             return ip_lst[0].split(), df
 
@@ -708,12 +699,13 @@ def find_outlier(df_filtered, df, n_type, strict=0):
 
 # ------------------------------------------------------------------------------
 # Infer the attack based on filtered dataframe
-def infer_protocol_attack(df, n_type):
+def infer_attack_protocol(df, n_type):
     """
         Evaluate protocol distribution and return the used in the attack
         :param df: dataframe
         :param n_type: network file type (flows,pcap)
         return: the list of top protocols and if the framentation protocol has found
+        TODO: decouple this from fragmentation
     """
     target_ip = df['ip_dst'].iloc[0]
     LOGGER.info("A total of {} IPs have attacked the victim {}".format(df.ip_src.nunique(), target_ip))
@@ -1663,24 +1655,24 @@ def main():
     ## 
     # IDENTIFY ATTACK VECTORS (PROTOCOL)
     ## 
-    (lst_attack_protocols, fragmentation_attack_flag) = infer_protocol_attack(df_target, n_type)
-    multi_vector_attack_flag = False
+    (attack_protocols, fragmentation_attack_flag) = infer_attack_protocol(df_target, n_type)
 
-    # more than one protocol as outliers 
-    if len(lst_attack_protocols) > 1:
+    # more than one protocol as outlier -> multi-vector attack
+    if len(attack_protocols) > 1:
         multi_vector_attack_flag = True
-        LOGGER.info("Multi-vector attack based on: {} : fragmentation [{}]".format(lst_attack_protocols,
+        LOGGER.info("Multi-vector attack based on: {} : fragmentation [{}]".format(attack_protocols,
                                                                                    fragmentation_attack_flag))
     else:
+        multi_vector_attack_flag = False
         LOGGER.info(
-            "Single attack based on: {} : fragmentation [{}]".format(lst_attack_protocols, fragmentation_attack_flag))
+            "Single attack based on: {} : fragmentation [{}]".format(attack_protocols, fragmentation_attack_flag))
 
     ## 
     # IDENTIFY FINGERPRINTS
     ## 
     fingerprints = []
     # fingerprint per attack vector
-    for protocol in lst_attack_protocols:
+    for protocol in attack_protocols:
         # filter database based on protocol and target
         df_attack_vector = df[(df['ip_dst'] == target_ip) & (df['highest_protocol'] == protocol)]
         fingerprint = build_attack_fingerprint(df, df_attack_vector, n_type, multi_vector_attack_flag)
