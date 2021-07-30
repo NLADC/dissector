@@ -4,7 +4,6 @@ import subprocess
 import socket
 import threading
 import time
-
 import cursor
 import pandas as pd
 from typing import Optional, List, Tuple
@@ -154,8 +153,8 @@ def pcap_to_df(return_value: Queue, filename: str) -> None:
         # Combine source and destination ports from tcp and udp
         df['srcport'] = df['tcp.srcport'].fillna(df['udp.srcport'])
         df['dstport'] = df['tcp.dstport'].fillna(df['udp.dstport'])
-        df['dstport'] = df['dstport'].fillna(-1).astype(float).astype(int)
-        df['srcport'] = df['srcport'].fillna(-1).astype(float).astype(int)
+        df['dstport'] = df['dstport'].fillna(-1).astype(int)
+        df['srcport'] = df['srcport'].fillna(-1).astype(int)
 
     if {'ip.src', 'ip.dst', '_ws.col.Source', '_ws.col.Destination'}.issubset(df.columns):
         # Combine source and destination IP - works for IPv6
@@ -167,12 +166,12 @@ def pcap_to_df(return_value: Queue, filename: str) -> None:
 
     # protocol number to name
     protocol_names = {num: name[8:] for name, num in vars(socket).items() if name.startswith("IPPROTO")}
-    df['ip.proto'] = df['ip.proto'].fillna(-1).astype(float).astype(int)
-    df['ip.proto'] = df['ip.proto'].apply(lambda x: protocol_names[x] if (x in protocol_names) else -1)
+    df['ip.proto'] = df['ip.proto'].fillna(-1).astype(int)
+    df['ip.proto'] = df['ip.proto'].apply(lambda x: protocol_names[x] if (x in protocol_names) else None)
 
-    df['ip.ttl'] = df['ip.ttl'].fillna(-1).astype(float).astype(int)
-    df['udp.length'] = df['udp.length'].fillna(-1).astype(float).astype(int)
-    df['ntp.priv.reqcode'] = df['ntp.priv.reqcode'].fillna(-1).astype(float).astype(int)
+    df['ip.ttl'] = df['ip.ttl'].fillna(-1).astype(int)
+    df['udp.length'] = df['udp.length'].fillna(-1).astype(int)
+    df['ntp.priv.reqcode'] = df['ntp.priv.reqcode'].fillna(-1).astype(int)
 
     # timestamp
     try:
