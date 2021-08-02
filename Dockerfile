@@ -9,9 +9,10 @@ WORKDIR /app/nfdump
 RUN ./autogen.sh; ./configure; make; make install
 
 # Install dissector dependencies
-COPY ddos_dissector.py /app
 COPY requirements.txt /app
-WORKDIR /app
-RUN pip install -r requirements.txt
+RUN pip install -r /app/requirements.txt
 
-ENTRYPOINT ["python", "ddos_dissector.py"]
+COPY dissector /app
+WORKDIR /app
+
+ENTRYPOINT ["python", "Dissector.py"]
