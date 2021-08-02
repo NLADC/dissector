@@ -1,3 +1,4 @@
+import signal
 import sys
 import shutil
 import subprocess
@@ -144,9 +145,10 @@ def pcap_to_df(return_value: Queue, filename: str) -> None:
         print("tshark command failed", file=sys.stderr)
         sys.exit(-1)
 
-    data = StringIO(str(cmd_stdout, 'utf-8'))
+    # print(cmd_stdout)
+    data = StringIO(str(cmd_stdout))
 
-    df: pd.DataFrame = pd.read_csv(data, low_memory=False, error_bad_lines=False)
+    df: pd.DataFrame = pd.read_csv(data, low_memory=False)
 
     # src/dst port
     if {'tcp.srcport', 'udp.srcport', 'tcp.dstport', 'udp.dstport'}.issubset(df.columns):
@@ -232,7 +234,8 @@ def determine_file_type(input_file: str) -> Filetype:
     elif file_type == "data" and (b"nfdump" in file_info or b"nfcapd" in file_info):
         return Filetype.FLOW
     else:
-        LOGGER.critical(f"The file [{input_file}] type [{file_type}] is not supported.")
+        LOGGER.error(file_info)
+        LOGGER.warning("Only PCAP or Netflow files are supported.")
         sys.exit(-1)
 
 
@@ -246,14 +249,14 @@ def animated_loading(char_nr: int, msg: str = "loading ") -> None:
     Returns:
         None
     """
-    chars = " ▁▂▃▄▅▆▇▇▇▆▅▄▃▂▁ "
+    chars = " ▁▂▃▄▅▆▇▇▆▅▄▃▂▁"
     char = chars[int(char_nr / 2) % len(chars)]
     sys.stdout.write('\r' + '[' + char + '] ' + msg)
     time.sleep(.05)
     sys.stdout.flush()
 
 
-def load_file(filename: str) -> Tuple[Filetype, Optional[pd.DataFrame]]:
+def load_file(filename: str) -> Tuple[Filetype, pd.DataFrame]:
     """
     Load the given traffic capture file as a pandas DataFrame
     Args:
@@ -269,18 +272,18 @@ def load_file(filename: str) -> Tuple[Filetype, Optional[pd.DataFrame]]:
     elif file_type == Filetype.FLOW:
         loading_function = flow_to_df
     else:
-        LOGGER.critical("Unexpected input filetype! Please provide a PCAP or netflow file.")
+        LOGGER.error("Unexpected input filetype! Please provide a PCAP or Netflow file.")
         sys.exit(-1)
 
-    # Load data as pandas DataFrame
+    # Load data as pandas DataFrame asynchronously
     return_value = Queue()
     process = threading.Thread(name='process', target=loading_function, args=(return_value, filename))
     process.start()
 
     # Show loading animation
+    msg = f"Loading network file: '{filename}'"
+    count = 0
     try:
-        msg = f"Loading network file: '{filename}'"
-        count = 0
         cursor.hide()
         while process.is_alive():
             animated_loading(char_nr=count, msg=msg) if not QUIET else time.sleep(.05)
@@ -289,11 +292,9 @@ def load_file(filename: str) -> Tuple[Filetype, Optional[pd.DataFrame]]:
         process.join()
     except (KeyboardInterrupt, SystemExit):
         cursor.show()
-        ctrl_c_handler()
+        ctrl_c_handler(signal.SIGKILL, None)
 
     df = return_value.get()
 
-    assert type(df) == pd.DataFrame
-
-    sys.stdout.write('\r' + '[' + '\u2713' + '] ' + msg + '\n')  # Checkmark
+    sys.stdout.write('\r' + '[' + '\u2713' + '] ' + msg + '\n')  # Show checkmark in loading animation
     return file_type, df
