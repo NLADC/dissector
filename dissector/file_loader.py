@@ -33,14 +33,19 @@ def prepare_tshark_cmd(filename: str) -> Optional[List[str]]:
     cmd = [tshark, '-r', filename, '-T', 'fields']
 
     # fields included in the csv
-    fields = [
-        'dns.qry.type', 'ip.dst', 'ip.flags.mf', 'tcp.flags', 'ip.proto',
-        'ip.src', '_ws.col.Destination', '_ws.col.Protocol', '_ws.col.Source',
-        'dns.qry.name', 'eth.type', 'frame.len', 'udp.length',
-        'http.request', 'http.response', 'http.user_agent', 'icmp.type',
-        'ip.frag_offset', 'ip.ttl', 'ntp.priv.reqcode', 'tcp.dstport',
-        'tcp.srcport', 'udp.dstport', 'udp.srcport', 'frame.time_epoch',
-    ]
+    fields_eth = ['eth.src']  # MAC address
+    fields_ip = ['ip.dst', 'ip.flags.mf', 'ip.proto', 'ip.src', 'ip.frag_offset', 'ip.ttl']
+    fields_udp = ['udp.dstport', 'udp.srcport', 'udp.length']
+    fields_tcp = ['tcp.flags', 'tcp.dstport', 'tcp.srcport', 'tcp.len']
+    fields_dns = ['dns.qry.name', 'dns.qry.type']
+    fields_columns = ['_ws.col.Destination', '_ws.col.Protocol', '_ws.col.Source']
+    fields_http = ['http.request', 'http.response', 'http.user_agent']
+    fields_icmp = ['icmp.type', 'icmp.code']
+    fields_ntp = ['ntp.priv.reqcode']
+    fields_frame = ['frame.len', 'frame.time_epoch']
+
+    fields: List[str] = [*fields_eth, *fields_ip, *fields_udp, *fields_tcp, *fields_dns, *fields_columns, *fields_http,
+                         *fields_icmp, *fields_ntp, *fields_frame]
 
     for f in fields:
         cmd.append('-e')
@@ -145,9 +150,7 @@ def pcap_to_df(return_value: Queue, filename: str) -> None:
         print("tshark command failed", file=sys.stderr)
         sys.exit(-1)
 
-    # print(cmd_stdout)
-    data = StringIO(str(cmd_stdout))
-
+    data = StringIO(str(cmd_stdout, 'utf-8'))
     df: pd.DataFrame = pd.read_csv(data, low_memory=False)
 
     # src/dst port
@@ -173,6 +176,7 @@ def pcap_to_df(return_value: Queue, filename: str) -> None:
 
     df['ip.ttl'] = df['ip.ttl'].fillna(-1).astype(int)
     df['udp.length'] = df['udp.length'].fillna(-1).astype(int)
+    df['tcp.len'] = df['tcp.len'].fillna(-1).astype(int)
     df['ntp.priv.reqcode'] = df['ntp.priv.reqcode'].fillna(-1).astype(int)
 
     # timestamp
@@ -191,6 +195,9 @@ def pcap_to_df(return_value: Queue, filename: str) -> None:
     df = df.fillna(-1)
     if 'icmp.type' in df.columns:
         df['icmp.type'] = df['icmp.type'].astype(int)
+
+    if 'icmp.code' in df.columns:
+        df['icmp.code'] = df['icmp.code'].astype(int)
 
     if 'dns.qry.type' in df.columns:
         df['dns.qry.type'] = df['dns.qry.type'].astype(int)

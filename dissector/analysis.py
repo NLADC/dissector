@@ -1,13 +1,14 @@
 import sys
 import pandas as pd
 import netaddr
-from typing import Any, List, Tuple
+import requests
+from typing import Any, List, Tuple, Dict
 
 from config import LOGGER
 
 
 # ----------------------------------------------------------------------------------------------------------------------
-def find_outliers(df: pd.DataFrame, field_name: str, fraction_for_outlier: float = 0.8) -> List[Any]:
+def get_outliers(df: pd.DataFrame, field_name: str, fraction_for_outlier: float = 0.8) -> List[Any]:
     """
     Find the outlier value(s) of a particular column in the DataFrame
     Args:
@@ -18,20 +19,19 @@ def find_outliers(df: pd.DataFrame, field_name: str, fraction_for_outlier: float
     Returns:
         List with outlier value(s)
     """
+
     def zscore(x: pd.Series) -> pd.Series:
         """Nr of standard deviations from the mean"""
         return (x - x.mean()) / x.std()
 
+    # TODO: value counts for flows are different (Sample rate)
     fractions = df[field_name].value_counts(normalize=True)  # Series: [Fieldname, Normalized count]
+    if fractions.values[20:].sum() > 0.5:
+        return []
     zscores = zscore(fractions)  # Series: [Fieldname, zscore]
 
-    # Most common value comprises more than fraction_for_outlier of values -> outlier
-    if fractions[0] > fraction_for_outlier:
-        LOGGER.info(f"Outlier in column '{field_name}': {fractions.keys()[0]}")
-        return [fractions.keys()[0]]
-
-    # More than 2.5 STDs above the mean -> outlier
-    outliers = [field for field in zscores.keys() if zscores[field] > 2.5]
+    # More than 2 STDs above the mean or more than 80% of data -> outlier
+    outliers = [field for field in zscores.keys() if zscores[field] > 2 or fractions[field] > fraction_for_outlier]
     if len(outliers) > 0:
         LOGGER.info(f"Outlier(s) in column '{field_name}': {outliers}")
     else:
@@ -49,9 +49,9 @@ def infer_target(df: pd.DataFrame) -> Tuple[str, pd.DataFrame]:
     Returns:
         Target IP as string, DataFrame with homogenized IP addresses if the target is a subnet (first IP in the subnet)
     """
-    targets: List[str] = find_outliers(df, field_name='ip_dst', fraction_for_outlier=0.7)
+    targets: List[str] = get_outliers(df, field_name='ip_dst', fraction_for_outlier=0.7)
     if len(targets) > 0:
-        df.ip_dst.loc[targets] = targets[0]  # Homogenize target IPs
+        df.loc[df.ip_dst.isin(targets), 'ip_dst'] = targets[0]  # Homogenize target IPs
         return targets[0], df
 
     # No outlier foudn: perhaps carpet bombing, look for /24 subnet that fits many target addresses
@@ -75,8 +75,8 @@ def infer_target(df: pd.DataFrame) -> Tuple[str, pd.DataFrame]:
             best_network, fraction_ips_in_network = network, frac
 
     if fraction_ips_in_network > 0.7:
-        LOGGER.info(f"Found an IP subnet that comprises a large part of the target IPs, aggregating the IPs.")
-        df.ip_dst[df.ip_dst.isin([x for x in all_public_ips.keys() if x in best_network])] = str(best_network[0])
+        LOGGER.info(f"Found an IP subnet that comprises a large part of the target IPs, homogenizing the IPs.")
+        df.loc[df.ip_dst.isin([x for x in all_public_ips.keys() if x in best_network]), 'ip_dst'] = str(best_network[0])
         return str(best_network[0]), df
     else:
         LOGGER.error("Could not infer a target IP address from the data.")
@@ -84,5 +84,73 @@ def infer_target(df: pd.DataFrame) -> Tuple[str, pd.DataFrame]:
 
 
 # ----------------------------------------------------------------------------------------------------------------------
-def infer_attack_vectors(df: pd.DataFrame) -> List[Any]:
-    ...
+def infer_attack_vectors(df: pd.DataFrame) -> List[pd.DataFrame]:
+    """
+    Infer the attack vector(s) in the attack described by the given dataframe. One attack verctor per protocol used.
+    Args:
+        df: DataFrame with attack data
+
+    Returns:
+        List of DataFrames, each describing one attack vector.
+    """
+    protocol_outliers = get_outliers(df, field_name='highest_protocol')
+    if len(protocol_outliers) == 0:
+        protocol_outliers = [df.highest_protocol.value_counts().keys()[0]]
+
+    vectors = [df[df.highest_protocol == protocol] for protocol in protocol_outliers]
+
+    return vectors
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+def get_mac_vendors(mac_addresses: pd.Series) -> Dict[str, float]:
+    """
+    Get the most common MAC address vendors (and their contribution to the traffic) of the devices from which
+    traffic is sent.
+    Args:
+        mac_addresses: eth_src column of the attack DataFrame
+
+    Returns:
+        dict: {vendor name: fraction of traffic}
+    """
+    LOGGER.info(f"Looking up and aggregating MAC Address vendors.")
+    prefix_3 = mac_addresses.apply(lambda address: ':'.join(address.split(':')[:3]))
+    fractions = prefix_3.value_counts(normalize=True)
+    vendor_fractions: Dict[str, float] = {}
+    for mac_prefix in fractions.keys()[:50]:
+        try:
+            resp = requests.get(f"https://api.macvendors.com/{mac_prefix}", timeout=4)
+        except requests.RequestException:
+            continue
+        try:
+            resp.raise_for_status()
+        except requests.HTTPError:
+            continue
+        vendor = resp.text
+        if vendor == 'IEEE Registration Authority':  # Unknown or too small MAC prefix
+            continue
+        vendor_fractions[vendor] = vendor_fractions.get(vendor, 0) + fractions[mac_prefix]
+
+    return vendor_fractions
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+def generate_fingerprint(vector: pd.DataFrame) -> dict:
+    """
+    Generate a fingerprint of the given attack vector (DataFrame). The fingerprint contains the outliers of the various
+    fields.
+    Args:
+        vector: The attack vector
+
+    Returns:
+        Fingerprint (dictionary)
+    """
+    ignore_columns = ['ip_src', 'start_timestamp', 'eth_src']
+    fingerprint = {'ip_src': list(vector.ip_src.unique()),
+                   'MAC vendors': get_mac_vendors(vector.eth_src)}
+    for key in vector:
+        if key in ignore_columns:
+            continue
+        if (outlier := get_outliers(vector, key)) not in [[], [-1]]:
+            fingerprint[key] = outlier
+    return fingerprint

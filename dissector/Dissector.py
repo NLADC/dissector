@@ -20,7 +20,7 @@ from config import ctrl_c_handler, LOGGER, CHECK_VERSION, CHECK_DB_STATUS, FILE_
 from ddosdb_interaction import check_ddosdb_availability
 from user_interaction import print_logo
 from file_loader import load_file
-from analysis import infer_target, infer_attack_vectors
+from analysis import infer_target, infer_attack_vectors, generate_fingerprint
 
 __version__: str = "4.0"
 
@@ -28,7 +28,7 @@ __version__: str = "4.0"
 def main():
     # Start up
     print_logo()  # Print Dissector logo
-    signal.signal(signal.SIGINT, ctrl_c_handler)  # Ctrl C handler for async events
+    # signal.signal(signal.SIGINT, ctrl_c_handler)  # Ctrl C handler for async events
 
     # Terminating actions
     if CHECK_VERSION:
@@ -63,9 +63,14 @@ def main():
     # Infer attack target from data. Dataframe might have changed to homogenize the target IP addresses in case of
     # a carpet bombing attack.
     target_ip, df = infer_target(df)
+    # Filter dataframe to only contain traffic sent to the target
+    df = df[df.ip_dst == target_ip]
 
     # Infer attack vector(s)
-    infer_attack_vectors(df)
+    attack_vectors = infer_attack_vectors(df)
+
+    fingerprints = [generate_fingerprint(vector) for vector in attack_vectors]
+    print(fingerprints)
 
 
 if __name__ == '__main__':
