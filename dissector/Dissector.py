@@ -28,7 +28,7 @@ __version__: str = "4.0"
 def main():
     # Start up
     print_logo()  # Print Dissector logo
-    # signal.signal(signal.SIGINT, ctrl_c_handler)  # Ctrl C handler for async events
+    signal.signal(signal.SIGINT, ctrl_c_handler)  # Ctrl C handler for async events
 
     # Terminating actions
     if CHECK_VERSION:

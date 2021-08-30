@@ -1,8 +1,7 @@
 import sys
 import pandas as pd
 import netaddr
-import requests
-from typing import Any, List, Tuple, Dict
+from typing import Any, List, Tuple
 
 from config import LOGGER
 
@@ -27,6 +26,7 @@ def get_outliers(df: pd.DataFrame, field_name: str, fraction_for_outlier: float 
     # TODO: value counts for flows are different (Sample rate)
     fractions = df[field_name].value_counts(normalize=True)  # Series: [Fieldname, Normalized count]
     if fractions.values[20:].sum() > 0.5:
+        LOGGER.debug(f"No outlier found in column '{field_name}'")
         return []
     zscores = zscore(fractions)  # Series: [Fieldname, zscore]
 
@@ -63,12 +63,12 @@ def infer_target(df: pd.DataFrame) -> Tuple[str, pd.DataFrame]:
         except (ValueError, netaddr.core.AddrFormatError):
             return False
 
-    distribution = df.ip_dst.value_count(normalize=True)  # Series: [IP address, prevalence]
+    distribution = df.ip_dst.value_counts(normalize=True)  # Series: [IP address, prevalence]
     best_network, fraction_ips_in_network = None, 0
     all_public_ips: pd.Series = distribution.loc[[x for x in df.ip_dst if is_public_ip(x)]]
 
-    # Check for the (max) 50 most targeted IP addresses the fraction of destination IPs that is in their /24 subnet
-    for target in all_public_ips.keys()[:50]:
+    # Check for the most targeted IP addresses the fraction of destination IPs that is in their /24 subnet
+    for target in all_public_ips.keys()[:10]:
         network = netaddr.IPNetwork(f'{target}/24')  # /24 subnet of target IP
         frac = all_public_ips.loc[[x for x in all_public_ips.keys() if x in network]].sum()
         if frac > fraction_ips_in_network:
@@ -103,35 +103,35 @@ def infer_attack_vectors(df: pd.DataFrame) -> List[pd.DataFrame]:
 
 
 # ----------------------------------------------------------------------------------------------------------------------
-def get_mac_vendors(mac_addresses: pd.Series) -> Dict[str, float]:
-    """
-    Get the most common MAC address vendors (and their contribution to the traffic) of the devices from which
-    traffic is sent.
-    Args:
-        mac_addresses: eth_src column of the attack DataFrame
-
-    Returns:
-        dict: {vendor name: fraction of traffic}
-    """
-    LOGGER.info(f"Looking up and aggregating MAC Address vendors.")
-    prefix_3 = mac_addresses.apply(lambda address: ':'.join(address.split(':')[:3]))
-    fractions = prefix_3.value_counts(normalize=True)
-    vendor_fractions: Dict[str, float] = {}
-    for mac_prefix in fractions.keys()[:50]:
-        try:
-            resp = requests.get(f"https://api.macvendors.com/{mac_prefix}", timeout=4)
-        except requests.RequestException:
-            continue
-        try:
-            resp.raise_for_status()
-        except requests.HTTPError:
-            continue
-        vendor = resp.text
-        if vendor == 'IEEE Registration Authority':  # Unknown or too small MAC prefix
-            continue
-        vendor_fractions[vendor] = vendor_fractions.get(vendor, 0) + fractions[mac_prefix]
-
-    return vendor_fractions
+# def get_mac_vendors(mac_addresses: pd.Series) -> Dict[str, float]:
+#     """
+#     This appears to not be very useful, since routers alter the source MAC address when forwarding the packet.
+#     Get the most common MAC address vendors (and their contribution to the traffic) from the Ethernet frames
+#     Args:
+#         mac_addresses: eth_src column of the attack DataFrame
+#
+#     Returns:
+#         dict: {vendor name: fraction of traffic}
+#     """
+#     LOGGER.info(f"Looking up and aggregating MAC Address vendors.")
+#     prefix_3 = mac_addresses.apply(lambda address: ':'.join(address.split(':')[:3]))
+#     fractions = prefix_3.value_counts(normalize=True)
+#     vendor_fractions: Dict[str, float] = {}
+#     for mac_prefix in fractions.keys()[:50]:
+#         try:
+#             resp = requests.get(f"https://api.macvendors.com/{mac_prefix}", timeout=4)
+#         except requests.RequestException:
+#             continue
+#         try:
+#             resp.raise_for_status()
+#         except requests.HTTPError:
+#             continue
+#         vendor = resp.text
+#         if vendor == 'IEEE Registration Authority':  # Unknown or too small MAC prefix
+#             continue
+#         vendor_fractions[vendor] = vendor_fractions.get(vendor, 0) + fractions[mac_prefix]
+#
+#     return vendor_fractions
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -147,10 +147,10 @@ def generate_fingerprint(vector: pd.DataFrame) -> dict:
     """
     ignore_columns = ['ip_src', 'start_timestamp', 'eth_src']
     fingerprint = {'ip_src': list(vector.ip_src.unique()),
-                   'MAC vendors': get_mac_vendors(vector.eth_src)}
+                   'nr_packets': len(vector)}
     for key in vector:
         if key in ignore_columns:
             continue
-        if (outlier := get_outliers(vector, key)) not in [[], [-1]]:
+        if (outlier := get_outliers(vector, key)) not in ([], [-1]):
             fingerprint[key] = outlier
     return fingerprint

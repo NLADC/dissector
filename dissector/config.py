@@ -46,6 +46,6 @@ def ctrl_c_handler(signum: int, stack_frame) -> None:
     Handler for KeyboardInterruptException for async events
     """
     sys.stdout.flush()
-    print('\nCtrl+C detected.')
     cursor.show()
+    LOGGER.debug(f"Signal {signum} received, stack frame: {stack_frame}. Exiting.")
     sys.exit(0)
