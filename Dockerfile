@@ -12,7 +12,7 @@ RUN ./autogen.sh; ./configure; make; make install
 COPY requirements.txt /app
 RUN pip install -r /app/requirements.txt
 
-COPY dissector /app
+COPY . /app
 WORKDIR /app
 
-ENTRYPOINT ["python", "Dissector.py"]
+ENTRYPOINT ["python", "./dissector/Dissector.py"]

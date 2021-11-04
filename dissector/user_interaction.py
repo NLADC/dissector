@@ -51,3 +51,12 @@ def get_argument_parser() -> ArgumentParser:
     #                     action="store_true")
 
     return parser
+
+
+def show_preview_fingerprint(fingerprint: dict) -> None:
+    # TODO print nice colorful json
+    print(f"\nFingerprint preview:")
+    for key, value in fingerprint.items():
+        if key == 'ip_src':
+            value = 'ommitted in preview'
+        print(f"{key}: {value}")

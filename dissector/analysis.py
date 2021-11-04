@@ -1,13 +1,13 @@
 import sys
 import pandas as pd
 import netaddr
-from typing import Any, List, Tuple
+from typing import List, Tuple
 
 from config import LOGGER
 
 
 # ----------------------------------------------------------------------------------------------------------------------
-def get_outliers(df: pd.DataFrame, field_name: str, fraction_for_outlier: float = 0.8) -> List[Any]:
+def get_outliers(df: pd.DataFrame, field_name: str, fraction_for_outlier: float = 0.8) -> list:
     """
     Find the outlier value(s) of a particular column in the DataFrame
     Args:
@@ -25,13 +25,13 @@ def get_outliers(df: pd.DataFrame, field_name: str, fraction_for_outlier: float 
 
     # TODO: value counts for flows are different (Sample rate)
     fractions = df[field_name].value_counts(normalize=True)  # Series: [Fieldname, Normalized count]
-    if fractions.values[20:].sum() > 0.5:
+    if fractions.values[10:].sum() > 0.5:
         LOGGER.debug(f"No outlier found in column '{field_name}'")
         return []
-    zscores = zscore(fractions)  # Series: [Fieldname, zscore]
 
+    zscores = zscore(fractions)  # Series: [Fieldname, zscore]
     # More than 2 STDs above the mean or more than 80% of data -> outlier
-    outliers = [field for field in zscores.keys() if zscores[field] > 2 or fractions[field] > fraction_for_outlier]
+    outliers = [key for key in zscores.keys() if zscores[key] > 2 or fractions[key] > fraction_for_outlier]
     if len(outliers) > 0:
         LOGGER.info(f"Outlier(s) in column '{field_name}': {outliers}")
     else:
@@ -54,7 +54,7 @@ def infer_target(df: pd.DataFrame) -> Tuple[str, pd.DataFrame]:
         df.loc[df.ip_dst.isin(targets), 'ip_dst'] = targets[0]  # Homogenize target IPs
         return targets[0], df
 
-    # No outlier foudn: perhaps carpet bombing, look for /24 subnet that fits many target addresses
+    # No outlier found: perhaps carpet bombing, look for /24 subnet that fits many target addresses
     def is_public_ip(ip_str: str) -> bool:
         """Helper function returns True if the input IP address is public"""
         try:
@@ -76,7 +76,8 @@ def infer_target(df: pd.DataFrame) -> Tuple[str, pd.DataFrame]:
 
     if fraction_ips_in_network > 0.7:
         LOGGER.info(f"Found an IP subnet that comprises a large part of the target IPs, homogenizing the IPs.")
-        df.loc[df.ip_dst.isin([x for x in all_public_ips.keys() if x in best_network]), 'ip_dst'] = str(best_network[0])
+        ips_in_subnet = [ip for ip in all_public_ips.keys() if ip in best_network]
+        df.loc[df.ip_dst.isin(ips_in_subnet), 'ip_dst'] = str(best_network[0])
         return str(best_network[0]), df
     else:
         LOGGER.error("Could not infer a target IP address from the data.")
@@ -94,10 +95,13 @@ def infer_attack_vectors(df: pd.DataFrame) -> List[pd.DataFrame]:
         List of DataFrames, each describing one attack vector.
     """
     protocol_outliers = get_outliers(df, field_name='highest_protocol')
-    if len(protocol_outliers) == 0:
-        protocol_outliers = [df.highest_protocol.value_counts().keys()[0]]
 
     vectors = [df[df.highest_protocol == protocol] for protocol in protocol_outliers]
+
+    # IPv4 or IPv6 as highest protocol usually denotes a fragmentation attack. Fragmented packets are raw IP packets
+    # without other headers. The following looks at the remaining packets to determine the vector with packet headers.
+    if len(protocol_outliers) == 1 and protocol_outliers[0].lower() in ['ipv4', 'ipv6']:
+        vectors.extend(infer_attack_vectors(df[~df.highest_protocol.isin(['IPv4', 'IPv6'])]))
 
     return vectors
 
@@ -151,6 +155,7 @@ def generate_fingerprint(vector: pd.DataFrame) -> dict:
     for key in vector:
         if key in ignore_columns:
             continue
-        if (outlier := get_outliers(vector, key)) not in ([], [-1]):
-            fingerprint[key] = outlier
+        if (outliers := get_outliers(vector, key)) not in ([], [-1]):
+            LOGGER.debug(f"Found outlier for {key}, adding to fingerprint.")
+            fingerprint[key] = outliers
     return fingerprint

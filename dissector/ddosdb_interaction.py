@@ -2,6 +2,7 @@ import os
 import sys
 import configparser
 import requests
+import urllib3
 from typing import Optional
 
 from config import LOGGER, DB_CONF_FILE, NOVERIFY
@@ -38,9 +39,9 @@ def check_ddosdb_availability() -> None:
     if CONFIG is None:
         LOGGER.critical(f"Could not load config file '{DB_CONF_FILE}'. Is the path correct?")
 
-    LOGGER.info("Checking DDoSDB instances")
+    LOGGER.info("Checking DDoSDB instance availability")
     for section in CONFIG.sections():
-        print(f"[{section}]:")
+        LOGGER.info(f"[{section}]:")
         try:
             host = CONFIG[section]['host']
             user = CONFIG[section]['user']
@@ -53,9 +54,61 @@ def check_ddosdb_availability() -> None:
                 "X-Username": user,
                 "X-Password": passwd,
             }
-            resp = requests.get(host, headers=headers, verify=not NOVERIFY)  # TODO: how to check access?
+            # TODO: how to check access?
+            resp = requests.get(host + '/my-permissions', headers=headers, verify=not NOVERIFY)
             try:
                 resp.raise_for_status()
-                print("Available!")
+                LOGGER.info("Available!")
             except requests.HTTPError:
-                print(f"{host} is not available.")
+                LOGGER.info(f'{host} is not available: {resp.status_code}, "{resp.text}"')
+
+
+def upload(fingerprint_filename: os.PathLike, user: str, passw: str, host: str, key: str) -> int:
+    """
+    Upload a fingerprint to DDoSDB
+    :param fingerprint_filename: path to fingerprint generated file
+    :param user: DDoSDB username
+    :param passw: DDoSDB password
+    :param host: ddosdb instance url
+    :param key: fingerprint identifier
+    :return: status_code describing HTTP code received
+    """
+
+    if not os.path.isfile(fingerprint_filename):
+        LOGGER.critical("Could not read the fingerprint json file {}".format(fingerprint_filename))
+
+    files = {
+        "json": open(fingerprint_filename, "rb"),
+    }
+
+    # build headers for repo fingerprint submission
+    headers = {
+        "X-Username": user,
+        "X-Password": passw,
+        "X-Filename": key
+    }
+
+    try:
+        urllib3.disable_warnings()
+        r = requests.post(host + "upload-file", files=files, headers=headers, verify=not NOVERIFY)
+    except requests.exceptions.SSLError as e:
+        LOGGER.critical("SSL Certificate verification of the server {} failed".format(host))
+        LOGGER.info("If you trust {} re-run with --noverify / -n flag to disable certificate verification".format(host))
+        LOGGER.debug("Cannot connect to the server to upload fingerprint: {}".format(e))
+        return 500
+
+    except requests.exceptions.RequestException as e:
+        LOGGER.critical("Cannot connect to the server to upload fingerprint")
+        LOGGER.debug("Cannot connect to the server to upload fingerprint: {}".format(e))
+        LOGGER.info(e)
+        return 500
+
+    if r.status_code == 403:
+        LOGGER.info("Invalid credentials or no permission to upload fingerprints:")
+    elif r.status_code == 201:
+        LOGGER.info("Upload success: \n\tHTTP CODE [{}] \n\tFingerprint ID [{}]".format(r.status_code, key))
+        LOGGER.info("\tURL: {}query?q={}".format(host, key))
+    else:
+        LOGGER.info("Internal Server Error. Check repository Django logs.")
+        LOGGER.info("Error Code: {}".format(r.status_code))
+    return r.status_code

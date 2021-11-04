@@ -4,13 +4,12 @@ import cursor
 from logging import Logger
 from argparse import Namespace
 from typing import List, Optional
-import signal
 
 from logger import get_logger
 from user_interaction import get_argument_parser
 
 __all__ = ['FILE_NAMES', 'VERBOSE', 'QUIET', 'DEBUG', 'NOVERIFY', 'DB_CONF_FILE', 'CHECK_VERSION', 'CHECK_DB_STATUS',
-           'SHOW_SUMMARY', 'LOGGER',  'Filetype', 'ctrl_c_handler']
+           'SHOW_SUMMARY', 'LOGGER', 'Filetype', 'ctrl_c_handler']
 
 # INFO: Code in this file's body is only executed when the file is imported for the first time, in Dissector.py
 

@@ -18,15 +18,14 @@ import pandas as pd
 # Local imports
 from config import ctrl_c_handler, LOGGER, CHECK_VERSION, CHECK_DB_STATUS, FILE_NAMES
 from ddosdb_interaction import check_ddosdb_availability
-from user_interaction import print_logo
 from file_loader import load_file
 from analysis import infer_target, infer_attack_vectors, generate_fingerprint
+from user_interaction import show_preview_fingerprint, print_logo
 
 __version__: str = "4.0"
 
 
 def main():
-    # Start up
     print_logo()  # Print Dissector logo
     signal.signal(signal.SIGINT, ctrl_c_handler)  # Ctrl C handler for async events
 
@@ -70,7 +69,8 @@ def main():
     attack_vectors = infer_attack_vectors(df)
 
     fingerprints = [generate_fingerprint(vector) for vector in attack_vectors]
-    print(fingerprints)
+    for fingerprint in fingerprints:
+        show_preview_fingerprint(fingerprint)
 
 
 if __name__ == '__main__':
