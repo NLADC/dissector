@@ -1,4 +1,9 @@
+import json
+import sys
 from argparse import ArgumentParser, RawTextHelpFormatter
+from pygments import highlight
+from pygments.formatters.terminal import TerminalFormatter
+from pygments.lexers.data import JsonLexer
 
 
 def print_logo() -> None:
@@ -53,10 +58,20 @@ def get_argument_parser() -> ArgumentParser:
     return parser
 
 
-def show_preview_fingerprint(fingerprint: dict) -> None:
-    # TODO print nice colorful json
-    print(f"\nFingerprint preview:")
-    for key, value in fingerprint.items():
-        if key == 'ip_src':
-            value = 'ommitted in preview'
-        print(f"{key}: {value}")
+def print_fingerprint(fingerprint):
+    """
+    Print a summarized version of the fingerprint generated using
+    the highlight module.
+    """
+
+    attack_vectors_array = fingerprint["attack_vector"]
+
+    anon_attack_vector = []
+    for vector in attack_vectors_array:
+        vector.update({"src_ips": "ommited"})
+        anon_attack_vector.append(vector)
+
+    fingerprint["attack_vector"] = anon_attack_vector
+    json_str = json.dumps(fingerprint, indent=4, sort_keys=True)
+    sys.stdout.write('\r[\u2713] Generated fingerprint preview\n')
+    print(highlight(json_str, JsonLexer(), TerminalFormatter()))

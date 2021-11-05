@@ -141,8 +141,8 @@ def infer_attack_vectors(df: pd.DataFrame) -> List[pd.DataFrame]:
 # ----------------------------------------------------------------------------------------------------------------------
 def generate_fingerprint(vector: pd.DataFrame) -> dict:
     """
-    Generate a fingerprint of the given attack vector (DataFrame). The fingerprint contains the outliers of the various
-    fields.
+    Generate a fingerprint of the given attack vector (DataFrame).
+    The fingerprint contains the outliers of the various fields.
     Args:
         vector: The attack vector
 

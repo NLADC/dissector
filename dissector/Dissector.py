@@ -20,7 +20,7 @@ from config import ctrl_c_handler, LOGGER, CHECK_VERSION, CHECK_DB_STATUS, FILE_
 from ddosdb_interaction import check_ddosdb_availability
 from file_loader import load_file
 from analysis import infer_target, infer_attack_vectors, generate_fingerprint
-from user_interaction import show_preview_fingerprint, print_logo
+from user_interaction import print_fingerprint, print_logo
 
 __version__: str = "4.0"
 
@@ -70,7 +70,7 @@ def main():
 
     fingerprints = [generate_fingerprint(vector) for vector in attack_vectors]
     for fingerprint in fingerprints:
-        show_preview_fingerprint(fingerprint)
+        print_fingerprint(fingerprint)
 
 
 if __name__ == '__main__':
