@@ -10,17 +10,18 @@
 # Maintained by
 # Thijs van den Hout (SIDN) - thijs.vandenhout@sidn.nl
 ###############################################################################
-
+import hashlib
 import sys
 import signal
 import pandas as pd
+from pathlib import Path
 
 # Local imports
-from config import ctrl_c_handler, LOGGER, CHECK_VERSION, CHECK_DB_STATUS, FILE_NAMES
+from config import ctrl_c_handler, LOGGER, CHECK_VERSION, CHECK_DB_STATUS, FILE_NAMES, FINGERPRINT_DIR
 from ddosdb_interaction import check_ddosdb_availability
 from file_loader import load_file
-from analysis import infer_target, infer_attack_vectors, generate_fingerprint
-from user_interaction import print_fingerprint, print_logo
+from analysis import infer_target, infer_attack_vectors, generate_vector_fingerprint, generate_fingerprint
+from user_interaction import print_logo, print_fingerprint, save_fingerprint
 
 __version__: str = "4.0"
 
@@ -43,7 +44,7 @@ def main():
         LOGGER.error("No network traffic capture files provided. Provide them with -f <filename(s)>.")
         sys.exit(-1)
 
-    global df  # FIXME this is here for debugging purposes only
+    # global df  # FIXME this is here for debugging purposes only
     df = pd.DataFrame()
     filetype = None
 
@@ -67,10 +68,13 @@ def main():
 
     # Infer attack vector(s)
     attack_vectors = infer_attack_vectors(df)
+    df_filtered = pd.concat(attack_vectors)
 
-    fingerprints = [generate_fingerprint(vector) for vector in attack_vectors]
-    for fingerprint in fingerprints:
-        print_fingerprint(fingerprint)
+    vector_fingerprints = [generate_vector_fingerprint(vector) for vector in attack_vectors]
+    fingerprint = generate_fingerprint(df_filtered, vector_fingerprints)
+
+    print_fingerprint(fingerprint)
+    save_fingerprint(Path(FINGERPRINT_DIR) / (fingerprint['ddos_attack_key'][:15] + '.json'), fingerprint)
 
 
 if __name__ == '__main__':

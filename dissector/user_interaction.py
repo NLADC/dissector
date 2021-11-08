@@ -1,5 +1,6 @@
 import json
 import sys
+from os import PathLike
 from argparse import ArgumentParser, RawTextHelpFormatter
 from pygments import highlight
 from pygments.formatters.terminal import TerminalFormatter
@@ -68,10 +69,23 @@ def print_fingerprint(fingerprint):
 
     anon_attack_vector = []
     for vector in attack_vectors_array:
-        vector.update({"src_ips": "ommited"})
+        vector.update({"ip_src": "ommited in preview"})
         anon_attack_vector.append(vector)
 
     fingerprint["attack_vector"] = anon_attack_vector
     json_str = json.dumps(fingerprint, indent=4, sort_keys=True)
     sys.stdout.write('\r[\u2713] Generated fingerprint preview\n')
     print(highlight(json_str, JsonLexer(), TerminalFormatter()))
+
+
+def save_fingerprint(location: PathLike, fingerprint: dict) -> None:
+    """
+    Save fingerprint to JSON file
+    Args:
+        location: file location
+        fingerprint: fingerprint dict
+
+    Returns: None
+    """
+    with open(location, 'w') as file:
+        json.dump(fingerprint, file)

@@ -1,6 +1,9 @@
+import hashlib
+from datetime import datetime
 import sys
 import pandas as pd
 import netaddr
+import copy
 from typing import List, Tuple
 
 from config import LOGGER
@@ -139,7 +142,7 @@ def infer_attack_vectors(df: pd.DataFrame) -> List[pd.DataFrame]:
 
 
 # ----------------------------------------------------------------------------------------------------------------------
-def generate_fingerprint(vector: pd.DataFrame) -> dict:
+def generate_vector_fingerprint(vector: pd.DataFrame) -> dict:
     """
     Generate a fingerprint of the given attack vector (DataFrame).
     The fingerprint contains the outliers of the various fields.
@@ -147,7 +150,7 @@ def generate_fingerprint(vector: pd.DataFrame) -> dict:
         vector: The attack vector
 
     Returns:
-        Fingerprint (dictionary)
+        fingerprint for vector (dictionary)
     """
     ignore_columns = ['ip_src', 'start_timestamp', 'eth_src']
     fingerprint = {'ip_src': list(vector.ip_src.unique()),
@@ -158,4 +161,45 @@ def generate_fingerprint(vector: pd.DataFrame) -> dict:
         if (outliers := get_outliers(vector, key)) not in ([], [-1]):
             LOGGER.debug(f"Found outlier for {key}, adding to fingerprint.")
             fingerprint[key] = outliers
+    return fingerprint
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+def generate_fingerprint(df_filtered: pd.DataFrame, vector_fingerprints: List[dict]) -> dict:
+    """
+    Combines the attack vectors into one DDoS fingerprint
+    Args:
+        df_filtered: The dataframe filtered by matching fingerprints
+        vector_fingerprints: The attack vectors
+
+    Returns:
+        Combined fingerprint (dictionary)
+    """
+    fingerprint = {}
+    vectors = []
+    # TODO keep ips in saved fingerprint
+    # add one_line_fingerprint (summary) to each attack_vector fingerprint
+    for attack_vector in vector_fingerprints:
+        attack_vector_anon = copy.deepcopy(attack_vector)
+        del attack_vector_anon['ip_src']
+        # del attack_vector_anon['attack_vector_key']
+        one_line_fingerprint = str(attack_vector_anon).translate(str.maketrans("", "", "[]"))
+        attack_vector.update({"one_line_fingerprint": one_line_fingerprint})
+        vectors.append(attack_vector)
+
+    # Attack vectors
+    fingerprint['attack_vector'] = vectors
+
+    # timestamp fields
+    initial_timestamp = df_filtered['frame_time_epoch'].min()
+    initial_timestamp = datetime.utcfromtimestamp(initial_timestamp).strftime('%Y-%m-%d %H:%M:%S')
+    fingerprint.update({"start_time": initial_timestamp})
+    duration_sec = df_filtered['frame_time_epoch'].max() - df_filtered['frame_time_epoch'].min()
+    duration_sec = '{:.2}'.format(duration_sec)
+    fingerprint.update({"duration_sec": float(duration_sec)})
+    fingerprint.update({"total_dst_ports": len(df_filtered['dstport'].unique().tolist())})
+
+    digest = hashlib.sha256(str(fingerprint).encode()).hexdigest()
+    fingerprint['ddos_attack_key'] = digest
+
     return fingerprint
