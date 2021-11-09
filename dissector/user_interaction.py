@@ -1,5 +1,6 @@
 import json
 import sys
+import copy
 from os import PathLike
 from argparse import ArgumentParser, RawTextHelpFormatter
 from pygments import highlight
@@ -69,8 +70,9 @@ def print_fingerprint(fingerprint):
 
     anon_attack_vector = []
     for vector in attack_vectors_array:
-        vector.update({"ip_src": "ommited in preview"})
-        anon_attack_vector.append(vector)
+        attack_vector_anon = copy.deepcopy(vector)
+        attack_vector_anon.update({"ip_src": "ommited in preview"})
+        anon_attack_vector.append(attack_vector_anon)
 
     fingerprint["attack_vector"] = anon_attack_vector
     json_str = json.dumps(fingerprint, indent=4, sort_keys=True)

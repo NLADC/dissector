@@ -44,7 +44,7 @@ def main():
         LOGGER.error("No network traffic capture files provided. Provide them with -f <filename(s)>.")
         sys.exit(-1)
 
-    # global df  # FIXME this is here for debugging purposes only
+    global df  # FIXME this is here for debugging purposes only
     df = pd.DataFrame()
     filetype = None
 
@@ -73,8 +73,8 @@ def main():
     vector_fingerprints = [generate_vector_fingerprint(vector) for vector in attack_vectors]
     fingerprint = generate_fingerprint(df_filtered, vector_fingerprints)
 
-    print_fingerprint(fingerprint)
     save_fingerprint(Path(FINGERPRINT_DIR) / (fingerprint['ddos_attack_key'][:15] + '.json'), fingerprint)
+    print_fingerprint(fingerprint)
 
 
 if __name__ == '__main__':
