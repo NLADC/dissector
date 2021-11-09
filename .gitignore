@@ -16,3 +16,4 @@ venv/
 fingerprints/
 *.log
 *.conf
+*.pcap
