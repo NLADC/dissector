@@ -51,6 +51,7 @@ def get_argument_parser() -> ArgumentParser:
     parser.add_argument("-n", "--noverify",
                         help="disable verification of the host certificate (for self-signed certificates)",
                         action="store_true")
+    parser.add_argument("-r", "--sampling-rate", help="Sampling rate of Flow capture file (1 in ?)", type=int)
     # parser.add_argument("-g", "--graph",  # FIXME
     #                     help="build dot file (graphviz). It can be used to plot a visual representation\n of the "
     #                          "attack using the tool graphviz. When this option is set, youn will\n received "

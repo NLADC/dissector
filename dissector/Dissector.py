@@ -17,7 +17,8 @@ import pandas as pd
 from pathlib import Path
 
 # Local imports
-from config import ctrl_c_handler, LOGGER, CHECK_VERSION, CHECK_DB_STATUS, FILE_NAMES, FINGERPRINT_DIR
+from config import ctrl_c_handler, LOGGER, CHECK_VERSION, CHECK_DB_STATUS, FILE_NAMES, FINGERPRINT_DIR, Filetype, \
+    SAMPLING_RATE
 from ddosdb_interaction import check_ddosdb_availability
 from file_loader import load_file
 from analysis import infer_target, infer_attack_vectors, generate_vector_fingerprint, generate_fingerprint
@@ -55,6 +56,11 @@ def main():
             sys.exit(-1)
         filetype = filetype_
         df = pd.concat([df, df_])  # Combine DataFrames of multiple input files
+
+    if filetype == Filetype.FLOW and (SAMPLING_RATE is None or not isinstance(SAMPLING_RATE, int)):
+        LOGGER.error("When using Flow files, please provide the sampling rate (1 in ?) of the capture file with the -r "
+                     "flag (e.g. -r 128)")
+        sys.exit(-1)
 
     if len(df) == 0:
         LOGGER.error("Traffic files were read, but no data was found.")

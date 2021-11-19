@@ -81,9 +81,11 @@ def flow_to_df(ret: Queue, filename: str) -> None:
         cmd_stdout = check_output(cmd, stderr=subprocess.DEVNULL)
     except CalledProcessError as e:
         print("nfdump command failed", file=sys.stderr)
+        ret.put(None)
         sys.exit(e)
 
     if not cmd_stdout:
+        ret.put(None)
         sys.exit()
 
     data = StringIO(str(cmd_stdout, 'utf-8'))
@@ -91,11 +93,11 @@ def flow_to_df(ret: Queue, filename: str) -> None:
     df: pd.DataFrame = pd.read_json(data).fillna(-1)
 
     # Filter relevant columns
-    df = df[['t_first', 't_last', 'proto', 'src4_addr', 'dst4_addr',
-             'src_port', 'dst_port', 'fwd_status', 'tcp_flags',
-             'src_tos', 'in_packets', 'in_bytes', 'icmp_type',
-             'icmp_code',
-             ]]
+    df = df[df.columns.intersection(['t_first', 't_last', 'proto', 'src4_addr', 'dst4_addr',
+                                     'src_port', 'dst_port', 'fwd_status', 'tcp_flags',
+                                     'src_tos', 'in_packets', 'in_bytes', 'icmp_type',
+                                     'icmp_code',
+                                     ])]
     df = df.rename(columns={'dst4_addr': 'ip_dst',
                             'src4_addr': 'ip_src',
                             'src_port': 'srcport',
@@ -234,15 +236,15 @@ def determine_file_type(input_file: str) -> Filetype:
         sys.exit(-1)
 
     file_info, error = subprocess.Popen([file_, input_file], stdout=subprocess.PIPE).communicate()
-    file_type = file_info.decode("utf-8").split()[1]
+    file_type = file_info.decode("utf-8").split(': ')[1].split()[0]
 
     if file_type in ["tcpdump", "pcap", "pcapng", "pcap-ng"]:
         return Filetype.PCAP
-    elif file_type == "data" and (b"nfdump" in file_info or b"nfcapd" in file_info):
+    elif b"nfdump" in file_info or b"nfcapd" in file_info:
         return Filetype.FLOW
     else:
-        LOGGER.error(file_info)
-        LOGGER.warning("Only PCAP or Netflow files are supported.")
+        LOGGER.error(f"{file_type} --- {file_info}")
+        LOGGER.error("Only PCAP or Flow files are supported.")
         sys.exit(-1)
 
 

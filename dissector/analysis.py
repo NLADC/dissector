@@ -6,7 +6,7 @@ import netaddr
 import copy
 from typing import List, Tuple
 
-from config import LOGGER
+from config import LOGGER, SAMPLING_RATE
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -28,9 +28,6 @@ def get_outliers(df: pd.DataFrame, field_name: str, fraction_for_outlier: float 
 
     # TODO: value counts for flows are different (Sample rate)
     fractions = df[field_name].value_counts(normalize=True)  # Series: [Fieldname, Normalized count]
-    if fractions.values[10:].sum() > 0.5:
-        LOGGER.debug(f"No outlier found in column '{field_name}'")
-        return []
 
     zscores = zscore(fractions)  # Series: [Fieldname, zscore]
     # More than 2 STDs above the mean or more than 80% of data -> outlier

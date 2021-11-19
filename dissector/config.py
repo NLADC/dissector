@@ -10,7 +10,7 @@ from logger import get_logger
 from user_interaction import get_argument_parser
 
 __all__ = ['FILE_NAMES', 'VERBOSE', 'QUIET', 'DEBUG', 'NOVERIFY', 'DB_CONF_FILE', 'CHECK_VERSION', 'CHECK_DB_STATUS',
-           'SHOW_SUMMARY', 'FINGERPRINT_DIR', 'LOGGER', 'Filetype', 'ctrl_c_handler']
+           'SHOW_SUMMARY', 'FINGERPRINT_DIR', 'SAMPLING_RATE', 'LOGGER', 'Filetype', 'ctrl_c_handler']
 
 # INFO: Code in this file's body is only executed when the file is imported for the first time, in Dissector.py
 
@@ -28,6 +28,7 @@ CHECK_VERSION: bool = args.version
 CHECK_DB_STATUS: bool = args.dbstatus
 SHOW_SUMMARY: bool = args.summary
 FINGERPRINT_DIR: PathLike = args.fingerprint_dir
+SAMPLING_RATE: int = args.sampling_rate
 DB_HOST: str = args.host
 DB_USER: str = args.user
 DB_pass: str = args.passwd

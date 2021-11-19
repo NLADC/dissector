@@ -348,11 +348,11 @@ def flow_to_df(ret, filename):
     data = StringIO(data)
 
     df = pd.read_json(data).fillna(NONE)
-    df = df[['t_first', 't_last', 'proto', 'src4_addr', 'dst4_addr',
-             'src_port', 'dst_port', 'fwd_status', 'tcp_flags',
-             'src_tos', 'in_packets', 'in_bytes', 'icmp_type',
-             'icmp_code',
-             ]]
+    df = df[df.columns.intersection(['t_first', 't_last', 'proto', 'src4_addr', 'dst4_addr',
+                                     'src_port', 'dst_port', 'fwd_status', 'tcp_flags',
+                                     'src_tos', 'in_packets', 'in_bytes', 'icmp_type',
+                                     'icmp_code',
+                                     ])]
     df = df.rename(columns={'dst4_addr': 'ip_dst',
                             'src4_addr': 'ip_src',
                             'src_port': 'srcport',
@@ -788,7 +788,7 @@ def determine_file_type(input_file):
         return NONE
 
     file_info, error = subprocess.Popen([file_, input_file], stdout=subprocess.PIPE).communicate()
-    file_type = file_info.decode("utf-8").split()[1]
+    file_type = file_info.decode("utf-8").split(': ')[1].split()[0]
 
     if file_type == "tcpdump":
         return "pcap"
@@ -796,7 +796,7 @@ def determine_file_type(input_file):
         return "pcap"
     elif file_type == "pcap-ng" or file_type == "pcapng":
         return "pcapng"
-    elif file_type == "data" and (b"nfdump" in file_info or b"nfcapd" in file_info):
+    elif b"nfdump" in file_info or b"nfcapd" in file_info:
         return "nfdump"
     else:
         LOGGER.critical("The file [{}] type [{}] is not supported.".format(input_file, file_type))
