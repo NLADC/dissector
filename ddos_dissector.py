@@ -1372,7 +1372,6 @@ def add_label(fingerprints, df):
                     for port in udp_service:
                         if fingerprint['srcport'] == [port]:
                             label.append("AMPLIFICATION")
-                            label.append("RDDoS")
                             label.append(udp_service[port])
 
         # Frag attack
