@@ -23,6 +23,7 @@ from ddosdb_interaction import check_ddosdb_availability
 from file_loader import load_file
 from analysis import infer_target, infer_attack_vectors, generate_vector_fingerprint, generate_fingerprint
 from user_interaction import print_logo, print_fingerprint, save_fingerprint
+from fingerprint import Fingerprint, AttackVector
 
 __version__: str = "4.0"
 
@@ -55,7 +56,8 @@ def main():
             LOGGER.error("Please provide only traffic capture files of the same file type (PCAP or flows)")
             sys.exit(-1)
         filetype = filetype_
-        df = pd.concat([df, df_])  # Combine DataFrames of multiple input files
+        if len(df_) > 0:
+            df = pd.concat([df, df_])  # Combine DataFrames of multiple input files
 
     if filetype == Filetype.FLOW and (SAMPLING_RATE is None or not isinstance(SAMPLING_RATE, int)):
         LOGGER.error("When using Flow files, please provide the sampling rate (1 in ?) of the capture file with the -r "
@@ -71,6 +73,8 @@ def main():
     target_ip, df = infer_target(df)
     # Filter dataframe to only contain traffic sent to the target
     df = df[df.ip_dst == target_ip]
+
+    fingerprint = Fingerprint(filetype, df)
 
     # Infer attack vector(s)
     attack_vectors = infer_attack_vectors(df)

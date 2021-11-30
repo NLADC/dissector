@@ -43,9 +43,10 @@ def prepare_tshark_cmd(filename: str) -> Optional[List[str]]:
     fields_icmp = ['icmp.type', 'icmp.code']
     fields_ntp = ['ntp.priv.reqcode']
     fields_frame = ['frame.len', 'frame.time_epoch']
+    fields_ldap = ['ldap.name', 'ldap.requestName']
 
     fields: List[str] = [*fields_eth, *fields_ip, *fields_udp, *fields_tcp, *fields_dns, *fields_columns, *fields_http,
-                         *fields_icmp, *fields_ntp, *fields_frame]
+                         *fields_icmp, *fields_ntp, *fields_frame, *fields_ldap]
 
     for f in fields:
         cmd.append('-e')
@@ -67,13 +68,14 @@ def flow_to_df(ret: Queue, filename: str) -> None:
         filename: filename
 
     Returns:
-        None, return value is stored in ret
+        None, return value is stored in ret (Queue)
     """
     nfdump = shutil.which("nfdump")
 
     if not nfdump:
         LOGGER.error("NFDUMP software not found. It should be on the path.")
         ret.put(None)
+        sys.exit(-1)
 
     cmd = [nfdump, '-r', filename, '-o', 'extended', '-o', 'json']
 
@@ -86,11 +88,14 @@ def flow_to_df(ret: Queue, filename: str) -> None:
 
     if not cmd_stdout:
         ret.put(None)
-        sys.exit()
+        sys.exit(-1)
 
     data = StringIO(str(cmd_stdout, 'utf-8'))
 
-    df: pd.DataFrame = pd.read_json(data).fillna(-1)
+    df = pd.read_json(data).fillna(-1)
+
+    LOGGER.debug(f"{len(df)} rows in the DataFrame.")
+    print(df.columns)
 
     # Filter relevant columns
     df = df[df.columns.intersection(['t_first', 't_last', 'proto', 'src4_addr', 'dst4_addr',
@@ -106,24 +111,30 @@ def flow_to_df(ret: Queue, filename: str) -> None:
                             })
     df.dstport = df.dstport.astype(float).astype(int)
     df.srcport = df.srcport.astype(float).astype(int)
+    print(df.in_bytes.value_counts())
 
     # convert protocol number to name
     protocol_names = {num: name[8:] for name, num in vars(socket).items() if name.startswith("IPPROTO")}
     df['proto'] = df['proto'].apply(lambda x: protocol_names[x])
 
+    print("srcport value counts:", df.srcport.value_counts())
+
     # convert protocol+port to service
     def convert_protocol_service(row):
         try:
-            highest_protocol = socket.getservbyport(row['dstport'], row['proto'].lower()).upper()
+            highest_protocol = socket.getservbyport(row['srcport'], row['proto'].lower()).upper()
             return highest_protocol
         except (OSError, OverflowError, TypeError):
-            LOGGER.debug(f"Could not resolve service running {row['proto']} at port {row['dstport']}, using 'UNKNOWN'")
             return "UNKNOWN"
 
-    df['highest_protocol'] = df[['dstport', 'proto']].apply(convert_protocol_service, axis=1)
+    protocol_service = {(port, protocol): socket.getservbyport(port, protocol.lower())
+                        for port, protocol in df.groupby(['srcport', 'proto']).size().keys()}
+
+    df['highest_protocol'] = df[['srcport', 'proto']].apply(convert_protocol_service, axis=1)
     # convert to unix epoch (sec)
     df['frame_time_epoch'] = pd.to_datetime(df['t_first']).astype(int) / 10 ** 9
     df = df.drop(['t_last', 't_first', 'fwd_status'], axis=1)
+
     ret.put(df)
 
 
@@ -236,11 +247,11 @@ def determine_file_type(input_file: str) -> Filetype:
         sys.exit(-1)
 
     file_info, error = subprocess.Popen([file_, input_file], stdout=subprocess.PIPE).communicate()
-    file_type = file_info.decode("utf-8").split(': ')[1].split()[0]
+    file_type = file_info.decode("utf-8").split(': ')[1]
 
     if file_type in ["tcpdump", "pcap", "pcapng", "pcap-ng"]:
         return Filetype.PCAP
-    elif b"nfdump" in file_info or b"nfcapd" in file_info:
+    elif "data" in file_type or "nfdump" in file_type or "nfcapd" in file_type:
         return Filetype.FLOW
     else:
         LOGGER.error(f"{file_type} --- {file_info}")

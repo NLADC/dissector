@@ -94,7 +94,7 @@ def infer_attack_vectors(df: pd.DataFrame) -> List[pd.DataFrame]:
     Returns:
         List of DataFrames, each describing one attack vector.
     """
-    protocol_outliers = get_outliers(df, field_name='highest_protocol')
+    protocol_outliers = get_outliers(df, field_name='highest_protocol', fraction_for_outlier=0.2)
 
     vectors = [df[df.highest_protocol == protocol] for protocol in protocol_outliers]
 
@@ -149,7 +149,7 @@ def generate_vector_fingerprint(vector: pd.DataFrame) -> dict:
     Returns:
         fingerprint for vector (dictionary)
     """
-    ignore_columns = ['ip_src', 'start_timestamp', 'eth_src']
+    ignore_columns = ['ip_src', 'start_timestamp', 'eth_src', 'frame_time_epoch']
     fingerprint = {'ip_src': list(vector.ip_src.unique()),
                    'nr_packets': len(vector)}
     for key in vector:

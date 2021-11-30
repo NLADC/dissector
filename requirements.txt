@@ -5,3 +5,4 @@ pandas>=1.2.4
 requests>=2.26.0
 urllib3>=1.26.5
 netaddr>=0.8.0
+ipaddr>=2.2.0
