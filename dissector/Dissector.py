@@ -53,13 +53,13 @@ def main():
     for filename in FILE_NAMES:
         filetype_, df_ = load_file(filename)
         if filetype not in [None, filetype_]:
-            LOGGER.error("Please provide only traffic capture files of the same file type (PCAP or flows)")
+            LOGGER.error("Please provide only traffic capture files of the same file type (PCAP or FLOWs)")
             sys.exit(-1)
         filetype = filetype_
         if len(df_) > 0:
             df = pd.concat([df, df_])  # Combine DataFrames of multiple input files
 
-    if filetype == Filetype.FLOW and (SAMPLING_RATE is None or not isinstance(SAMPLING_RATE, int)):
+    if filetype == Filetype.FLOW and (SAMPLING_RATE is None or not isinstance(SAMPLING_RATE, int) or SAMPLING_RATE < 1):
         LOGGER.error("When using Flow files, please provide the sampling rate (1 in ?) of the capture file with the -r "
                      "flag (e.g. -r 128)")
         sys.exit(-1)

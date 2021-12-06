@@ -7,12 +7,47 @@ import threading
 import time
 import cursor
 import pandas as pd
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Dict
 from subprocess import check_output, CalledProcessError
 from queue import Queue
 from io import StringIO
 
 from config import LOGGER, Filetype, ctrl_c_handler, QUIET
+
+known_attack_ports: Dict[int, str] = {
+    17: "Quote of the Day amplification",
+    19: "Chargen amplification",
+    25: "SMTP",
+    53: "DNS amplification",
+    69: "TFTP amplification",
+    111: "RPC amplification",
+    123: "NTP amplification",
+    137: "NetBios amplification",
+    161: "SNMP amplification",
+    177: "XDMCP amplification",
+    389: "LDAP amplification",
+    500: "ISAKMP flood",
+    520: "RIPv1 amplification",
+    623: "IPMI amplification",
+    1121: "Memcached",
+    1434: "MS SQL monitor amplification",
+    1718: "H323",
+    1900: "SSDP amplification",
+    3283: "Apple Remote Desktop amplification",
+    3389: "Windows Remote Desktop",
+    3702: "WS-Discovery amplification",
+    5093: "Sentinel amplification",
+    5351: "NAT-PMP flood",
+    5353: "mDNS amplification",
+    5683: "CoAP amplification",
+    11211: "Memcached amplification",
+    27015: "Steam amplification",
+    30718: 'IoT Lantronix',
+    32414: "Plex Media amplification",
+    33848: "Jenkins amplification",
+    37810: "DHDiscover amplification",
+    47808: 'BACnet',
+}
 
 
 def prepare_tshark_cmd(filename: str) -> Optional[List[str]]:
@@ -95,7 +130,7 @@ def flow_to_df(ret: Queue, filename: str) -> None:
     df = pd.read_json(data).fillna(-1)
 
     LOGGER.debug(f"{len(df)} rows in the DataFrame.")
-    print(df.columns)
+    # print(df.columns)
 
     # Filter relevant columns
     df = df[df.columns.intersection(['t_first', 't_last', 'proto', 'src4_addr', 'dst4_addr',
@@ -111,26 +146,29 @@ def flow_to_df(ret: Queue, filename: str) -> None:
                             })
     df.dstport = df.dstport.astype(float).astype(int)
     df.srcport = df.srcport.astype(float).astype(int)
-    print(df.in_bytes.value_counts())
+    # print(df.in_bytes.value_counts())
 
-    # convert protocol number to name
+    # convert IP protocol number to name
     protocol_names = {num: name[8:] for name, num in vars(socket).items() if name.startswith("IPPROTO")}
     df['proto'] = df['proto'].apply(lambda x: protocol_names[x])
-
-    print("srcport value counts:", df.srcport.value_counts())
+    print(df.proto.value_counts())
 
     # convert protocol+port to service
-    def convert_protocol_service(row):
+    def convert_protocol_service(port, proto):
         try:
-            highest_protocol = socket.getservbyport(row['srcport'], row['proto'].lower()).upper()
-            return highest_protocol
-        except (OSError, OverflowError, TypeError):
-            return "UNKNOWN"
+            assert proto in ['udp', 'tcp']
+            service = socket.getservbyport(int(port), proto.lower()).upper()
+            return service
+        except (OSError, OverflowError, TypeError, AssertionError):
+            if proto == 'udp':
+                return known_attack_ports.get(port, "UNKNOWN")
 
-    protocol_service = {(port, protocol): socket.getservbyport(port, protocol.lower())
+    protocol_service = {(port, protocol.upper()): convert_protocol_service(int(port), protocol.lower())
                         for port, protocol in df.groupby(['srcport', 'proto']).size().keys()}
-
-    df['highest_protocol'] = df[['srcport', 'proto']].apply(convert_protocol_service, axis=1)
+    print('service dict created')
+    df['service'] = df[['srcport', 'proto']].apply(lambda r: protocol_service[(r.srcport, r.proto)], axis=1)
+    print('services applied')
+    print(df.service.value_counts())
     # convert to unix epoch (sec)
     df['frame_time_epoch'] = pd.to_datetime(df['t_first']).astype(int) / 10 ** 9
     df = df.drop(['t_last', 't_first', 'fwd_status'], axis=1)

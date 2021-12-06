@@ -4,7 +4,7 @@ import sys
 import pandas as pd
 import netaddr
 import copy
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 
 from config import LOGGER, SAMPLING_RATE
 
@@ -69,7 +69,7 @@ def infer_target(df: pd.DataFrame) -> Tuple[str, pd.DataFrame]:
 
     # Check for the most targeted IP addresses the fraction of destination IPs that is in their /24 subnet
     for target in all_public_ips.keys()[:10]:
-        network = netaddr.IPNetwork(f'{target}/24')  # /24 subnet of target IP
+        network = netaddr.IPNetwork(f'{target}/24')  # /24 subnet of target IP TODO: /64 for IPv6?
         frac = all_public_ips.loc[[x for x in all_public_ips.keys() if x in network]].sum()
         if frac > fraction_ips_in_network:
             best_network, fraction_ips_in_network = network, frac
@@ -94,14 +94,14 @@ def infer_attack_vectors(df: pd.DataFrame) -> List[pd.DataFrame]:
     Returns:
         List of DataFrames, each describing one attack vector.
     """
-    protocol_outliers = get_outliers(df, field_name='highest_protocol', fraction_for_outlier=0.2)
+    protocol_outliers = get_outliers(df, field_name='service', fraction_for_outlier=0.2)
 
-    vectors = [df[df.highest_protocol == protocol] for protocol in protocol_outliers]
+    vectors = [df[df.service == protocol] for protocol in protocol_outliers]
 
     # IPv4 or IPv6 as highest protocol usually denotes a fragmentation attack. Fragmented packets are raw IP packets
     # without other headers. The following looks at the remaining packets to determine the vector with packet headers.
     if len(protocol_outliers) == 1 and protocol_outliers[0].lower() in ['ipv4', 'ipv6']:
-        vectors.extend(infer_attack_vectors(df[~df.highest_protocol.isin(['IPv4', 'IPv6'])]))
+        vectors.extend(infer_attack_vectors(df[~df.service.isin(['IPv4', 'IPv6'])]))
 
     return vectors
 
