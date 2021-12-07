@@ -94,7 +94,7 @@ def infer_attack_vectors(df: pd.DataFrame) -> List[pd.DataFrame]:
     Returns:
         List of DataFrames, each describing one attack vector.
     """
-    protocol_outliers = get_outliers(df, field_name='service', fraction_for_outlier=0.2)
+    protocol_outliers = get_outliers(df, field_name='service', fraction_for_outlier=0.1)
 
     vectors = [df[df.service == protocol] for protocol in protocol_outliers]
 

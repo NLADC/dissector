@@ -134,6 +134,7 @@ def flow_to_df(ret: Queue, filename: str) -> None:
 
     # Filter relevant columns
     df = df[df.columns.intersection(['t_first', 't_last', 'proto', 'src4_addr', 'dst4_addr',
+                                     'src6_addr', 'dst6-addr',
                                      'src_port', 'dst_port', 'fwd_status', 'tcp_flags',
                                      'src_tos', 'in_packets', 'in_bytes', 'icmp_type',
                                      'icmp_code',
@@ -144,6 +145,7 @@ def flow_to_df(ret: Queue, filename: str) -> None:
                             'dst_port': 'dstport',
                             't_start': 'frame_time_epoch',
                             })
+
     df.dstport = df.dstport.astype(float).astype(int)
     df.srcport = df.srcport.astype(float).astype(int)
     # print(df.in_bytes.value_counts())
@@ -151,7 +153,6 @@ def flow_to_df(ret: Queue, filename: str) -> None:
     # convert IP protocol number to name
     protocol_names = {num: name[8:] for name, num in vars(socket).items() if name.startswith("IPPROTO")}
     df['proto'] = df['proto'].apply(lambda x: protocol_names[x])
-    print(df.proto.value_counts())
 
     # convert protocol+port to service
     def convert_protocol_service(port, proto):
@@ -165,10 +166,7 @@ def flow_to_df(ret: Queue, filename: str) -> None:
 
     protocol_service = {(port, protocol.upper()): convert_protocol_service(int(port), protocol.lower())
                         for port, protocol in df.groupby(['srcport', 'proto']).size().keys()}
-    print('service dict created')
     df['service'] = df[['srcport', 'proto']].apply(lambda r: protocol_service[(r.srcport, r.proto)], axis=1)
-    print('services applied')
-    print(df.service.value_counts())
     # convert to unix epoch (sec)
     df['frame_time_epoch'] = pd.to_datetime(df['t_first']).astype(int) / 10 ** 9
     df = df.drop(['t_last', 't_first', 'fwd_status'], axis=1)
