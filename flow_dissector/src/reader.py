@@ -27,7 +27,7 @@ COLUMN_NAMES: Dict[str, str] = {
 }
 
 
-def read_flow(filename: Path) -> Tuple[pd.DataFrame, Dict[str, int]]:
+def read_flow(filename: Path) -> pd.DataFrame:
     """
     Load the FLOW capture into a dataframe
     :param filename: location of the FLOW file
@@ -59,10 +59,10 @@ def read_flow(filename: Path) -> Tuple[pd.DataFrame, Dict[str, int]]:
     data = data[data.columns.intersection(COLUMN_NAMES.keys())]
     data.rename(columns=COLUMN_NAMES, inplace=True)
 
-    # Process summary
-    keys, vals = map(lambda s: s.split(','), rows[-3:-1])
-    vals = [int(v) for v in vals]
-    summary_dict = dict(zip(keys, vals))
-    LOGGER.debug(f"{len(data)} FLOWS in file.")
+    # # Process summary
+    # keys, vals = map(lambda s: s.split(','), rows[-3:-1])
+    # vals = [int(v) for v in vals]
+    # summary_dict = dict(zip(keys, vals))
+    # LOGGER.debug(f"{len(data)} FLOWS in file.")
 
-    return data, summary_dict
+    return data

@@ -10,9 +10,8 @@ from util import error
 
 
 class Attack:
-    def __init__(self, data: pd.DataFrame, summary: Dict[str, Any]):
+    def __init__(self, data: pd.DataFrame):
         self.data = data
-        self.summary = summary
         self.ensure_datatypes()
         self.attack_vectors: List[AttackVector]
 

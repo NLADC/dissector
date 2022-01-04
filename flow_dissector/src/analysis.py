@@ -1,11 +1,13 @@
 import sys
+import pandas as pd
 from netaddr import IPAddress, IPNetwork
-from typing import List
-
+from typing import List, Dict, Any
 from logger import LOGGER
 from attack import Attack
 from fingerprint import AttackVector
 from util import get_outliers
+
+__all__ = ['infer_target', 'extract_attack_vectors', 'compute_summary']
 
 
 def infer_target(attack: Attack) -> IPNetwork:
@@ -46,8 +48,6 @@ def infer_target(attack: Attack) -> IPNetwork:
         if use_target.lower() not in ['y', 'yes']:
             sys.exit(-1)
 
-    # ips_in_subnet = [ip for ip in packets_per_ip.keys() if ip in best_network]
-    # attack.data.loc[attack.data.destination_address.isin(ips_in_subnet), 'destination_address'] = str(best_network[0])
     return best_network
 
 
@@ -59,3 +59,24 @@ def extract_attack_vectors(attack: Attack) -> List[AttackVector]:
         data = attack.data[(attack.data.source_port == port) & (attack.data.protocol == protocol)]
         attack_vectors.append(AttackVector(data=data, source_port=port, protocol=protocol))
     return attack_vectors
+
+
+def compute_summary(data: pd.DataFrame) -> Dict[str, Any]:
+    time_start = data.time_start.min()
+    time_end = data.time_end.max()
+    duration = (time_end - time_start).seconds
+    nr_bytes = int(data.nr_bytes.sum())
+    nr_packets = int(data.nr_packets.sum())
+    return {
+        "time_start": str(time_start),
+        "duration_seconds": duration,
+        "nr_flows": len(data),
+        "nr_bytes": nr_bytes,
+        "nr_packets": nr_packets,
+        "average_bps": (nr_bytes << 3) // duration,  # octets to bits
+        "average_pps": nr_packets // duration,
+        "average_Bpp": nr_bytes // nr_packets
+    }
+
+
+

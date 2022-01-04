@@ -1,6 +1,5 @@
 import sys
 import pandas as pd
-from json import JSONEncoder
 from typing import List, Union
 
 from logger import LOGGER
@@ -41,7 +40,3 @@ def get_outliers(data: pd.DataFrame,
     else:
         LOGGER.debug(f"No outlier found in column '{column}'")
     return outliers
-
-
-class FingerprintEncoder(JSONEncoder):
-    ... # TODO
