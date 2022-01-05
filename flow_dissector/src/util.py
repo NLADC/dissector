@@ -1,10 +1,34 @@
 import sys
 import pandas as pd
-from typing import List, Union
+from configparser import ConfigParser, NoOptionError, NoSectionError
+from pathlib import Path
+from typing import List, Union, Dict, Tuple
 
 from logger import LOGGER
 
-__all__ = ['error', 'get_outliers']
+__all__ = ["PORT_PROTO_SERVICE", "print_logo", "error", "get_outliers", "parse_config"]
+
+PORT_PROTO_SERVICE: Dict[Tuple[str, int], str] = {
+    ("UDP", 53): "DNS",
+    ("UDP", 123): "NTP",
+    ("UDP", 32414): "PLEX",
+    # ("", ): "",
+}
+
+
+def print_logo() -> None:
+    """
+    Print the Dissector logo
+    Returns:
+        None
+    """
+    print('''
+    ____  _                     __            
+   / __ \(_)____________  _____/ /_____  _____
+  / / / / / ___/ ___/ _ \/ ___/ __/ __ \/ ___/
+ / /_/ / (__  |__  )  __/ /__/ /_/ /_/ / /    
+/_____/_/____/____/\___/\___/\__/\____/_/     
+''')
 
 
 def error(message: str):
@@ -40,3 +64,25 @@ def get_outliers(data: pd.DataFrame,
     else:
         LOGGER.debug(f"No outlier found in column '{column}'")
     return outliers
+
+
+def parse_config(file: Path) -> Tuple[str, str, str]:
+    """
+    Parse the DDoSDB config file and return host, username, password
+    :param file: Config file (ini format)
+    :return: host (str), username (str), password (str)
+    """
+    config = ConfigParser()
+    LOGGER.debug(f"Using ddosdb config file: '{str(file)}'")
+    try:
+        with open(file) as f:
+            config.read_file(f)
+    except FileNotFoundError:
+        error("Uploading to DDoSDB failed. "
+              f"DDoSDB config file '{file}' not found. Provide a config file like ddosdb.ini.example")
+
+    try:
+        return config.get('ddosdb', 'host'), config.get('ddosdb', 'user'), config.get('ddosdb', 'pass')
+    except (NoSectionError, NoOptionError):
+        error("Uploading to DDoSDB failed. "
+              "The DDoSDB config file must include a section 'ddosdb' with keys 'host', 'user', and 'pass'.")

@@ -2,7 +2,7 @@ import shutil
 import os
 import subprocess
 import pandas as pd
-from typing import Tuple, Dict
+from typing import Dict
 from pathlib import Path
 from io import StringIO
 

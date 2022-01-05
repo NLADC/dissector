@@ -1,7 +1,6 @@
 from typing import List
 import numpy as np
 import pandas as pd
-from typing import Dict, Any
 from netaddr import IPAddress, IPNetwork
 
 from fingerprint import AttackVector

@@ -20,10 +20,19 @@ def infer_target(attack: Attack) -> IPNetwork:
     """
     targets: List[IPAddress] = get_outliers(attack.data,
                                             column='destination_address',
-                                            fraction_for_outlier=0.7,
+                                            fraction_for_outlier=0.5,
                                             use_zscore=False)
     if len(targets) > 0:
         return IPNetwork(targets[0])
+
+    LOGGER.info("No clear target IP address could be inferred. "
+                "You can pass a target IP address with the --target flag. "
+                "Alternatively, Dissector can look for a target subnet (IPv4/24 or IPv6/64) in case of a carpet "
+                "bombing attack.")
+    keep_going = input("Continue looking for a target subnet? y/n: ")
+    if keep_going.lower().strip() not in ['y', 'yes']:
+        LOGGER.info("Aborting.")
+        sys.exit()
 
     # nr of packets per IP adres, sorted (descending)
     packets_per_ip = attack.data.groupby('destination_address').nr_packets.sum().sort_values(ascending=False)
@@ -52,12 +61,17 @@ def infer_target(attack: Attack) -> IPNetwork:
 
 
 def extract_attack_vectors(attack: Attack) -> List[AttackVector]:
-    port_protocol_outliers = get_outliers(attack.data, column=['source_port', 'protocol'], fraction_for_outlier=0.10)
+    port_protocol_outliers = get_outliers(attack.data, column=['source_port', 'protocol'], fraction_for_outlier=0.1,
+                                          use_zscore=False)
     LOGGER.debug(f"Attack vectors (source port, protocol): {port_protocol_outliers}")
     attack_vectors: List[AttackVector] = []
     for port, protocol in port_protocol_outliers:
         data = attack.data[(attack.data.source_port == port) & (attack.data.protocol == protocol)]
         attack_vectors.append(AttackVector(data=data, source_port=port, protocol=protocol))
+    if len([v for v in attack_vectors if v.service != "Fragmented IP packets"]) == 0:
+        protocol = attack.data.protocol.value_counts().keys()[0]
+        data = attack.data[(attack.data.source_port != 0) & (attack.data.protocol == protocol)]
+        attack_vectors.insert(0, AttackVector(data=data, source_port=-1, protocol=protocol))
     return attack_vectors
 
 
@@ -71,12 +85,10 @@ def compute_summary(data: pd.DataFrame) -> Dict[str, Any]:
         "time_start": str(time_start),
         "duration_seconds": duration,
         "nr_flows": len(data),
-        "nr_bytes": nr_bytes,
+        "nr_megabytes": nr_bytes // 1_000_000,
         "nr_packets": nr_packets,
-        "average_bps": (nr_bytes << 3) // duration,  # octets to bits
+        "total_ips": len(data.source_address.unique()),
+        "average_mbps": (nr_bytes << 3) // duration // 1_000_000,  # octets to bits to mbits
         "average_pps": nr_packets // duration,
         "average_Bpp": nr_bytes // nr_packets
     }
-
-
-

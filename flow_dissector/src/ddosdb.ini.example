@@ -1,0 +1,4 @@
+[ddosdb]
+host=db.example.com
+user=username
+pass=password
