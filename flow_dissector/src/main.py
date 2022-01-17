@@ -29,6 +29,7 @@ if __name__ == '__main__':
     args = parse_arguments()
     if args.debug:
         LOGGER.setLevel('DEBUG')
+    # global attack, data, attack_vectors  # for interactive debugging
     data: pd.DataFrame = read_flow(args.file)  # Read the FLOW file into a dataframe
     attack = Attack(data)  # Construct an Attack object with the DDoS data
     target = args.target or infer_target(attack)  # Infer the attack target if not passed as an argument

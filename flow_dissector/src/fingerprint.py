@@ -21,7 +21,7 @@ class AttackVector:
         self.data = data
         self.source_port = source_port
         self.protocol = protocol.upper()
-        self.destination_ports = get_outliers(self.data, 'destination_port', 0.1, use_zscore=False)[:3]
+        self.destination_ports = get_outliers(self.data, 'destination_port', 0.1, use_zscore=False)
         if not self.destination_ports:
             self.destination_ports = "random"
         self.packets = self.data.nr_packets.sum()
@@ -29,6 +29,7 @@ class AttackVector:
         self.time_start: datetime = self.data.time_start.min()
         self.time_end: datetime = self.data.time_end.max()
         self.duration = (self.time_end - self.time_start).seconds
+        self.fraction_of_attack = 0
         try:
             assert self.protocol in ["TCP", "UDP"]
             self.service = PORT_PROTO_SERVICE.get((self.protocol, self.source_port), None) or socket.getservbyport(
@@ -67,6 +68,7 @@ class AttackVector:
             'service': self.service,
             'protocol': self.protocol,
             'source_port': self.source_port if self.source_port != -1 else "random",
+            'fraction_of_attack': self.fraction_of_attack if self.source_port != 0 else "N/A",
             'destination_ports': self.destination_ports,
             'TCP_flags': self.tcp_flags,
             'nr_flows': len(self),

@@ -2,6 +2,7 @@ import sys
 import pandas as pd
 from netaddr import IPAddress, IPNetwork
 from typing import List, Dict, Any
+
 from logger import LOGGER
 from attack import Attack
 from fingerprint import AttackVector
@@ -65,14 +66,29 @@ def extract_attack_vectors(attack: Attack) -> List[AttackVector]:
                                           use_zscore=False)
     LOGGER.debug(f"Attack vectors (source port, protocol): {port_protocol_outliers}")
     attack_vectors: List[AttackVector] = []
+    fragmentation_protocols = []
     for port, protocol in port_protocol_outliers:
+        if port == 0 and protocol != "ICMP":
+            fragmentation_protocols.append(protocol)
+            continue
         data = attack.data[(attack.data.source_port == port) & (attack.data.protocol == protocol)]
-        attack_vectors.append(AttackVector(data=data, source_port=port, protocol=protocol))
+        attack_vectors.append(vector := AttackVector(data=data, source_port=port, protocol=protocol))
+        if vector.service == "Fragmented IP packets":
+            fragmentation_vector = vector
     if len([v for v in attack_vectors if v.service != "Fragmented IP packets"]) == 0:
         protocol = attack.data.protocol.value_counts().keys()[0]
         data = attack.data[(attack.data.source_port != 0) & (attack.data.protocol == protocol)]
         attack_vectors.insert(0, AttackVector(data=data, source_port=-1, protocol=protocol))
-    return attack_vectors
+    # Compute the fraction of all traffic for each attack vector (except fragmented packets)
+    total_packets = sum([v.packets for v in attack_vectors])
+    for vector in attack_vectors:
+        vector.fraction_of_attack = round(vector.packets / total_packets, 3)
+    # Only keep flows in the fragmented packets vector(s) with source IP address that occurs in another attack vector.
+    for frag_proto in fragmentation_protocols:
+        attack_vector_data = pd.concat([v.data for v in attack_vectors if v.protocol == frag_proto])
+        attack_vectors.append(AttackVector(attack_vector_data, source_port=0, protocol=frag_proto))
+
+    return sorted(attack_vectors, reverse=True)
 
 
 def compute_summary(data: pd.DataFrame) -> Dict[str, Any]:
@@ -84,11 +100,11 @@ def compute_summary(data: pd.DataFrame) -> Dict[str, Any]:
     return {
         "time_start": str(time_start),
         "duration_seconds": duration,
-        "nr_flows": len(data),
-        "nr_megabytes": nr_bytes // 1_000_000,
-        "nr_packets": nr_packets,
+        "total_flows": len(data),
+        "total_megabytes": nr_bytes // 1_000_000,
+        "total_packets": nr_packets,
         "total_ips": len(data.source_address.unique()),
-        "average_mbps": (nr_bytes << 3) // duration // 1_000_000,  # octets to bits to mbits
-        "average_pps": nr_packets // duration,
-        "average_Bpp": nr_bytes // nr_packets
+        "avg_bps": (nr_bytes << 3) // duration,  # // 1_000_000,  # octets to bits # to mbits
+        "avg_pps": nr_packets // duration,
+        "avg_Bpp": nr_bytes // nr_packets
     }
