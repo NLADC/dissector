@@ -6,14 +6,16 @@ import requests
 import urllib3
 from io import BytesIO
 from pathlib import Path
+from functools import total_ordering
 from datetime import datetime
 from netaddr import IPAddress, IPNetwork
 from typing import Dict, List
 
-from util import PORT_PROTO_SERVICE, get_outliers
+from util import PORT_PROTO_SERVICE, TCP_FLAG_NAMES, get_outliers
 from logger import LOGGER
 
 
+@total_ordering
 class AttackVector:
     def __init__(self, data: pd.DataFrame, source_port: int, protocol: str):
         self.data = data
@@ -42,9 +44,9 @@ class AttackVector:
         if self.protocol != "TCP":
             self.tcp_flags = 'N/A'
         else:
-            self.tcp_flags = get_outliers(self.data, 'tcp_flags', 0.2)[:3]
-        self.source_tos = get_outliers(self.data, 'source_type_of_service', 0.3)[:3]  # top 3 source ToS
-        self.destiantion_tos = get_outliers(self.data, 'destination_type_of_service', 0.3)[:3]  # top 3 destination ToS
+            self.tcp_flags = get_outliers(self.data, 'tcp_flags', 0.2)
+        self.source_tos = get_outliers(self.data, 'source_type_of_service', 0.3)  # top source ToS
+        self.destiantion_tos = get_outliers(self.data, 'destination_type_of_service', 0.3)  # top destination ToS
 
     def __str__(self):
         return f"[AttackVector] {self.service} on port {self.source_port}, protocol {self.protocol}"
@@ -54,6 +56,11 @@ class AttackVector:
 
     def __len__(self):
         return len(self.data)
+
+    def __lt__(self, other):
+        if type(other) != AttackVector:
+            return NotImplemented
+        return self.service == "Fragmented IP packets" or self.bytes < other.bytes
 
     def as_dict(self, summarized: bool = False) -> dict:
         fields = {
@@ -92,6 +99,15 @@ class Fingerprint:
     def __str__(self):
         return json.dumps(self.as_dict(summarized=True), indent=4)
 
+    def as_dict(self, anonymous: bool = False, summarized: bool = False) -> dict:
+        return {
+            'attack_vectors': [av.as_dict(summarized) for av in self.attack_vectors],
+            'target': str(self.target) if not anonymous else "Anonymous",
+            'tags': self.tags,
+            'key': self.checksum,
+            **self.summary
+        }
+
     def determine_tags(self) -> List[str]:
         tags = []
         if len([v for v in self.attack_vectors if v.service != "Fragmented IP packets"]) > 1:
@@ -99,13 +115,22 @@ class Fingerprint:
         if isinstance(self.target, IPNetwork):
             tags.append("Carpet bombing attack")
         for vector in self.attack_vectors:
+            tags.append(vector.protocol)
             if vector.service is None:
                 tags.append(f"{vector.protocol} flood attack")
+            if vector.protocol == "TCP" and len(vector.tcp_flags) == 1:
+                flags = vector.tcp_flags[0]
+                flag_names = ""
+                for k, v in TCP_FLAG_NAMES.items():
+                    if k in flags:
+                        flag_names += v + " "
+                flag_names += "no flag " if flag_names == "" else "flag "
+                tags.append(f"TCP {flag_names}attack")
             elif vector.service == "Fragmented IP packets":
                 tags.append("Fragmentation attack")
-            elif vector.service in ["DOMAIN", "NTP", "SNMP", "PLEX", "LDAP"]:
+            elif vector.service in ["DNS", "NTP", "SNMP", "PLEX", "LDAP", "MEMCACHED"]:
                 tags.append("Amplification attack")
-        return tags
+        return list(set(tags))
 
     def write_to_file(self, filename: Path):
         with open(filename, 'w') as file:
@@ -147,12 +172,3 @@ class Fingerprint:
             LOGGER.info("Internal Server Error.")
             LOGGER.info("Error Code: {}".format(r.status_code))
         return r.status_code
-
-    def as_dict(self, anonymous: bool = False, summarized: bool = False) -> dict:
-        return {
-            'attack_vectors': [av.as_dict(summarized) for av in self.attack_vectors],
-            'target': str(self.target) if not anonymous else "Anonymous",
-            'tags': self.tags,
-            'key': self.checksum,
-            **self.summary
-        }
