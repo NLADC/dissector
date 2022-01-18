@@ -18,6 +18,7 @@ def parse_arguments() -> Namespace:
                         default=Path('fingerprints'))
     parser.add_argument("--config", type=Path, help="Path to ddosdb config file", default=Path('ddosdb.ini'))
     parser.add_argument("--upload", action="store_true", help="Optional: directly upload fingerprint to DDoSDB")
+    parser.add_argument("--noverify", action="store_true", help="Optional: Don't verify DDoSDB's SSL certificates")
     parser.add_argument("--target", type=IPNetwork, help="Optional: target IP address or subnet of this attack")
     parser.add_argument("--debug", action="store_true", help="Optional: show debug messages")
     parser.add_argument("--summary", action="store_true", help="Optional: print fingerprint without source addresses")
@@ -45,4 +46,4 @@ if __name__ == '__main__':
     fingerprint.write_to_file(args.output / (fingerprint.checksum[:16] + ".json"))  # write the fingerprint to disk
 
     if args.upload:  # Upload the fingerprint to a specified DDoSDB
-        fingerprint.upload_to_ddosdb(*parse_config(args.config))
+        fingerprint.upload_to_ddosdb(*parse_config(args.config), noverify=args.noverify)

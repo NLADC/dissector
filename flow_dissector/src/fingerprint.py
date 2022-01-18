@@ -11,7 +11,7 @@ from datetime import datetime
 from netaddr import IPAddress, IPNetwork
 from typing import Dict, List
 
-from util import PORT_PROTO_SERVICE, TCP_FLAG_NAMES, get_outliers
+from util import AMPLIFICATION_SERVICES, TCP_FLAG_NAMES, get_outliers
 from logger import LOGGER
 
 
@@ -32,8 +32,11 @@ class AttackVector:
         self.fraction_of_attack = 0
         try:
             assert self.protocol in ["TCP", "UDP"]
-            self.service = PORT_PROTO_SERVICE.get((self.protocol, self.source_port), None) or socket.getservbyport(
-                source_port, protocol.lower()).upper()
+            if self.protocol == "UDP":
+                self.service = AMPLIFICATION_SERVICES.get(self.source_port, None) or socket.getservbyport(
+                    source_port, protocol.lower()).upper()
+            else:
+                socket.getservbyport(source_port, protocol.lower()).upper()
         except (AssertionError, OSError):
             if self.source_port == 0 and len(self.destination_ports) == 1 and self.destination_ports[0] == 0:
                 self.service = "Fragmented IP packets"
@@ -120,17 +123,20 @@ class Fingerprint:
             tags.append(vector.protocol)
             if vector.service is None:
                 tags.append(f"{vector.protocol} flood attack")
-            if vector.protocol == "TCP" and len(vector.tcp_flags) == 1:
-                flags = vector.tcp_flags[0]
-                flag_names = ""
-                for k, v in TCP_FLAG_NAMES.items():
-                    if k in flags:
-                        flag_names += v + " "
-                flag_names += "no flag " if flag_names == "" else "flag "
-                tags.append(f"TCP {flag_names}attack")
+            if vector.protocol == "TCP":
+                if len(vector.tcp_flags) == 1:
+                    flags = vector.tcp_flags[0]
+                    flag_names = ""
+                    for k, v in TCP_FLAG_NAMES.items():
+                        if k in flags:
+                            flag_names += v + " "
+                    flag_names += "no flag " if flag_names == "" else "flag "
+                    tags.append(f"TCP {flag_names}attack")
+                else:
+                    tags.append("TCP flag attack")
             elif vector.service == "Fragmented IP packets":
                 tags.append("Fragmentation attack")
-            elif vector.service in ["DNS", "NTP", "SNMP", "PLEX", "LDAP", "MEMCACHED"]:
+            elif vector.service in AMPLIFICATION_SERVICES.values():
                 tags.append("Amplification attack")
         return list(set(tags))
 
@@ -138,7 +144,7 @@ class Fingerprint:
         with open(filename, 'w') as file:
             json.dump(self.as_dict(anonymous=True), file)
 
-    def upload_to_ddosdb(self, host: str, username: str, password: str) -> int:
+    def upload_to_ddosdb(self, host: str, username: str, password: str, noverify: bool = False) -> int:
         LOGGER.info(f"Uploading fingerprint to {host}...")
 
         files = {"json": BytesIO(json.dumps(self.as_dict(anonymous=True)).encode())}
@@ -151,16 +157,12 @@ class Fingerprint:
         try:
             try:
                 urllib3.disable_warnings()
-                r = requests.post("https://" + host + "/upload-file", files=files, headers=headers)
+                r = requests.post("https://" + host + "/upload-file", files=files, headers=headers, verify=not noverify)
             except requests.exceptions.SSLError:
-                LOGGER.critical(f"SSL Certificate verification of the server {host} failed")
-                noverify = input("Do you want to upload the fingperint without SSL certificate verification? y/n: ")
-                if noverify.lower().strip() in ['y', 'yes']:
-                    files = {"json": BytesIO(json.dumps(self.as_dict(anonymous=True)).encode())}
-                    r = requests.post("https://" + host + "/upload-file", files=files, headers=headers, verify=False)
-                else:
-                    LOGGER.info("Fingerprint NOT uploaded")
-                    return 500
+                LOGGER.critical(f"SSL Certificate verification of the server {host} failed. To ignore the certificate "
+                                f"pass the --noverify flag.")
+                LOGGER.info("Fingerprint NOT uploaded")
+                return 500
         except requests.exceptions.RequestException as e:
             LOGGER.critical("Cannot connect to the server to upload fingerprint")
             LOGGER.debug(e)
