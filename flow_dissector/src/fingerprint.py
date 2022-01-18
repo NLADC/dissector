@@ -156,6 +156,7 @@ class Fingerprint:
                 LOGGER.critical(f"SSL Certificate verification of the server {host} failed")
                 noverify = input("Do you want to upload the fingperint without SSL certificate verification? y/n: ")
                 if noverify.lower().strip() in ['y', 'yes']:
+                    files = {"json": BytesIO(json.dumps(self.as_dict(anonymous=True)).encode())}
                     r = requests.post("https://" + host + "/upload-file", files=files, headers=headers, verify=False)
                 else:
                     LOGGER.info("Fingerprint NOT uploaded")
