@@ -6,14 +6,36 @@ from typing import List, Union, Dict, Tuple
 
 from logger import LOGGER
 
-__all__ = ["PORT_PROTO_SERVICE", "TCP_FLAG_NAMES", "print_logo", "error", "get_outliers", "parse_config"]
+__all__ = ["AMPLIFICATION_SERVICES", "TCP_FLAG_NAMES", "print_logo", "error", "get_outliers", "parse_config"]
 
-PORT_PROTO_SERVICE: Dict[Tuple[str, int], str] = {
-    ("UDP", 53): "DNS",
-    ("UDP", 123): "NTP",
-    ("UDP", 32414): "PLEX",
-    ("UDP", 11211): "MEMCACHED",
-    # ("", ): "",
+AMPLIFICATION_SERVICES: Dict[int, str] = {  # UDP port -> service name
+    17: "Quote of the Day",
+    19: "Chargen",
+    53: "DNS",
+    69: "TFTP",
+    111: "TPC",
+    123: "NTP",
+    137: "NetBios",
+    161: "SNMP",
+    177: "XDMCP",
+    389: "LDAP",
+    500: "ISAKMP",
+    520: "RIPv1",
+    623: "IPMI",
+    1434: "MS SQL",
+    1900: "SSDP",
+    3283: "Apple Remote Desktop",
+    3389: "Windows Remote Desktop",
+    3702: "WS-Discovery",
+    5093: "Sentinel",
+    5351: "NAT-PMP",
+    5353: "mDNS",
+    5683: "CoAP",
+    11211: "MEMCACHED",
+    27015: "Steam",
+    32414: "Plex Media",
+    33848: "Jenkins",
+    37810: "DHDiscover"
 }
 
 TCP_FLAG_NAMES: Dict[str, str] = {
