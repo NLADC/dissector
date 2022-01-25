@@ -37,7 +37,7 @@ def read_flow(filename: Path) -> pd.DataFrame:
     # Check if nfdump software is available
     nfdump = shutil.which("nfdump")
     if nfdump is None:
-        error("NFDUMP software not found. It should be on the path.")
+        error("nfdump software not found; it should be on the path. Install from https://github.com/phaag/nfdump")
 
     if not filename.exists() or not filename.is_file() or not os.access(filename, os.R_OK):
         error(f"{filename} does not exist or is not readable. If using docker, did you mount the location "
@@ -58,11 +58,4 @@ def read_flow(filename: Path) -> pd.DataFrame:
     # Keep only relevant columns & rename
     data = data[data.columns.intersection(COLUMN_NAMES.keys())]
     data.rename(columns=COLUMN_NAMES, inplace=True)
-
-    # # Process summary
-    # keys, vals = map(lambda s: s.split(','), rows[-3:-1])
-    # vals = [int(v) for v in vals]
-    # summary_dict = dict(zip(keys, vals))
-    # LOGGER.debug(f"{len(data)} FLOWS in file.")
-
     return data

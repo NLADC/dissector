@@ -26,17 +26,23 @@ def infer_target(attack: Attack) -> IPNetwork:
     if len(targets) > 0:
         return IPNetwork(targets[0])
 
-    LOGGER.info("No clear target IP address could be inferred. "
-                "You can pass a target IP address with the --target flag. "
+    LOGGER.info("No clear target IP address could be inferred.")
+    # Ask the user if the most common destination address (most packets received) is the target
+    packets_per_ip = attack.data.groupby('destination_address').nr_packets.sum().sort_values(ascending=False)
+    most_traffic_address, nr_packets = list(packets_per_ip.items())[0]
+    use_most_common = input(f"The most common destination address is {most_traffic_address} "
+                            f"({round(nr_packets / packets_per_ip.sum() * 100, 1)}% of captured packets), "
+                            f"is this the target? y/n: ")
+    if use_most_common.lower().strip() in ['y', 'yes']:
+        return IPNetwork(most_traffic_address)
+
+    LOGGER.info("You can pass a target IP address with the --target flag. "
                 "Alternatively, Dissector can look for a target subnet (IPv4/24 or IPv6/64) in case of a carpet "
                 "bombing attack.")
     keep_going = input("Continue looking for a target subnet? y/n: ")
     if keep_going.lower().strip() not in ['y', 'yes']:
         LOGGER.info("Aborting.")
         sys.exit()
-
-    # nr of packets per IP adres, sorted (descending)
-    packets_per_ip = attack.data.groupby('destination_address').nr_packets.sum().sort_values(ascending=False)
 
     # Check for the most targeted IP addresses the fraction of destination IPs that is in their /24 or /64 subnet
     best_network, fraction_ips_in_network = None, 0
@@ -62,7 +68,7 @@ def infer_target(attack: Attack) -> IPNetwork:
 
 
 def extract_attack_vectors(attack: Attack) -> List[AttackVector]:
-    port_protocol_outliers = get_outliers(attack.data, column=['source_port', 'protocol'], fraction_for_outlier=0.1,
+    port_protocol_outliers = get_outliers(attack.data, column=['source_port', 'protocol'], fraction_for_outlier=0.05,
                                           use_zscore=False)
     LOGGER.debug(f"Attack vectors (source port, protocol): {port_protocol_outliers}")
     attack_vectors: List[AttackVector] = []
@@ -84,14 +90,18 @@ def extract_attack_vectors(attack: Attack) -> List[AttackVector]:
     # Only keep flows in the fragmented packets vector(s) with source IP address that occurs in another attack vector.
     for frag_proto in fragmentation_protocols:
         attack_vector_data = pd.concat([v.data for v in attack_vectors if v.protocol == frag_proto])
-        data = attack.data[(attack.data.source_port == 0) & (attack.data.protocol == frag_proto) &
-                           attack.data.source_address.isin(attack_vector_data.source_address)]
+        # TODO: Alle source/dest port 0 flows:
+        data = attack.data[(attack.data.source_port == 0) & (attack.data.protocol == frag_proto)]
+        # TODO: Alleen de source/dest port 0 flows waarvan de source IP ook in een andere vector voorkomt:
+        # data = attack.data[(attack.data.source_port == 0) & (attack.data.protocol == frag_proto) &
+        #                    attack.data.source_address.isin(attack_vector_data.source_address)]
         attack_vectors.append(AttackVector(data, source_port=0, protocol=frag_proto))
 
     return sorted(attack_vectors, reverse=True)
 
 
-def compute_summary(data: pd.DataFrame) -> Dict[str, Any]:
+def compute_summary(attack_vectors: List[AttackVector]) -> Dict[str, Any]:
+    data = pd.concat([v.data for v in attack_vectors])
     time_start = data.time_start.min()
     time_end = data.time_end.max()
     duration = (time_end - time_start).seconds

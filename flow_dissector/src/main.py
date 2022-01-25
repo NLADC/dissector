@@ -36,7 +36,7 @@ if __name__ == '__main__':
     target = args.target or infer_target(attack)  # Infer the attack target if not passed as an argument
     attack.filter_data_on_target(target_network=target)  # Keep only the traffic sent to the target
     attack_vectors = extract_attack_vectors(attack)  # Extract the attack vectors from the attack
-    summary = compute_summary(attack.data)  # Compute summary statistics of the attack (e.g. average mbps / Bpp / pps)
+    summary = compute_summary(attack_vectors)  # Compute summary statistics of the attack (e.g. average bps / Bpp / pps)
     fingerprint = Fingerprint(target=target, summary=summary, attack_vectors=attack_vectors)  # Generate fingeperint
 
     if args.summary:  # If the user wants a preview, show the finerprint in the terminal

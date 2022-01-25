@@ -21,7 +21,11 @@ class AttackVector:
         self.data = data
         self.source_port = source_port
         self.protocol = protocol.upper()
-        self.destination_ports = get_outliers(self.data, 'destination_port', 0.1, use_zscore=False)
+        self.destination_ports = dict(get_outliers(self.data,
+                                                   'destination_port',
+                                                   0.1,
+                                                   use_zscore=False,
+                                                   return_fractions=True))
         if not self.destination_ports:
             self.destination_ports = "random"
         self.packets = self.data.nr_packets.sum()
@@ -29,28 +33,29 @@ class AttackVector:
         self.time_start: datetime = self.data.time_start.min()
         self.time_end: datetime = self.data.time_end.max()
         self.duration = (self.time_end - self.time_start).seconds
+        self.source_ips: List[IPAddress] = data.source_address.unique()
         self.fraction_of_attack = 0
         try:
-            assert self.protocol in ["TCP", "UDP"]
             if self.protocol == "UDP":
-                self.service = AMPLIFICATION_SERVICES.get(self.source_port, None) or socket.getservbyport(
-                    source_port, protocol.lower()).upper()
+                self.service = (AMPLIFICATION_SERVICES.get(self.source_port, None) or
+                                socket.getservbyport(source_port, protocol.lower()).upper())
+            elif self.protocol == "TCP":
+                self.service = socket.getservbyport(source_port, protocol.lower()).upper()
             else:
-                socket.getservbyport(source_port, protocol.lower()).upper()
-        except (AssertionError, OSError):
-            if self.source_port == 0 and len(self.destination_ports) == 1 and self.destination_ports[0] == 0:
+                self.service = "Unknown service"
+        except OSError:  # service not found by socket.getservbyport
+            if self.source_port == 0 and len(self.destination_ports) == 1 and list(self.destination_ports)[0] == 0:
                 self.service = "Fragmented IP packets"
             else:
                 self.service = "Unknown service"
         except OverflowError:  # Random source port (-1), no specific service
             self.service = None
-        self.source_ips: List[IPAddress] = data.source_address.to_list()
         if self.protocol != "TCP":
             self.tcp_flags = 'N/A'
         else:
-            self.tcp_flags = get_outliers(self.data, 'tcp_flags', 0.2)
-        self.source_tos = get_outliers(self.data, 'source_type_of_service', 0.3)  # top source ToS
-        self.destiantion_tos = get_outliers(self.data, 'destination_type_of_service', 0.3)  # top destination ToS
+            self.tcp_flags = dict(get_outliers(self.data, 'tcp_flags', 0.2, return_fractions=True))
+        # self.source_tos = get_outliers(self.data, 'source_type_of_service', 0.3)  # top source ToS
+        # self.destiantion_tos = get_outliers(self.data, 'destination_type_of_service', 0.3)  # top destination ToS
 
     def __str__(self):
         return f"[AttackVector] {self.service} on port {self.source_port}, protocol {self.protocol}"
@@ -125,7 +130,7 @@ class Fingerprint:
                 tags.append(f"{vector.protocol} flood attack")
             if vector.protocol == "TCP":
                 if len(vector.tcp_flags) == 1:
-                    flags = vector.tcp_flags[0]
+                    flags = list(vector.tcp_flags)[0]
                     flag_names = ""
                     for k, v in TCP_FLAG_NAMES.items():
                         if k in flags:
