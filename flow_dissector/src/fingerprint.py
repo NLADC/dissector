@@ -51,9 +51,9 @@ class AttackVector:
         except OverflowError:  # Random source port (-1), no specific service
             self.service = None
         if self.protocol != "TCP":
-            self.tcp_flags = 'N/A'
+            self.tcp_flags = None
         else:
-            self.tcp_flags = dict(get_outliers(self.data, 'tcp_flags', 0.2, return_fractions=True))
+            self.tcp_flags = dict(get_outliers(self.data, 'tcp_flags', 0.2, return_fractions=True)) or None
         # self.source_tos = get_outliers(self.data, 'source_type_of_service', 0.3)  # top source ToS
         # self.destiantion_tos = get_outliers(self.data, 'destination_type_of_service', 0.3)  # top destination ToS
 
@@ -76,22 +76,17 @@ class AttackVector:
             'service': self.service,
             'protocol': self.protocol,
             'source_port': self.source_port if self.source_port != -1 else "random",
-            'fraction_of_attack': self.fraction_of_attack if self.source_port != 0 else "N/A",
+            'fraction_of_attack': self.fraction_of_attack if self.source_port != 0 else None,
             'destination_ports': self.destination_ports,
-            'TCP_flags': self.tcp_flags,
+            'tcp_flags': self.tcp_flags,
             'nr_flows': len(self),
             'nr_packets': int(self.packets),
             'nr_megabytes': int(self.bytes) // 1_000_000,
             'time_start': str(self.time_start),
-            'time_end': str(self.time_end),
             'duration_seconds': self.duration,
-            # 'source_type_of_service': self.source_tos,
-            # 'destination_type_of_service': self.destiantion_tos,
             'source_ips': f"{len(self.source_ips)} IP addresses ommitted" if summarized
             else [str(i) for i in self.source_ips],
         }
-        if self.protocol != 'TCP':
-            del fields['TCP_flags']
         return fields
 
 
@@ -177,7 +172,7 @@ class Fingerprint:
             LOGGER.info("Invalid credentials or no permission to upload fingerprints.")
         elif r.status_code == 201:
             LOGGER.info("Upload success!")
-            LOGGER.info(f"URL: https://{host}/query?q={self.checksum}")
+            LOGGER.info(f"URL: https://{host}/details?key={self.checksum}")
         else:
             LOGGER.info("Internal Server Error.")
             LOGGER.info("Error Code: {}".format(r.status_code))
