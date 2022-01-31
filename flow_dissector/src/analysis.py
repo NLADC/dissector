@@ -79,10 +79,10 @@ def extract_attack_vectors(attack: Attack) -> List[AttackVector]:
             continue
         data = attack.data[(attack.data.source_port == port) & (attack.data.protocol == protocol)]
         attack_vectors.append(AttackVector(data=data, source_port=port, protocol=protocol))
-    if len([v for v in attack_vectors if v.service != "Fragmented IP packets"]) == 0:
-        protocol = attack.data.protocol.value_counts().keys()[0]
+    if len(attack_vectors) == 0:
+        protocol = attack.data.protocol.value_counts().keys()[0]  # most common protocol
         data = attack.data[(attack.data.source_port != 0) & (attack.data.protocol == protocol)]
-        attack_vectors.insert(0, AttackVector(data=data, source_port=-1, protocol=protocol))
+        attack_vectors.append(AttackVector(data=data, source_port=-1, protocol=protocol))  # random source ports
     # Compute the fraction of all traffic for each attack vector (except fragmented packets)
     total_packets = sum([v.packets for v in attack_vectors])
     for vector in attack_vectors:
