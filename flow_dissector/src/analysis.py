@@ -90,11 +90,8 @@ def extract_attack_vectors(attack: Attack) -> List[AttackVector]:
     # Only keep flows in the fragmented packets vector(s) with source IP address that occurs in another attack vector.
     for frag_proto in fragmentation_protocols:
         attack_vector_data = pd.concat([v.data for v in attack_vectors if v.protocol == frag_proto])
-        # TODO: Alle source/dest port 0 flows:
-        data = attack.data[(attack.data.source_port == 0) & (attack.data.protocol == frag_proto)]
-        # TODO: Alleen de source/dest port 0 flows waarvan de source IP ook in een andere vector voorkomt:
-        # data = attack.data[(attack.data.source_port == 0) & (attack.data.protocol == frag_proto) &
-        #                    attack.data.source_address.isin(attack_vector_data.source_address)]
+        data = attack.data[(attack.data.source_port == 0) & (attack.data.protocol == frag_proto) &
+                           attack.data.source_address.isin(attack_vector_data.source_address)]
         attack_vectors.append(AttackVector(data, source_port=0, protocol=frag_proto))
 
     return sorted(attack_vectors, reverse=True)
