@@ -17,7 +17,7 @@ class Attack:
     def ensure_datatypes(self):
         """
         Cast each DataFrame column to the correct type
-        :return:
+        :return: None
         """
         def try_cast(colomn_name: str, to_type: type, essential: bool = False) -> None:
             try:
@@ -50,5 +50,10 @@ class Attack:
         try_cast('destination_type_of_service', to_type=int)
 
     def filter_data_on_target(self, target_network: IPNetwork):
+        """
+        Only keep traffic directed at the target in Attack.data
+        :param target_network: target network of this attack
+        :return: None
+        """
         target_addresses = [x for x in self.data.destination_address if x in target_network]
         self.data = self.data[self.data.destination_address.isin(target_addresses)]

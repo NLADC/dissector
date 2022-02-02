@@ -54,8 +54,6 @@ class AttackVector:
             self.tcp_flags = None
         else:
             self.tcp_flags = dict(get_outliers(self.data, 'tcp_flags', 0.2, return_fractions=True)) or None
-        # self.source_tos = get_outliers(self.data, 'source_type_of_service', 0.3)  # top source ToS
-        # self.destiantion_tos = get_outliers(self.data, 'destination_type_of_service', 0.3)  # top destination ToS
 
     def __str__(self):
         return f"[AttackVector] {self.service} on port {self.source_port}, protocol {self.protocol}"
@@ -114,6 +112,10 @@ class Fingerprint:
         }
 
     def determine_tags(self) -> List[str]:
+        """
+        Determine the tags that describe this attack. Characteristics such as "Multi-vector attacK", "UDP flood", etc.
+        :return: List of tags (strings)
+        """
         tags = []
         if len([v for v in self.attack_vectors if v.service != "Fragmented IP packets"]) > 1:
             tags.append("Multi-vector attack")
@@ -141,10 +143,23 @@ class Fingerprint:
         return list(set(tags))
 
     def write_to_file(self, filename: Path):
+        """
+        Save fingerprint as a JSON file to disk
+        :param filename: save location
+        :return: None
+        """
         with open(filename, 'w') as file:
             json.dump(self.as_dict(anonymous=True), file)
 
     def upload_to_ddosdb(self, host: str, username: str, password: str, noverify: bool = False) -> int:
+        """
+        Upload fingerprint to a DDoS-DB instance
+        :param host: hostname of the DDoS-DB instance, without schema
+        :param username: DDoS-DB username
+        :param password: (str) DDoS-DB password
+        :param noverify: (bool) ignore invalid TLS certificate
+        :return: HTTP response code
+        """
         LOGGER.info(f"Uploading fingerprint to {host}...")
 
         files = {"json": BytesIO(json.dumps(self.as_dict(anonymous=True)).encode())}
@@ -177,3 +192,13 @@ class Fingerprint:
             LOGGER.info("Internal Server Error.")
             LOGGER.info("Error Code: {}".format(r.status_code))
         return r.status_code
+
+    def upload_to_misp(self, host: str, username: str, password: str) -> int:
+        """
+        TODO: upload fingerprint to a MISP instance
+        :param host: hostname of the MISP instance, without schema
+        :param username: MISP username
+        :param password: MISP password
+        :return: HTTP response code
+        """
+        pass

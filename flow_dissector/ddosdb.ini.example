@@ -2,3 +2,8 @@
 host=db.example.com
 user=username
 pass=password
+
+[misp]
+host=misp.example.com
+user=username
+pass=password

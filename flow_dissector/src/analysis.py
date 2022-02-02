@@ -17,7 +17,7 @@ def infer_target(attack: Attack) -> IPNetwork:
     If the target is a subnet, this method will homogenize the IP adresses in the attack to the first address in the
     subnet.
     :param attack: Attack object of which to determine the target IP address or network
-    :return: Target IP address
+    :return: Target IP address as an IPNetwork
     """
     targets: List[IPAddress] = get_outliers(attack.data,
                                             column='destination_address',
@@ -68,6 +68,11 @@ def infer_target(attack: Attack) -> IPNetwork:
 
 
 def extract_attack_vectors(attack: Attack) -> List[AttackVector]:
+    """
+    Extract the attack vector(s) that make up this attack, from the Attack object. e.g. DNS amplfication vector
+    :param attack: Attack object from which extract vectors
+    :return: List of AttackVectors
+    """
     port_protocol_outliers = get_outliers(attack.data, column=['source_port', 'protocol'], fraction_for_outlier=0.05,
                                           use_zscore=False)
     LOGGER.debug(f"Attack vectors (source port, protocol): {port_protocol_outliers}")
@@ -75,15 +80,16 @@ def extract_attack_vectors(attack: Attack) -> List[AttackVector]:
     fragmentation_protocols = []
     for port, protocol in port_protocol_outliers:
         if port == 0 and protocol != "ICMP":
+            # Ignore fragmented packets vector for now, compute later given the other attack vectors
             fragmentation_protocols.append(protocol)
             continue
         data = attack.data[(attack.data.source_port == port) & (attack.data.protocol == protocol)]
         attack_vectors.append(AttackVector(data=data, source_port=port, protocol=protocol))
-    if len(attack_vectors) == 0:
+    if len(attack_vectors) == 0:  # No outliers in the source_port / protocol combination -> likely a flood attack
         protocol = attack.data.protocol.value_counts().keys()[0]  # most common protocol
         data = attack.data[(attack.data.source_port != 0) & (attack.data.protocol == protocol)]
         attack_vectors.append(AttackVector(data=data, source_port=-1, protocol=protocol))  # random source ports
-    # Compute the fraction of all traffic for each attack vector (except fragmented packets)
+    # Compute the fraction of all traffic for each attack vector
     total_packets = sum([v.packets for v in attack_vectors])
     for vector in attack_vectors:
         vector.fraction_of_attack = round(vector.packets / total_packets, 3)
@@ -98,6 +104,11 @@ def extract_attack_vectors(attack: Attack) -> List[AttackVector]:
 
 
 def compute_summary(attack_vectors: List[AttackVector]) -> Dict[str, Any]:
+    """
+    Compute the summary statistics of the attack given its attack vectors
+    :param attack_vectors: List of attack vectors that make up the attack
+    :return: Dictionary with summary statistics
+    """
     data = pd.concat([v.data for v in attack_vectors])
     time_start = data.time_start.min()
     time_end = data.time_end.max()

@@ -21,9 +21,7 @@ COLUMN_NAMES: Dict[str, str] = {
     "dp": "destination_port",
     "ipkt": "nr_packets",
     "ibyt": "nr_bytes",
-    "flg": "tcp_flags",
-    "stos": "source_type_of_service",
-    "dtos": "destination_type_of_service"
+    "flg": "tcp_flags"
 }
 
 
@@ -33,11 +31,10 @@ def read_flow(filename: Path) -> pd.DataFrame:
     :param filename: location of the FLOW file
     :return: DataFrame of the contents
     """
-
     # Check if nfdump software is available
     nfdump = shutil.which("nfdump")
     if nfdump is None:
-        error("nfdump software not found; it should be on the path. Install from https://github.com/phaag/nfdump")
+        error("nfdump software not found; it should be on the $PATH. Install from https://github.com/phaag/nfdump")
 
     if not filename.exists() or not filename.is_file() or not os.access(filename, os.R_OK):
         error(f"{filename} does not exist or is not readable. If using docker, did you mount the location "
