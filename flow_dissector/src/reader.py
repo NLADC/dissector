@@ -40,19 +40,22 @@ def read_flow(filename: Path) -> pd.DataFrame:
         error(f"{filename} does not exist or is not readable. If using docker, did you mount the location "
               f"as a volume? Did you use the correct path to the file in docker?")
 
-    LOGGER.info(f'Loading "{filename}"...')
     command = [nfdump, "-r", str(filename), "-o", "extended", "-o", "csv"]
+    LOGGER.info(f'Reading "{filename}"...')
     process = subprocess.run(command, capture_output=True)
     if process.returncode != 0:
         LOGGER.error("nfdump command failed!\n")
         error(f"nfdump command stderr:\n{process.stderr.decode('utf-8')}")
+    LOGGER.debug("nfdump finished reading FLOW dump.")
 
     # Process nfdump output
     rows = process.stdout.decode("utf-8").split('\n')
     flows = '\n'.join(rows[:-4])
+    LOGGER.info("Loading data into a dataframe.")
     data: pd.DataFrame = pd.read_csv(StringIO(flows), encoding="utf8")
 
     # Keep only relevant columns & rename
     data = data[data.columns.intersection(COLUMN_NAMES.keys())]
     data.rename(columns=COLUMN_NAMES, inplace=True)
+    LOGGER.debug("Done loading data into dataframe.")
     return data

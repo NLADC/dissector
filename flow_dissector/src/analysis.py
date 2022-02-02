@@ -4,11 +4,10 @@ from netaddr import IPAddress, IPNetwork
 from typing import List, Dict, Any
 
 from logger import LOGGER
-from attack import Attack
-from fingerprint import AttackVector
+from attack import Attack, AttackVector
 from util import get_outliers
 
-__all__ = ['infer_target', 'extract_attack_vectors', 'compute_summary']
+__all__ = ["infer_target", "extract_attack_vectors", "compute_summary"]
 
 
 def infer_target(attack: Attack) -> IPNetwork:
@@ -19,6 +18,7 @@ def infer_target(attack: Attack) -> IPNetwork:
     :param attack: Attack object of which to determine the target IP address or network
     :return: Target IP address as an IPNetwork
     """
+    LOGGER.debug("Inferring attack target.")
     targets: List[IPAddress] = get_outliers(attack.data,
                                             column='destination_address',
                                             fraction_for_outlier=0.5,
@@ -73,6 +73,7 @@ def extract_attack_vectors(attack: Attack) -> List[AttackVector]:
     :param attack: Attack object from which extract vectors
     :return: List of AttackVectors
     """
+    LOGGER.debug("Extracting attack vectors.")
     port_protocol_outliers = get_outliers(attack.data, column=['source_port', 'protocol'], fraction_for_outlier=0.05,
                                           use_zscore=False)
     LOGGER.debug(f"Attack vectors (source port, protocol): {port_protocol_outliers}")
@@ -84,8 +85,14 @@ def extract_attack_vectors(attack: Attack) -> List[AttackVector]:
             fragmentation_protocols.append(protocol)
             continue
         data = attack.data[(attack.data.source_port == port) & (attack.data.protocol == protocol)]
-        attack_vectors.append(AttackVector(data=data, source_port=port, protocol=protocol))
+        attack_vectors.append(vector := AttackVector(data=data, source_port=port, protocol=protocol))
+        vector.destination_ports = dict(get_outliers(data,
+                                                     "destination_port",
+                                                     0.1,
+                                                     use_zscore=False,
+                                                     return_fractions=True)) or "random"
     if len(attack_vectors) == 0:  # No outliers in the source_port / protocol combination -> likely a flood attack
+        LOGGER.debug("No attack vectors found by looking at outliers of the combination source port / protocol.")
         protocol = attack.data.protocol.value_counts().keys()[0]  # most common protocol
         data = attack.data[(attack.data.source_port != 0) & (attack.data.protocol == protocol)]
         attack_vectors.append(AttackVector(data=data, source_port=-1, protocol=protocol))  # random source ports
