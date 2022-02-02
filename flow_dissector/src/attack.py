@@ -46,8 +46,6 @@ class Attack:
         try_cast('nr_packets', to_type=int)
         try_cast('nr_bytes', to_type=int)
         try_cast('tcp_flags', to_type=str)
-        try_cast('source_type_of_service', to_type=int)
-        try_cast('destination_type_of_service', to_type=int)
 
     def filter_data_on_target(self, target_network: IPNetwork):
         """
