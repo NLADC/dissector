@@ -207,13 +207,13 @@ class Fingerprint:
     def upload_to_ddosdb(self, host: str, username: str, password: str, noverify: bool = False) -> int:
         """
         Upload fingerprint to a DDoS-DB instance
-        :param host: hostname of the DDoS-DB instance, without schema
+        :param host: hostname of the DDoS-DB instance, without schema (like db.example.com)
         :param username: DDoS-DB username
-        :param password: (str) DDoS-DB password
+        :param password: DDoS-DB password
         :param noverify: (bool) ignore invalid TLS certificate
         :return: HTTP response code
         """
-        LOGGER.info(f"Uploading fingerprint to {host}...")
+        LOGGER.info(f"Uploading fingerprint to DDoS-DB: {host}...")
 
         files = {"json": BytesIO(json.dumps(self.as_dict(anonymous=True)).encode())}
         headers = {
@@ -249,9 +249,9 @@ class Fingerprint:
     def upload_to_misp(self, host: str, username: str, password: str) -> int:
         """
         TODO: upload fingerprint to a MISP instance
-        :param host: hostname of the MISP instance, without schema
+        :param host: hostname of the MISP instance, without schema (like misp.example.com)
         :param username: MISP username
         :param password: MISP password
         :return: HTTP response code
         """
-        pass
+        ...

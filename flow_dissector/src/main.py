@@ -45,6 +45,6 @@ args.output.mkdir(parents=True, exist_ok=True)
 fingerprint.write_to_file(args.output / (fingerprint.checksum[:16] + ".json"))  # write the fingerprint to disk
 
 if args.ddosdb:  # Upload the fingerprint to a specified DDoS-DB instance
-    fingerprint.upload_to_ddosdb(*parse_config(args.config), noverify=args.noverify)
+    fingerprint.upload_to_ddosdb(**parse_config(args.config), noverify=args.noverify)
 if args.misp:  # Upload the fingerprint to a specified MISP instance
-    fingerprint.upload_to_misp(*parse_config(args.config, misp=True))
+    fingerprint.upload_to_misp(**parse_config(args.config, misp=True))

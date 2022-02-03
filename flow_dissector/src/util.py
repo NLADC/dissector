@@ -63,7 +63,7 @@ def error(message: str):
     sys.exit(-1)
 
 
-def parse_config(file: Path, misp=False) -> Tuple[str, str, str]:
+def parse_config(file: Path, misp=False) -> Dict[str, str]:
     """
     Parse the DDoSDB/MISP config file and return host, username, password
     :param file: Config file (ini format)
@@ -81,7 +81,12 @@ def parse_config(file: Path, misp=False) -> Tuple[str, str, str]:
 
     platform = "misp" if misp else "ddosdb"
     try:
-        return config.get(platform, 'host'), config.get(platform, 'user'), config.get(platform, 'pass')
+        return {
+            "host": config.get(platform, 'host'),
+            "username": config.get(platform, 'user'),
+            "password": config.get(platform, 'pass')
+        }
+
     except (NoSectionError, NoOptionError):
         error("Uploading fingerprint failed. "
               f"The config file must include a section '{platform}' with keys 'host', 'user', and 'pass'.")
