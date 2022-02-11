@@ -1,6 +1,6 @@
 import sys
 import pandas as pd
-from typing import Dict, Tuple, Union, List
+from typing import Dict, Union, List
 from pathlib import Path
 from configparser import ConfigParser, NoOptionError, NoSectionError
 
@@ -98,8 +98,8 @@ def get_outliers(data: pd.DataFrame,
                  use_zscore: bool = True,
                  return_fractions: bool = False) -> list:
     """
-    Find the outlier(s) in a pandas Series
-    :param data: data in which to find outlier(s)
+    Find the outlier(s) in a pandas DataFrame
+    :param data: DataFrame in which to find outlier(s)
     :param column: column or combination of columns in the dataframe for which to find outlier value(s)
     :param fraction_for_outlier: if a value comprises this fraction or more of the data, it is considered an outleir
     :param use_zscore: Also take into account the z-score to determine outliers (> 2 * std from the mean)

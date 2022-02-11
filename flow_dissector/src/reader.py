@@ -12,16 +12,16 @@ from util import error
 __all__ = ['read_flow']
 
 COLUMN_NAMES: Dict[str, str] = {
-    "ts": "time_start",
-    "te": "time_end",
-    "pr": "protocol",
-    "sa": "source_address",
-    "da": "destination_address",
-    "sp": "source_port",
-    "dp": "destination_port",
-    "ipkt": "nr_packets",
-    "ibyt": "nr_bytes",
-    "flg": "tcp_flags"
+    'ts': "time_start",
+    'te': "time_end",
+    'pr': "protocol",
+    'sa': "source_address",
+    'da': "destination_address",
+    'sp': "source_port",
+    'dp': "destination_port",
+    'ipkt': "nr_packets",
+    'ibyt': "nr_bytes",
+    'flg': "tcp_flags"
 }
 
 
