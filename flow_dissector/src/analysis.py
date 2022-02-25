@@ -89,7 +89,7 @@ def extract_attack_vectors(attack: Attack) -> List[AttackVector]:
 
     attack_vectors: List[AttackVector] = []
     attack_vector_data = pd.DataFrame()
-    fragmentation_protocols = set()
+    fragmentation_protocols = set()  # protocols for which a significant fraction of traffic is fragmented packets
 
     # Create an attack vector for each source port - protocol pair outlier
     LOGGER.debug(f"Extracting attack vectors from source_port / protocol pair outliers "
@@ -104,8 +104,9 @@ def extract_attack_vectors(attack: Attack) -> List[AttackVector]:
         attack_vectors.append(AttackVector(data=data, source_port=source_port, protocol=protocol))
 
     # See if there is any data left that might be a flood attack on a specific destination port
-    unallocated_data = attack.data[~attack.data.apply(tuple.__call__, axis=1).isin(
-        attack_vector_data.apply(tuple.__call__, axis=1))]
+    merged_data = attack.data.merge(attack_vector_data.drop_duplicates(), how='left', indicator=True)
+    unallocated_data = merged_data[merged_data['_merge'] == 'left_only'].drop('_merge', axis=1)
+    print(unallocated_data.head())
     protocol_dest_port_outliers = get_outliers(unallocated_data,
                                                column=['protocol', 'destination_port'],
                                                fraction_for_outlier=0.1,
@@ -138,8 +139,8 @@ def extract_attack_vectors(attack: Attack) -> List[AttackVector]:
         attack_vectors.append(AttackVector(data=data, source_port=-1, protocol=protocol))
 
     # Any remaining attack traffic is likely a flood attack with random source / destination ports
-    unallocated_data = attack.data[~attack.data.apply(tuple.__call__, axis=1).isin(
-        attack_vector_data.apply(tuple.__call__, axis=1))]
+    merged_data = unallocated_data.merge(attack_vector_data.drop_duplicates(), how='left', indicator=True)
+    unallocated_data = merged_data[merged_data['_merge'] == 'left_only'].drop('_merge', axis=1)
     for protocol in get_outliers(unallocated_data, column='protocol', fraction_for_outlier=0.2):
         LOGGER.debug(f"{protocol} flood attack added to attack vectors")
         data = unallocated_data[(unallocated_data.source_port != 0) & (unallocated_data.protocol == protocol)]
