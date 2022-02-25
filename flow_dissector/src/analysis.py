@@ -184,6 +184,7 @@ def compute_summary(attack_vectors: List[AttackVector]) -> Dict[str, Any]:
     nr_packets = int(data.nr_packets.sum())
     return {
         "time_start": str(time_start),
+        "time_end": str(time_end),
         "duration_seconds": duration,
         "total_flows": len(data),
         "total_megabytes": nr_bytes // 1_000_000,
