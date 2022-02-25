@@ -142,13 +142,15 @@ class AttackVector:
 
 
 class Fingerprint:
-    def __init__(self, target: IPNetwork, summary: Dict[str, int], attack_vectors: List[AttackVector]):
+    def __init__(self, target: IPNetwork, summary: Dict[str, int], attack_vectors: List[AttackVector],
+                 show_target: bool = False):
         if target.version == 4 and target.prefixlen == 32 or target.version == 6 and target.prefixlen == 128:
             self.target: IPAddress = target.network
         else:
             self.target: IPNetwork = target
         self.summary = summary
         self.attack_vectors = attack_vectors
+        self.show_target = show_target
         self.tags = self.determine_tags()
         self.checksum = hashlib.md5((str(attack_vectors) + str(summary)).encode()).hexdigest()
 
@@ -202,7 +204,7 @@ class Fingerprint:
         :return: None
         """
         with open(filename, 'w') as file:
-            json.dump(self.as_dict(anonymous=True), file)
+            json.dump(self.as_dict(anonymous=not self.show_target), file)
 
     def upload_to_ddosdb(self, host: str, username: str, password: str, noverify: bool = False) -> int:
         """
@@ -215,7 +217,7 @@ class Fingerprint:
         """
         LOGGER.info(f"Uploading fingerprint to DDoS-DB: {host}...")
 
-        files = {"json": BytesIO(json.dumps(self.as_dict(anonymous=True)).encode())}
+        files = {"json": BytesIO(json.dumps(self.as_dict(anonymous=not self.show_target)).encode())}
         headers = {
             "X-Username": username,
             "X-Password": password,

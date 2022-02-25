@@ -22,6 +22,8 @@ def parse_arguments() -> Namespace:
     parser.add_argument("--misp", action="store_true", help="Optional: directly upload fingerprint to MISP")
     parser.add_argument("--noverify", action="store_true", help="Optional: Don't verify TLS certificates")
     parser.add_argument("--debug", action="store_true", help="Optional: show debug messages")
+    parser.add_argument("--show-target", action="store_true", help="Optional: Do NOT anonymize the target IP address "
+                                                                   "/ network in the fingerprint.")
     return parser.parse_args()
 
 
@@ -36,7 +38,8 @@ target = args.target or infer_target(attack)  # Infer the attack target if not p
 attack.filter_data_on_target(target_network=target)  # Keep only the traffic sent to the target
 attack_vectors = extract_attack_vectors(attack)  # Extract the attack vectors from the attack
 summary = compute_summary(attack_vectors)  # Compute summary statistics of the attack (e.g. average bps / Bpp / pps)
-fingerprint = Fingerprint(target=target, summary=summary, attack_vectors=attack_vectors)  # Generate fingeperint
+# Generate fingeperint
+fingerprint = Fingerprint(target=target, summary=summary, attack_vectors=attack_vectors, show_target=args.show_target)
 
 if args.summary:  # If the user wants a preview, show the finerprint in the terminal
     print(fingerprint)
