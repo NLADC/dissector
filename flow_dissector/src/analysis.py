@@ -1,7 +1,8 @@
 import sys
 import pandas as pd
 from netaddr import IPAddress, IPNetwork
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
+from collections import defaultdict
 
 from logger import LOGGER
 from attack import Attack, AttackVector
@@ -74,60 +75,89 @@ def extract_attack_vectors(attack: Attack) -> List[AttackVector]:
     :return: List of AttackVectors
     """
     LOGGER.info("Extracting attack vectors.")
-    source_port_protocol_outliers = get_outliers(attack.data,
-                                                 column=['source_port', 'protocol'],
-                                                 fraction_for_outlier=0.05,
-                                                 use_zscore=False)
+    # Get (protocol, source_port) outliers including fragmented packets
+    with_fragmented_packets = get_outliers(attack.data,
+                                           column=['protocol', 'source_port'],
+                                           fraction_for_outlier=0.05,
+                                           use_zscore=False)
+    # Get (protocol, source_port) outliers when ignoring fragmented packets
+    without_fragmented_packets = get_outliers(attack.data[attack.data.source_port != 0],
+                                              column=['protocol', 'source_port'],
+                                              fraction_for_outlier=0.05,
+                                              use_zscore=False)
+    protocol_source_port_outliers = list(set(with_fragmented_packets) | set(without_fragmented_packets))
+
     attack_vectors: List[AttackVector] = []
     attack_vector_data = pd.DataFrame()
     fragmentation_protocols = set()
 
     # Create an attack vector for each source port - protocol pair outlier
     LOGGER.debug(f"Extracting attack vectors from source_port / protocol pair outliers "
-                 f"({len(source_port_protocol_outliers)})")
-    for source_port, protocol in source_port_protocol_outliers:
+                 f"({len(protocol_source_port_outliers)})")
+    for protocol, source_port in protocol_source_port_outliers:
+        data = attack.data[(attack.data.source_port == source_port) & (attack.data.protocol == protocol)]
+        attack_vector_data = pd.concat([attack_vector_data, data])
         if source_port == 0 and protocol != "ICMP":
-            # Ignore fragmented packets vector for now, compute later given the other attack vectors
+            # Don't add fragmented packets as a vector at this stage; it should not count towards the fraction of attack
             fragmentation_protocols.add(protocol)
             continue
-        data = attack.data[(attack.data.source_port == source_port) & (attack.data.protocol == protocol)]
         attack_vectors.append(AttackVector(data=data, source_port=source_port, protocol=protocol))
-        attack_vector_data = pd.concat([attack_vector_data, data])
 
     # See if there is any data left that might be a flood attack on a specific destination port
     unallocated_data = attack.data[~attack.data.apply(tuple.__call__, axis=1).isin(
         attack_vector_data.apply(tuple.__call__, axis=1))]
-    dest_port_protocol_outliers = get_outliers(unallocated_data,
-                                               column=['destination_port', 'protocol'],
-                                               fraction_for_outlier=0.2,
+    protocol_dest_port_outliers = get_outliers(unallocated_data,
+                                               column=['protocol', 'destination_port'],
+                                               fraction_for_outlier=0.1,
                                                use_zscore=True)
-    LOGGER.debug(f"Extracting attack vectors targeted at a specific port ({len(dest_port_protocol_outliers)})")
-    for destination_port, protocol in dest_port_protocol_outliers:
-        if destination_port == 0 and protocol != "ICMP":
+    # remove destination port 0
+    protocol_dest_port_outliers = [(proto, port) for proto, port in protocol_dest_port_outliers if port != 0]
+
+    def combine_outliers(port_protocol_tuples: List[Tuple[str, int]]) -> List[Tuple[str, List[int]]]:
+        """
+        Combine destination ports in (protocol, destination_port) tuples with the same protocol.
+        example: [("UDP", 5), ("UDP", 6), ("TCP", 7)] -> [("UDP", [5, 6]), ("TCP", 7)]
+        :param port_protocol_tuples: list of tuples
+        :return: port protocol tuples where the destination_ports are combined
+        """
+        protocol_to_ports = defaultdict(list)
+        for proto, port in port_protocol_tuples:
+            protocol_to_ports[proto].append(port)
+        return list(protocol_to_ports.items())
+
+    protocol_dest_port_outliers = combine_outliers(protocol_dest_port_outliers)
+    LOGGER.debug(f"protocol & destination port outliers: {protocol_dest_port_outliers}")
+    for protocol, destination_ports in protocol_dest_port_outliers:
+        if destination_ports == 0 and protocol != "ICMP":
             # Ignore fragmented packets vector for now, compute later given the other attack vectors
             fragmentation_protocols.add(protocol)
             continue
-        data = unallocated_data[(unallocated_data.destination_port == destination_port) &
+        data = unallocated_data[(unallocated_data.destination_port.isin(destination_ports)) &
                                 (unallocated_data.protocol == protocol)]
+        attack_vector_data = pd.concat([attack_vector_data, data])
         attack_vectors.append(AttackVector(data=data, source_port=-1, protocol=protocol))
 
-    # No outliers in the source_port / protocol combination -> likely a flood attack
-    if len(attack_vectors) == 0:
-        LOGGER.debug("No attack vectors found by looking at outliers of the combination source port / protocol, or"
-                     "outliers of the combination destination port / protocol")
-        for protocol in get_outliers(attack.data, column='protocol', fraction_for_outlier=0.2):
-            LOGGER.debug(f"{protocol} flood attack added to attack vectors")
-            data = attack.data[(attack.data.source_port != 0) & (attack.data.protocol == protocol)]
-            attack_vectors.append(AttackVector(data=data, source_port=-1, protocol=protocol))  # random source ports
+    # Any remaining attack traffic is likely a flood attack with random source / destination ports
+    unallocated_data = attack.data[~attack.data.apply(tuple.__call__, axis=1).isin(
+        attack_vector_data.apply(tuple.__call__, axis=1))]
+    for protocol in get_outliers(unallocated_data, column='protocol', fraction_for_outlier=0.2):
+        LOGGER.debug(f"{protocol} flood attack added to attack vectors")
+        data = attack.data[(attack.data.source_port != 0) & (attack.data.protocol == protocol)]
+        attack_vectors.append(AttackVector(data=data, source_port=-1, protocol=protocol))  # random source ports
 
-    # Compute the fraction of all traffic for each attack vector
+    # Compute the fraction of all traffic for each attack vector, discard vectors with less than 5% of traffic
     LOGGER.debug("Computing the fraction of traffic each attack vector contributes.")
-    total_packets = sum([v.packets for v in attack_vectors])
-    for vector in attack_vectors:
-        vector.fraction_of_attack = round(vector.packets / total_packets, 3)
-    attack_vectors = [vector for vector in attack_vectors if vector.fraction_of_attack >= 0.05]
+    while True:
+        total_packets = sum([v.packets for v in attack_vectors])
+        for vector in attack_vectors:
+            vector.fraction_of_attack = round(vector.packets / total_packets, 3)
+            if vector.fraction_of_attack < 0.05:
+                break
+        else:
+            break
+        attack_vectors.remove(vector)
 
-    # Create attack vector with fragmented packets
+    # Create attack vector(s) with fragmented packets
     for frag_proto in fragmentation_protocols:
         LOGGER.debug(f"Computing {frag_proto} fragmentation vector")
         # Only keep flows in the fragmented packets vector with source IP address that occurs in another attack vector.

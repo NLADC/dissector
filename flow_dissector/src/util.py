@@ -109,18 +109,15 @@ def get_outliers(data: pd.DataFrame,
     packets_per_value = data.groupby(column).nr_packets.sum().sort_values(ascending=False)
     fractions = packets_per_value / packets_per_value.sum()
 
-    if fractions[20:].sum() > fractions.iloc[0]:
-        LOGGER.debug(f"No outlier found in column '{column}'")
-        return []
-
     zscores = (fractions - fractions.mean()) / fractions.std()
+    LOGGER.debug(f"top 5 '{column}':\n{fractions.head()}")
 
     outliers = [(key, round(fraction, 3)) if return_fractions else key
                 for key, fraction in fractions.items()
                 if fraction > fraction_for_outlier or (zscores[key] > 2 and use_zscore)]
 
     if len(outliers) > 0:
-        LOGGER.debug(f"Outlier(s) in column '{column}': {outliers}")
+        LOGGER.debug(f"Outlier(s) in column '{column}': {outliers}\n")
     else:
         LOGGER.debug(f"No outlier found in column '{column}'")
     return outliers

@@ -103,10 +103,10 @@ class AttackVector:
                 self.service = "Unknown service"
         except OverflowError:  # Random source port (-1), no specific service
             self.service = None
-        if self.protocol != "TCP":
-            self.tcp_flags = None
-        else:
+        if self.protocol == "TCP":
             self.tcp_flags = dict(get_outliers(self.data, 'tcp_flags', 0.2, return_fractions=True)) or None
+        else:
+            self.tcp_flags = None
 
     def __str__(self):
         return f"[AttackVector] {self.service} on port {self.source_port}, protocol {self.protocol}"

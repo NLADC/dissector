@@ -27,7 +27,7 @@ vector when using a PCAP as input, such as DNS query name and NTP request type.
 | `target`            | IP address or subnet of the attack target, or "Anonymous" (when uploaded to DDoS-DB)                    | String                                          |
 | `tags`              | Tags assigned to this attack, e.g. "Amplification attack", "Multi-vector attack", "TCP SYN flag attack" | Array of strings                                |
 | `key`               | MD5 hash digest of the fingerprint, used as identifier and as file name of the fingerprint              | String                                          |
-| `time_start`        | Timestamp of the start of the attack (time zone local to the attack target)                             | String                                          |
+| `time_start`        | Timestamp of the start of the attack (time zone local to the attack target)                             | DateTime                                        |
 | `duration_seconds`  | Duration of the attack in seconds                                                                       | Integer                                         |
 | `total_flows`       | Total number of flows in the attack capture                                                             | Integer                                         |
 | `total_megabytes`   | Total volume of the attack in megabytes (MB)                                                            | Integer                                         |
@@ -49,7 +49,7 @@ vector when using a PCAP as input, such as DNS query name and NTP request type.
 | `nr_flows`           | Number of flows that contribute to this attack vector                                                                                                                                                                                              | Integer                        |
 | `nr_packets`         | Number of packets in this attack vector                                                                                                                                                                                                            | Integer                        |
 | `nr_megabytes`       | Number of megabytes sent through this attack vector                                                                                                                                                                                                | Integer                        |
-| `time_start`         | Timestamp of the start of the attack vector: the first flow of this attack vector (timezone local to the attack target)                                                                                                                            | String                         |
+| `time_start`         | Timestamp of the start of the attack vector: the first flow of this attack vector (timezone local to the attack target)                                                                                                                            | DateTime                       |
 | `duration_seconds`   | Duration of this attack vector in seconds (last timestamp - first timestamp)                                                                                                                                                                       | Integer                        |
 | `source_ips`         | Array of unique IP addressed that sent traffic to the target on this attack vector                                                                                                                                                                 | Array of strings               |
 
@@ -59,4 +59,4 @@ vector when using a PCAP as input, such as DNS query name and NTP request type.
 | `submitter`        | user account that submitted the fingerprint to DDoS-DB                       | String        |
 | `submit_timestamp` | Timestamp of the upload (UTC)                                                | String        |
 | `shareable`        | If this fingerprint can be shared with other users / other DDoS-DB instances | Boolean       |
-| `comment`          | Comment added to the fingerprint                                             | Boolean       |
+| `comment`          | Comment added to the fingerprint                                             | String        |
