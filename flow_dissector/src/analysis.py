@@ -142,7 +142,7 @@ def extract_attack_vectors(attack: Attack) -> List[AttackVector]:
         attack_vector_data.apply(tuple.__call__, axis=1))]
     for protocol in get_outliers(unallocated_data, column='protocol', fraction_for_outlier=0.2):
         LOGGER.debug(f"{protocol} flood attack added to attack vectors")
-        data = attack.data[(attack.data.source_port != 0) & (attack.data.protocol == protocol)]
+        data = unallocated_data[(unallocated_data.source_port != 0) & (unallocated_data.protocol == protocol)]
         attack_vectors.append(AttackVector(data=data, source_port=-1, protocol=protocol))  # random source ports
 
     # Compute the fraction of all traffic for each attack vector, discard vectors with less than 5% of traffic
