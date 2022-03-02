@@ -6,7 +6,7 @@ from collections import defaultdict
 
 from logger import LOGGER
 from attack import Attack, AttackVector
-from util import get_outliers
+from util import get_outliers, FileType
 
 __all__ = ["infer_target", "extract_attack_vectors", "compute_summary"]
 
@@ -68,9 +68,10 @@ def infer_target(attack: Attack) -> IPNetwork:
     return best_network
 
 
-def extract_attack_vectors(attack: Attack) -> List[AttackVector]:
+def extract_attack_vectors(attack: Attack, filetype: FileType) -> List[AttackVector]:
     """
     Extract the attack vector(s) that make up this attack, from the Attack object. e.g. DNS amplfication vector
+    :param filetype: PCAP or FLOW
     :param attack: Attack object from which extract vectors
     :return: List of AttackVectors
     """
@@ -101,12 +102,14 @@ def extract_attack_vectors(attack: Attack) -> List[AttackVector]:
             # Don't add fragmented packets as a vector at this stage; it should not count towards the fraction of attack
             fragmentation_protocols.add(protocol)
             continue
-        attack_vectors.append(AttackVector(data=data, source_port=source_port, protocol=protocol))
+        attack_vectors.append(AttackVector(data=data, source_port=source_port, protocol=protocol, filetype=filetype))
 
     # See if there is any data left that might be a flood attack on a specific destination port
-    merged_data = attack.data.merge(attack_vector_data.drop_duplicates(), how='left', indicator=True)
-    unallocated_data = merged_data[merged_data['_merge'] == 'left_only'].drop('_merge', axis=1)
-    print(unallocated_data.head())
+    if attack_vector_data.empty:
+        unallocated_data = attack.data
+    else:
+        merged_data = attack.data.merge(attack_vector_data.drop_duplicates(), how='left', indicator=True)
+        unallocated_data = merged_data[merged_data['_merge'] == 'left_only'].drop('_merge', axis=1)
     protocol_dest_port_outliers = get_outliers(unallocated_data,
                                                column=['protocol', 'destination_port'],
                                                fraction_for_outlier=0.1,
@@ -136,15 +139,19 @@ def extract_attack_vectors(attack: Attack) -> List[AttackVector]:
         data = unallocated_data[(unallocated_data.destination_port.isin(destination_ports)) &
                                 (unallocated_data.protocol == protocol)]
         attack_vector_data = pd.concat([attack_vector_data, data])
-        attack_vectors.append(AttackVector(data=data, source_port=-1, protocol=protocol))
+        attack_vectors.append(AttackVector(data=data, source_port=-1, protocol=protocol, filetype=filetype))
 
     # Any remaining attack traffic is likely a flood attack with random source / destination ports
-    merged_data = unallocated_data.merge(attack_vector_data.drop_duplicates(), how='left', indicator=True)
-    unallocated_data = merged_data[merged_data['_merge'] == 'left_only'].drop('_merge', axis=1)
+    if attack_vector_data.empty:
+        unallocated_data = attack.data
+    else:
+        merged_data = attack.data.merge(attack_vector_data.drop_duplicates(), how='left', indicator=True)
+        unallocated_data = merged_data[merged_data['_merge'] == 'left_only'].drop('_merge', axis=1)
     for protocol in get_outliers(unallocated_data, column='protocol', fraction_for_outlier=0.2):
         LOGGER.debug(f"{protocol} flood attack added to attack vectors")
         data = unallocated_data[(unallocated_data.source_port != 0) & (unallocated_data.protocol == protocol)]
-        attack_vectors.append(AttackVector(data=data, source_port=-1, protocol=protocol))  # random source ports
+        # random source ports
+        attack_vectors.append(AttackVector(data=data, source_port=-1, protocol=protocol, filetype=filetype))
 
     # Compute the fraction of all traffic for each attack vector, discard vectors with less than 5% of traffic
     LOGGER.debug("Computing the fraction of traffic each attack vector contributes.")
@@ -165,7 +172,7 @@ def extract_attack_vectors(attack: Attack) -> List[AttackVector]:
         attack_vector_data = pd.concat([v.data for v in attack_vectors if v.protocol == frag_proto])
         data = attack.data[(attack.data.source_port == 0) & (attack.data.protocol == frag_proto) &
                            attack.data.source_address.isin(attack_vector_data.source_address)]
-        attack_vectors.append(AttackVector(data, source_port=0, protocol=frag_proto))
+        attack_vectors.append(AttackVector(data, source_port=0, protocol=frag_proto, filetype=filetype))
 
     return sorted(attack_vectors)
 
@@ -176,6 +183,7 @@ def compute_summary(attack_vectors: List[AttackVector]) -> Dict[str, Any]:
     :param attack_vectors: List of attack vectors that make up the attack
     :return: Dictionary with summary statistics
     """
+    filetype = attack_vectors[0].filetype
     data = pd.concat([v.data for v in attack_vectors])
     time_start = data.time_start.min()
     time_end = data.time_end.max()
@@ -186,11 +194,11 @@ def compute_summary(attack_vectors: List[AttackVector]) -> Dict[str, Any]:
         "time_start": str(time_start),
         "time_end": str(time_end),
         "duration_seconds": duration,
-        "total_flows": len(data),
+        f"total_{'flows' if filetype == FileType.FLOW else 'packets'}": len(data),
         "total_megabytes": nr_bytes // 1_000_000,
         "total_packets": nr_packets,
         "total_ips": len(data.source_address.unique()),
-        "avg_bps": (nr_bytes << 3) // duration,  # // 1_000_000,  # octets to bits # to mbits
-        "avg_pps": nr_packets // duration,
+        "avg_bps": (nr_bytes << 3) // duration if duration > 0 else 0,  # octets to bits
+        "avg_pps": nr_packets // duration if duration > 0 else 0,
         "avg_Bpp": nr_bytes // nr_packets
     }

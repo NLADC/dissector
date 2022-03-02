@@ -12,15 +12,16 @@ from functools import total_ordering
 from datetime import datetime
 from netaddr import IPAddress, IPNetwork
 
-from util import AMPLIFICATION_SERVICES, TCP_FLAG_NAMES, error, get_outliers
+from util import AMPLIFICATION_SERVICES, TCP_FLAG_NAMES, error, get_outliers, FileType
 from logger import LOGGER
 
 __all__ = ["Attack", "AttackVector", "Fingerprint"]
 
 
 class Attack:
-    def __init__(self, data: pd.DataFrame):
+    def __init__(self, data: pd.DataFrame, filetype: FileType):
         self.data = data
+        self.filetype = filetype
         self.ensure_datatypes()
         self.attack_vectors: List[AttackVector]
 
@@ -35,7 +36,7 @@ class Attack:
             try:
                 self.data[colomn_name] = self.data[colomn_name].astype(to_type)
             except KeyError as c:
-                LOGGER.critical(f"{str(c).replace('_', ' ')} not in FLOW data")
+                LOGGER.critical(f"{str(c)} not in FLOW data")
                 if essential:
                     error("Cannot continue with incomplete data")
 
@@ -59,6 +60,9 @@ class Attack:
         try_cast('nr_bytes', to_type=int)
         try_cast('tcp_flags', to_type=str)
 
+        if self.filetype == FileType.PCAP:
+            ...
+
     def filter_data_on_target(self, target_network: IPNetwork):
         """
         Only keep traffic directed at the target in Attack.data
@@ -72,15 +76,16 @@ class Attack:
 
 @total_ordering
 class AttackVector:
-    def __init__(self, data: pd.DataFrame, source_port: int, protocol: str):
+    def __init__(self, data: pd.DataFrame, source_port: int, protocol: str, filetype: FileType):
         self.data = data
         self.source_port = source_port
         self.protocol = protocol.upper()
+        self.filetype = filetype
         self.destination_ports = dict(get_outliers(self.data,
                                                    'destination_port',
                                                    0.1,
                                                    use_zscore=False,
-                                                   return_fractions=True)) or "random"
+                                                   return_others=True)) or "random"
         self.packets = self.data.nr_packets.sum()
         self.bytes = self.data.nr_bytes.sum()
         self.time_start: datetime = self.data.time_start.min()
@@ -104,7 +109,7 @@ class AttackVector:
         except OverflowError:  # Random source port (-1), no specific service
             self.service = None
         if self.protocol == "TCP":
-            self.tcp_flags = dict(get_outliers(self.data, 'tcp_flags', 0.2, return_fractions=True)) or None
+            self.tcp_flags = dict(get_outliers(self.data, 'tcp_flags', 0.2, return_others=True)) or None
         else:
             self.tcp_flags = None
 
@@ -130,7 +135,7 @@ class AttackVector:
             'fraction_of_attack': self.fraction_of_attack if self.source_port != 0 else None,
             'destination_ports': self.destination_ports,
             'tcp_flags': self.tcp_flags,
-            'nr_flows': len(self),
+            f'nr_{"flows" if self.filetype == FileType.FLOW else "packets"}': len(self),
             'nr_packets': int(self.packets),
             'nr_megabytes': int(self.bytes) // 1_000_000,
             'time_start': str(self.time_start),
@@ -241,8 +246,7 @@ class Fingerprint:
         if r.status_code == 403:
             LOGGER.info("Invalid credentials or no permission to upload fingerprints.")
         elif r.status_code == 201:
-            LOGGER.info("Upload success!")
-            LOGGER.info(f"URL: https://{host}/details?key={self.checksum}")
+            LOGGER.info(f"Upload success! URL: https://{host}/details?key={self.checksum}")
         else:
             LOGGER.info("Internal Server Error.")
             LOGGER.info("Error Code: {}".format(r.status_code))

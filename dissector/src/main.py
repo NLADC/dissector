@@ -4,15 +4,16 @@ from argparse import ArgumentParser, Namespace
 from netaddr import IPNetwork
 
 from logger import LOGGER
-from util import parse_config, print_logo
-from reader import read_flow
+from util import parse_config, print_logo, determine_filetype
+from reader import read_file
 from attack import Attack, Fingerprint
 from analysis import infer_target, extract_attack_vectors, compute_summary
 
 
 def parse_arguments() -> Namespace:
     parser = ArgumentParser()
-    parser.add_argument("-f", "--file", type=Path, help="Path to flow capture file(s)", nargs="+", required=True)
+    parser.add_argument("-f", "--file", type=Path, help="Path to Flow / PCAP capture file(s)", nargs="+", required=True,
+                        dest="files")
     parser.add_argument("--summary", action="store_true", help="Optional: print fingerprint without source addresses")
     parser.add_argument("--output", type=Path, help="Path to directory in which to save the fingerprint.",
                         default=Path('fingerprints'))
@@ -32,11 +33,12 @@ args = parse_arguments()
 if args.debug:
     LOGGER.setLevel('DEBUG')
 
-data: pd.DataFrame = pd.concat([read_flow(f) for f in args.file])  # Read the FLOW file(s) into a dataframe
-attack = Attack(data)  # Construct an Attack object with the DDoS data
+filetype = determine_filetype(args.files)
+data: pd.DataFrame = pd.concat([read_file(f, filetype) for f in args.files])  # Read the FLOW file(s) into a dataframe
+attack = Attack(data, filetype)  # Construct an Attack object with the DDoS data
 target = args.target or infer_target(attack)  # Infer the attack target if not passed as an argument
 attack.filter_data_on_target(target_network=target)  # Keep only the traffic sent to the target
-attack_vectors = extract_attack_vectors(attack)  # Extract the attack vectors from the attack
+attack_vectors = extract_attack_vectors(attack, filetype)  # Extract the attack vectors from the attack
 summary = compute_summary(attack_vectors)  # Compute summary statistics of the attack (e.g. average bps / Bpp / pps)
 # Generate fingeperint
 fingerprint = Fingerprint(target=target, summary=summary, attack_vectors=attack_vectors, show_target=args.show_target)
