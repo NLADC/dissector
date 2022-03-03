@@ -164,11 +164,11 @@ def get_outliers(data: pd.DataFrame,
     outliers = [(key, round(fraction, 3)) if return_fractions or return_others else key
                 for key, fraction in fractions.items()
                 if fraction > fraction_for_outlier or (zscores[key] > 2 and use_zscore)]
-    if return_others and (explained := sum([fraction for _, fraction in outliers])) < 0.99:
-        outliers.append(("others", round(1 - explained, 3)))
 
     if len(outliers) > 0:
         LOGGER.debug(f"Outlier(s) in column '{column}': {outliers}\n")
+        if return_others and (explained := sum([fraction for _, fraction in outliers])) < 0.99:
+            outliers.append(("others", round(1 - explained, 3)))
     else:
         LOGGER.debug(f"No outlier found in column '{column}'")
     return outliers
