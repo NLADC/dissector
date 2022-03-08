@@ -28,6 +28,7 @@ vector when using a PCAP as input, such as DNS query name and NTP request type.
 | `tags`              | Tags assigned to this attack, e.g. "Amplification attack", "Multi-vector attack", "TCP SYN flag attack" | Array of strings                                |
 | `key`               | MD5 hash digest of the fingerprint, used as identifier and as file name of the fingerprint              | String                                          |
 | `time_start`        | Timestamp of the start of the attack (time zone local to the attack target)                             | DateTime                                        |
+| `time_end`          | Timestamp of the end of the attack (time zone local to the attack target)                               | DateTime                                        |
 | `duration_seconds`  | Duration of the attack in seconds                                                                       | Integer                                         |
 | `total_flows`       | Total number of flows in the attack capture                                                             | Integer                                         |
 | `total_megabytes`   | Total volume of the attack in megabytes (MB)                                                            | Integer                                         |
