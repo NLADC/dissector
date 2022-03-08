@@ -41,6 +41,7 @@ AMPLIFICATION_SERVICES: Dict[int, str] = {  # UDP port -> service name
     5351: "NAT-PMP",
     5353: "mDNS",
     5683: "CoAP",
+    10074: "Mitel MiColab",  # CVE-2022-26143
     11211: "MEMCACHED",
     27015: "Steam",
     32414: "Plex Media",
