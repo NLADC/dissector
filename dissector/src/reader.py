@@ -1,5 +1,6 @@
 import shutil
 import subprocess
+import numpy as np
 import pandas as pd
 import time
 from typing import Dict
@@ -35,7 +36,7 @@ PCAP_COLUMN_NAMES: Dict[str, str] = {
     '_ws.col.Protocol': "service",
     'dns.qry.name': "dns_query_name",
     'dns.qry.type': "dns_query_type",
-    'eth.type': "eth_type",
+    'eth.type': "ethernet_type",
     'frame.len': "nr_bytes",
     'udp.length': "udp_length",
     'http.request.uri': "http_uri",
@@ -118,11 +119,11 @@ def read_pcap(filename: Path) -> pd.DataFrame:
 
     # Keep only relevant columns & rename
     data = data[data.columns.intersection(PCAP_COLUMN_NAMES.keys())].rename(columns=PCAP_COLUMN_NAMES)
-    print(data.head())
 
+    # map IP protocol number to name
     data['protocol'] = data['protocol'].map(IPPROTO_TABLE)
 
-    # Consolidate fields
+    # Consolidate address and port fields
     data['source_address'].fillna(data['col_source_address'], inplace=True)
     data['destination_address'].fillna(data['col_destination_address'], inplace=True)
     data.drop(['col_source_address', 'col_destination_address'], axis=1, inplace=True)
@@ -131,8 +132,15 @@ def read_pcap(filename: Path) -> pd.DataFrame:
     data['destination_port'] = data['tcp_destination_port'].fillna(data['udp_destination_port']).fillna(0)
     data.drop(['tcp_source_port', 'udp_source_port', 'tcp_destination_port', 'udp_destination_port'],
               axis=1, inplace=True)
+
+    # Compatibility with FLOW-based methods requires some unavailable fields
     data['nr_packets'] = 1  # in PCAPs each row is one packet - this allows us to use the FLOW code
     data['time_end'] = data['time_start']  # One packet does not have a duration
+
+    # Fill NaN values with reasonable values such that the columns can be cast to an appropriate type
+    # TODO - work in progress
+    data['dns_query_name'] = data['dns_query_name'].fillna('').astype(str)
+    data['dns_query_type'] = data['dns_query_type'].fillna(0).astype(np.ushort)
 
     return data
 

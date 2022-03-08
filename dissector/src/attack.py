@@ -36,7 +36,7 @@ class Attack:
             try:
                 self.data[colomn_name] = self.data[colomn_name].astype(to_type)
             except KeyError as c:
-                LOGGER.critical(f"{str(c)} not in FLOW data")
+                LOGGER.critical(f"{str(c)} not in data")
                 if essential:
                     error("Cannot continue with incomplete data")
 
@@ -51,7 +51,7 @@ class Attack:
             self.data['source_address'] = self.data['source_address'].apply(IPAddress)
             self.data['destination_address'] = self.data['destination_address'].apply(IPAddress)
         except KeyError as col:
-            error(f"{str(col).replace('_', ' ')} not in FLOW data")
+            error(f"{str(col).replace('_', ' ')} not in data")
 
         try_cast('protocol', to_type=str, essential=True)
         try_cast('source_port', to_type=np.ushort, essential=True)
@@ -59,9 +59,6 @@ class Attack:
         try_cast('nr_packets', to_type=int)
         try_cast('nr_bytes', to_type=int)
         try_cast('tcp_flags', to_type=str)
-
-        if self.filetype == FileType.PCAP:
-            ...
 
     def filter_data_on_target(self, target_network: IPNetwork):
         """
@@ -113,6 +110,16 @@ class AttackVector:
         else:
             self.tcp_flags = None
 
+        if self.filetype == FileType.PCAP:  # TODO add more fields, dependent on the vector
+            self.eth_type = dict(get_outliers(self.data,
+                                              'ethernet_type',
+                                              fraction_for_outlier=0.05,
+                                              return_fractions=True)) or "random"
+            self.frag_offset = dict(get_outliers(self.data,
+                                                 'fragmentation_offset',
+                                                 fraction_for_outlier=0.1,
+                                                 return_fractions=True)) or "random"
+
     def __str__(self):
         return f"[AttackVector] {self.service} on port {self.source_port}, protocol {self.protocol}"
 
@@ -143,6 +150,9 @@ class AttackVector:
             'source_ips': f"{len(self.source_ips)} IP addresses ommitted" if summarized
             else [str(i) for i in self.source_ips],
         }
+        if self.filetype == FileType.PCAP:  # TODO - add more fields
+            fields.update({'ethernet_type': self.eth_type,
+                           'fragmentation_offset': self.frag_offset})
         return fields
 
 
