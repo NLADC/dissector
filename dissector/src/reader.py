@@ -2,13 +2,13 @@ import shutil
 import subprocess
 import numpy as np
 import pandas as pd
-import time
 from typing import Dict
 from pathlib import Path
 from io import StringIO
+from netaddr import IPAddress
 
 from logger import LOGGER
-from util import error, IPPROTO_TABLE, FileType
+from util import error, IPPROTO_TABLE, FileType, ETHERNET_TYPES, ICMP_TYPES, DNS_QUERY_TYPES
 
 __all__ = ["read_flow", "read_pcap", "read_file"]
 
@@ -28,7 +28,6 @@ FLOW_COLUMN_NAMES: Dict[str, str] = {
 PCAP_COLUMN_NAMES: Dict[str, str] = {
     'ip.dst': "destination_address",
     'ip.src': "source_address",
-    'ip.flags.mf': "ip_flags",
     'tcp.flags': "tcp_flags",
     'ip.proto': "protocol",
     '_ws.col.Destination': "col_destination_address",
@@ -74,13 +73,23 @@ def read_flow(filename: Path) -> pd.DataFrame:
     LOGGER.debug("nfdump finished reading FLOW dump.")
 
     # Process nfdump output
+    output_buffer = StringIO(process.stdout.decode("utf-8").rsplit('\n', 4)[0])  # Discard summary rows
     LOGGER.info("Loading data into a dataframe.")
-    output_buffer = StringIO(process.stdout.decode("utf-8"))
-    data: pd.DataFrame = pd.read_csv(output_buffer, encoding="utf8", skipfooter=4, engine='python',
-                                     parse_dates=['ts', 'te'])
+    data: pd.DataFrame = pd.read_csv(output_buffer, encoding="utf8", parse_dates=['ts', 'te'])
 
     # Keep only relevant columns & rename
     data = data[data.columns.intersection(FLOW_COLUMN_NAMES.keys())].rename(columns=FLOW_COLUMN_NAMES)
+
+    LOGGER.debug("Ensuring all columns have the correct data types.")
+
+    data['source_address'] = data['source_address'].apply(IPAddress)
+    data['destination_address'] = data['destination_address'].apply(IPAddress)
+    data['source_port'] = data['source_port'].astype(np.ushort)
+    data['destination_port'] = data['destination_port'].astype(np.ushort)
+    data['protocol'] = data['protocol'].astype(str)
+    data['tcp_flags'] = data['tcp_flags'].astype(str)
+    data['nr_packets'] = data['nr_packets'].astype(int)
+    data['nr_bytes'] = data['nr_bytes'].astype(int)
 
     LOGGER.debug("Done loading data into dataframe.")
     return data
@@ -92,9 +101,6 @@ def read_pcap(filename: Path) -> pd.DataFrame:
     :param filename: location of the PCAP file
     :return: DataFrame of the contents
     """
-    LOGGER.critical(f"Support for PCAPs in this version of dissector is still experimental!")
-    time.sleep(2)
-
     # Check if tshark software is available
     tshark = shutil.which("tshark")
     if not tshark:
@@ -115,21 +121,31 @@ def read_pcap(filename: Path) -> pd.DataFrame:
         error(f"tshark command stderr:\n{process.stderr.decode('utf-8')}")
 
     output_buffer = StringIO(process.stdout.decode("utf-8"))
-    data: pd.DataFrame = pd.read_csv(output_buffer, parse_dates=['frame.time'])
+    data: pd.DataFrame = pd.read_csv(output_buffer, parse_dates=['frame.time'], low_memory=False)
 
     # Keep only relevant columns & rename
     data = data[data.columns.intersection(PCAP_COLUMN_NAMES.keys())].rename(columns=PCAP_COLUMN_NAMES)
 
+    LOGGER.debug("Ensuring all columns have the correct data types.")
     # map IP protocol number to name
-    data['protocol'] = data['protocol'].map(IPPROTO_TABLE)
+    data['protocol'] = data['protocol'].map(IPPROTO_TABLE).astype(str)
+    # map common EtherType names
+    data['ethernet_type'] = data['ethernet_type'].map(lambda r: ETHERNET_TYPES.get(int(r, 16), str(r))).astype(str)
+    # map ICMP types to their name
+    data['icmp_type'] = data['icmp_type'].fillna(-1).map(lambda r: ICMP_TYPES.get(int(r), str(r))).astype(str)
+    # map DNS query types to their name
+    data['dns_query_type'] = data['dns_query_type'].fillna(-1)\
+        .map(lambda r: DNS_QUERY_TYPES.get(int(r), str(r))).astype(str)
 
     # Consolidate address and port fields
-    data['source_address'].fillna(data['col_source_address'], inplace=True)
-    data['destination_address'].fillna(data['col_destination_address'], inplace=True)
+    data['source_address'] = data['source_address'].fillna(data['col_source_address']).apply(IPAddress)
+    data['destination_address'] = data['destination_address'].fillna(data['col_destination_address']).apply(IPAddress)
     data.drop(['col_source_address', 'col_destination_address'], axis=1, inplace=True)
 
-    data['source_port'] = data['tcp_source_port'].fillna(data['udp_source_port']).fillna(0)
-    data['destination_port'] = data['tcp_destination_port'].fillna(data['udp_destination_port']).fillna(0)
+    data['source_port'] = data['tcp_source_port'].fillna(data['udp_source_port'])\
+        .fillna(0).astype(np.ushort)
+    data['destination_port'] = data['tcp_destination_port'].fillna(data['udp_destination_port'])\
+        .fillna(0).astype(np.ushort)
     data.drop(['tcp_source_port', 'udp_source_port', 'tcp_destination_port', 'udp_destination_port'],
               axis=1, inplace=True)
 
@@ -138,9 +154,13 @@ def read_pcap(filename: Path) -> pd.DataFrame:
     data['time_end'] = data['time_start']  # One packet does not have a duration
 
     # Fill NaN values with reasonable values such that the columns can be cast to an appropriate type
-    # TODO - work in progress
     data['dns_query_name'] = data['dns_query_name'].fillna('').astype(str)
-    data['dns_query_type'] = data['dns_query_type'].fillna(0).astype(np.ushort)
+    data['http_uri'] = data['http_uri'].fillna('').astype(str)
+    data['http_method'] = data['http_method'].fillna('').astype(str)
+    data['http_user_agent'] = data['http_user_agent'].fillna('').astype(str)
+    data['fragmentation_offset'] = data['fragmentation_offset'].fillna(0).astype(np.ushort)
+    data['ttl'] = data['ttl'].fillna(0).astype(np.uint8)
+    data['ntp_requestcode'] = data['ntp_requestcode'].fillna(0).astype(np.uint8)
 
     return data
 

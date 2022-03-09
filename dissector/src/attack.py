@@ -3,7 +3,6 @@ import json
 import hashlib
 import requests
 import urllib3
-import numpy as np
 import pandas as pd
 from io import BytesIO
 from pathlib import Path
@@ -12,7 +11,7 @@ from functools import total_ordering
 from datetime import datetime
 from netaddr import IPAddress, IPNetwork
 
-from util import AMPLIFICATION_SERVICES, TCP_FLAG_NAMES, error, get_outliers, FileType
+from util import AMPLIFICATION_SERVICES, TCP_FLAG_NAMES, get_outliers, FileType
 from logger import LOGGER
 
 __all__ = ["Attack", "AttackVector", "Fingerprint"]
@@ -22,43 +21,7 @@ class Attack:
     def __init__(self, data: pd.DataFrame, filetype: FileType):
         self.data = data
         self.filetype = filetype
-        self.ensure_datatypes()
         self.attack_vectors: List[AttackVector]
-
-    def ensure_datatypes(self):
-        """
-        Cast each DataFrame column to the correct type
-        :return: None
-        """
-        LOGGER.debug("Ensuring all columns have the correct data types.")
-
-        def try_cast(colomn_name: str, to_type: type, essential: bool = False) -> None:
-            try:
-                self.data[colomn_name] = self.data[colomn_name].astype(to_type)
-            except KeyError as c:
-                LOGGER.critical(f"{str(c)} not in data")
-                if essential:
-                    error("Cannot continue with incomplete data")
-
-        try:
-            self.data['time_start'] = pd.to_datetime(self.data['time_start'])
-            self.data['time_end'] = pd.to_datetime(self.data['time_start'])
-        except KeyError as col:
-            error(f"{str(col).replace('_', ' ')} not in FLOW data")
-        except ValueError:
-            error(f"time_start or time_end column cannot be interpreted as datetime")
-        try:
-            self.data['source_address'] = self.data['source_address'].apply(IPAddress)
-            self.data['destination_address'] = self.data['destination_address'].apply(IPAddress)
-        except KeyError as col:
-            error(f"{str(col).replace('_', ' ')} not in data")
-
-        try_cast('protocol', to_type=str, essential=True)
-        try_cast('source_port', to_type=np.ushort, essential=True)
-        try_cast('destination_port', to_type=np.ushort, essential=True)
-        try_cast('nr_packets', to_type=int)
-        try_cast('nr_bytes', to_type=int)
-        try_cast('tcp_flags', to_type=str)
 
     def filter_data_on_target(self, target_network: IPNetwork):
         """
@@ -82,7 +45,7 @@ class AttackVector:
                                                    'destination_port',
                                                    0.1,
                                                    use_zscore=False,
-                                                   return_others=True)) or "random"
+                                                   return_others=True)) or 'random'
         self.packets = self.data.nr_packets.sum()
         self.bytes = self.data.nr_bytes.sum()
         self.time_start: datetime = self.data.time_start.min()
@@ -91,34 +54,47 @@ class AttackVector:
         self.source_ips: List[IPAddress] = data.source_address.unique()
         self.fraction_of_attack = 0
         try:
-            if self.protocol == "UDP":
+            if self.protocol == 'UDP':
                 self.service = (AMPLIFICATION_SERVICES.get(self.source_port, None) or
                                 socket.getservbyport(source_port, protocol.lower()).upper())
-            elif self.protocol == "TCP":
+            elif self.protocol == 'TCP':
                 self.service = socket.getservbyport(source_port, protocol.lower()).upper()
             else:
-                self.service = "Unknown service"
+                self.service = 'Unknown service'
         except OSError:  # service not found by socket.getservbyport
             if self.source_port == 0 and len(self.destination_ports) == 1 and list(self.destination_ports)[0] == 0:
-                self.service = "Fragmented IP packets"
+                self.service = 'Fragmented IP packets'
             else:
-                self.service = "Unknown service"
+                self.service = 'Unknown service'
         except OverflowError:  # Random source port (-1), no specific service
             self.service = None
-        if self.protocol == "TCP":
+        if self.protocol == 'TCP':
             self.tcp_flags = dict(get_outliers(self.data, 'tcp_flags', 0.2, return_others=True)) or None
         else:
             self.tcp_flags = None
 
-        if self.filetype == FileType.PCAP:  # TODO add more fields, dependent on the vector
-            self.eth_type = dict(get_outliers(self.data,
-                                              'ethernet_type',
-                                              fraction_for_outlier=0.05,
-                                              return_fractions=True)) or "random"
-            self.frag_offset = dict(get_outliers(self.data,
-                                                 'fragmentation_offset',
-                                                 fraction_for_outlier=0.1,
-                                                 return_fractions=True)) or "random"
+        if self.filetype == FileType.PCAP:
+            self.eth_type = dict(get_outliers(self.data, 'ethernet_type', 0.05, return_others=True)) or 'random'
+            self.frag_offset = dict(get_outliers(self.data, 'fragmentation_offset', fraction_for_outlier=0.1,
+                                                 return_fractions=True)) or 'random'
+            if self.service == 'DNS':
+                self.dns_query_name = dict(get_outliers(self.data, 'dns_query_name', fraction_for_outlier=0.1,
+                                                        return_others=True)) or 'random'
+                self.dns_query_type = dict(get_outliers(self.data, 'dns_query_type', fraction_for_outlier=0.1,
+                                                        return_others=True)) or 'random'
+            elif self.service in ['HTTP', 'HTTPS']:
+                self.http_uri = dict(get_outliers(self.data, 'http_uri', fraction_for_outlier=0.05,
+                                                  return_others=True)) or 'random'
+                self.http_method = dict(get_outliers(self.data, 'http_method', fraction_for_outlier=0.1,
+                                                     return_fractions=True)) or 'random'
+                self.http_user_agent = dict(get_outliers(self.data, 'http_user_agent', fraction_for_outlier=0.05,
+                                                         return_others=True)) or 'random'
+            elif self.service == 'NTP':
+                self.ntp_requestcode = dict(get_outliers(self.data, 'ntp_requestcode', fraction_for_outlier=0.1,
+                                                         return_others=True)) or 'random'
+            elif self.protocol == 'ICMP':
+                self.icmp_type = dict(get_outliers(self.data, 'icmp_type', fraction_for_outlier=0.1,
+                                                   return_others=True)) or 'random'
 
     def __str__(self):
         return f"[AttackVector] {self.service} on port {self.source_port}, protocol {self.protocol}"
@@ -150,9 +126,20 @@ class AttackVector:
             'source_ips': f"{len(self.source_ips)} IP addresses ommitted" if summarized
             else [str(i) for i in self.source_ips],
         }
-        if self.filetype == FileType.PCAP:  # TODO - add more fields
+        if self.filetype == FileType.PCAP:
             fields.update({'ethernet_type': self.eth_type,
                            'fragmentation_offset': self.frag_offset})
+            if self.service == 'DNS':
+                fields.update({'dns_query_name': self.dns_query_name,
+                               'dns_query_type': self.dns_query_type})
+            elif self.service in ['HTTP', 'HTTPS']:
+                fields.update({'http_uri': self.http_uri,
+                               'http_method': self.http_method,
+                               'http_user_agent': self.http_user_agent})
+            elif self.service == 'NTP':
+                fields.update({'ntp_requestcode': self.ntp_requestcode})
+            elif self.protocol == 'ICMP':
+                fields.update({'icmp_type': self.icmp_type})
         return fields
 
 
@@ -230,7 +217,7 @@ class Fingerprint:
         :param noverify: (bool) ignore invalid TLS certificate
         :return: HTTP response code
         """
-        LOGGER.info(f"Uploading fingerprint to DDoS-DB: {host}...")
+        LOGGER.info(f"Uploading fingerprint to DDoS-DB: {host}")
 
         files = {"json": BytesIO(json.dumps(self.as_dict(anonymous=not self.show_target)).encode())}
         headers = {

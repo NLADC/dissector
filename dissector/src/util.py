@@ -9,8 +9,8 @@ from configparser import ConfigParser, NoOptionError, NoSectionError
 
 from logger import LOGGER
 
-__all__ = ["IPPROTO_TABLE", "AMPLIFICATION_SERVICES", "TCP_FLAG_NAMES", "FileType", "determine_filetype", "print_logo",
-           "error", "parse_config", "get_outliers"]
+__all__ = ["IPPROTO_TABLE", "AMPLIFICATION_SERVICES", "TCP_FLAG_NAMES", "ETHERNET_TYPES", "ICMP_TYPES",
+           "DNS_QUERY_TYPES", "FileType", "determine_filetype", "print_logo", "error", "parse_config", "get_outliers"]
 
 IPPROTO_TABLE: Dict[int, str] = {
     num: name[8:]
@@ -56,6 +56,81 @@ TCP_FLAG_NAMES: Dict[str, str] = {
     "P": "PUSH",
     "A": "ACK",
     "U": "URGENT",
+}
+
+ETHERNET_TYPES: Dict[int, str] = {
+    0x0800: "IPv4",
+    0x86dd: "IPv6",
+    0x0806: "ARP",
+    0x88cc: "LLDP",
+    0x88f7: "PTP"
+}
+
+ICMP_TYPES: Dict[int, str] = {
+    0: "Echo Reply",
+    3: "Destination Unreachable",
+    5: "Redirect",
+    8: "Echo",
+    9: "Router Advertisement",
+    10: "Router Solicitation",
+    11: "Time Exceeded",
+    12: "Parameter Problem",
+    13: "Timestamp",
+    14: "Timestamp Reply",
+    40: "Photuris",
+    42: "Extended Echo Request",
+    43: "Extended Echo Reply",
+}
+
+DNS_QUERY_TYPES: Dict[int, str] = {
+    1: "A",
+    28: "AAAA",
+    18: "AFSDB",
+    255: "ANY",
+    42: "APL",
+    257: "CAA",
+    60: "CDNSKEY",
+    59: "CDS",
+    37: "CERT",
+    5: "CNAME",
+    62: "CSYNC",
+    49: "DHCID",
+    32769: "DLV",
+    39: "DNAME",
+    48: "DNSKEY",
+    43: "DS",
+    108: "EUI48",
+    109: "EUI64",
+    13: "HINFO",
+    55: "HIP",
+    65: "HTTPS",
+    45: "IPSECKEY",
+    25: "KEY",
+    36: "KX",
+    29: "LOC",
+    15: "MX",
+    35: "NAPTR",
+    2: "NS",
+    47: "NSEC",
+    50: "NSEC3",
+    51: "NSEC3PARAM",
+    61: "OPENPGPKEY",
+    12: "PTR",
+    46: "RRSIG",
+    17: "RP",
+    24: "SIG",
+    53: "SMIMEA",
+    6: "SOA",
+    33: "SRV",
+    44: "SSHFP",
+    64: "SVCB",
+    32768: "TA",
+    249: "TKEY",
+    52: "TLSA",
+    250: "TSIG",
+    16: "TXT",
+    256: "URI",
+    63: "ZONEMD"
 }
 
 
@@ -142,7 +217,7 @@ def parse_config(file: Path, misp=False) -> Dict[str, str]:
 
 def get_outliers(data: pd.DataFrame,
                  column: Union[str, List[str]],
-                 fraction_for_outlier: float = 0.8,
+                 fraction_for_outlier: float,
                  use_zscore: bool = True,
                  return_fractions: bool = False,
                  return_others: bool = False) -> list:

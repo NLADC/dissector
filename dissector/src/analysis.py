@@ -68,10 +68,9 @@ def infer_target(attack: Attack) -> IPNetwork:
     return best_network
 
 
-def extract_attack_vectors(attack: Attack, filetype: FileType) -> List[AttackVector]:
+def extract_attack_vectors(attack: Attack) -> List[AttackVector]:
     """
     Extract the attack vector(s) that make up this attack, from the Attack object. e.g. DNS amplfication vector
-    :param filetype: PCAP or FLOW
     :param attack: Attack object from which extract vectors
     :return: List of AttackVectors
     """
@@ -102,7 +101,8 @@ def extract_attack_vectors(attack: Attack, filetype: FileType) -> List[AttackVec
             # Don't add fragmented packets as a vector at this stage; it should not count towards the fraction of attack
             fragmentation_protocols.add(protocol)
             continue
-        attack_vectors.append(AttackVector(data=data, source_port=source_port, protocol=protocol, filetype=filetype))
+        attack_vectors.append(AttackVector(data=data, source_port=source_port, protocol=protocol,
+                                           filetype=attack.filetype))
 
     # See if there is any data left that might be a flood attack on a specific destination port
     if attack_vector_data.empty:
@@ -113,14 +113,14 @@ def extract_attack_vectors(attack: Attack, filetype: FileType) -> List[AttackVec
     protocol_dest_port_outliers = get_outliers(unallocated_data,
                                                column=['protocol', 'destination_port'],
                                                fraction_for_outlier=0.1,
-                                               use_zscore=True)
+                                               use_zscore=False)
     # remove destination port 0
     protocol_dest_port_outliers = [(proto, port) for proto, port in protocol_dest_port_outliers if port != 0]
 
     def combine_outliers(port_protocol_tuples: List[Tuple[str, int]]) -> List[Tuple[str, List[int]]]:
         """
         Combine destination ports in (protocol, destination_port) tuples with the same protocol.
-        example: [("UDP", 5), ("UDP", 6), ("TCP", 7)] -> [("UDP", [5, 6]), ("TCP", 7)]
+        example: [("UDP", 5), ("UDP", 6), ("TCP", 7)] -> [("UDP", [5, 6]), ("TCP", [7])]
         :param port_protocol_tuples: list of tuples
         :return: port protocol tuples where the destination_ports are combined
         """
@@ -132,14 +132,10 @@ def extract_attack_vectors(attack: Attack, filetype: FileType) -> List[AttackVec
     protocol_dest_port_outliers = combine_outliers(protocol_dest_port_outliers)
     LOGGER.debug(f"protocol & destination port outliers: {protocol_dest_port_outliers}")
     for protocol, destination_ports in protocol_dest_port_outliers:
-        if destination_ports == 0 and protocol != "ICMP":
-            # Ignore fragmented packets vector for now, compute later given the other attack vectors
-            fragmentation_protocols.add(protocol)
-            continue
         data = unallocated_data[(unallocated_data.destination_port.isin(destination_ports)) &
                                 (unallocated_data.protocol == protocol)]
         attack_vector_data = pd.concat([attack_vector_data, data])
-        attack_vectors.append(AttackVector(data=data, source_port=-1, protocol=protocol, filetype=filetype))
+        attack_vectors.append(AttackVector(data=data, source_port=-1, protocol=protocol, filetype=attack.filetype))
 
     # Any remaining attack traffic is likely a flood attack with random source / destination ports
     if attack_vector_data.empty:
@@ -151,7 +147,7 @@ def extract_attack_vectors(attack: Attack, filetype: FileType) -> List[AttackVec
         LOGGER.debug(f"{protocol} flood attack added to attack vectors")
         data = unallocated_data[(unallocated_data.source_port != 0) & (unallocated_data.protocol == protocol)]
         # random source ports
-        attack_vectors.append(AttackVector(data=data, source_port=-1, protocol=protocol, filetype=filetype))
+        attack_vectors.append(AttackVector(data=data, source_port=-1, protocol=protocol, filetype=attack.filetype))
 
     # Compute the fraction of all traffic for each attack vector, discard vectors with less than 5% of traffic
     LOGGER.debug("Computing the fraction of traffic each attack vector contributes.")
@@ -172,7 +168,7 @@ def extract_attack_vectors(attack: Attack, filetype: FileType) -> List[AttackVec
         attack_vector_data = pd.concat([v.data for v in attack_vectors if v.protocol == frag_proto])
         data = attack.data[(attack.data.source_port == 0) & (attack.data.protocol == frag_proto) &
                            attack.data.source_address.isin(attack_vector_data.source_address)]
-        attack_vectors.append(AttackVector(data, source_port=0, protocol=frag_proto, filetype=filetype))
+        attack_vectors.append(AttackVector(data, source_port=0, protocol=frag_proto, filetype=attack.filetype))
 
     return sorted(attack_vectors)
 

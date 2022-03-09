@@ -38,7 +38,7 @@ data: pd.DataFrame = pd.concat([read_file(f, filetype) for f in args.files])  # 
 attack = Attack(data, filetype)  # Construct an Attack object with the DDoS data
 target = args.target or infer_target(attack)  # Infer the attack target if not passed as an argument
 attack.filter_data_on_target(target_network=target)  # Keep only the traffic sent to the target
-attack_vectors = extract_attack_vectors(attack, filetype)  # Extract the attack vectors from the attack
+attack_vectors = extract_attack_vectors(attack)  # Extract the attack vectors from the attack
 summary = compute_summary(attack_vectors)  # Compute summary statistics of the attack (e.g. average bps / Bpp / pps)
 # Generate fingeperint
 fingerprint = Fingerprint(target=target, summary=summary, attack_vectors=attack_vectors, show_target=args.show_target)
