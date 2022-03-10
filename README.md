@@ -115,6 +115,180 @@ Example: python src/main.py -f /data/part1.nfdump /data/part2.nfdump --summary -
 
 ### [Click here](fingerprint_format.md)
 
+## Example Fingerprints
+
+**Note: numbers and addresses are fabricated but are inspired by real fingerprints.**
+
+<details>
+  <summary>(Click to expand) Fingerprint from FLOW data: Multivector attack with LDAP amplification and TCP SYN flood</summary>
+
+  ```json
+{
+  "attack_vectors": [
+    {
+      "service": "HTTPS",
+      "protocol": "TCP",
+      "source_port": 443,
+      "fraction_of_attack": 0.21,
+      "destination_ports": {
+        "443": 1.0
+      },
+      "tcp_flags": {
+        "......S.": 0.704,
+        "others": 0.296
+      },
+      "nr_flows": 7946,
+      "nr_packets": 39900000,
+      "nr_megabytes": 34530,
+      "time_start": "2022-01-30 12:49:09",
+      "duration_seconds": 103,
+      "source_ips": [
+        "75.34.122.98",
+        "80.83.200.214",
+        "109.2.17.144",
+        "22.56.34.108",
+        "98.180.25.16",
+        ...
+      ]
+    },
+    {
+      "service": "LDAP",
+      "protocol": "UDP",
+      "source_port": 389,
+      "fraction_of_attack": 0.79,
+      "destination_ports": {
+        "8623": 0.837,
+        "36844": 0.163
+      },
+      "tcp_flags": null,
+      "nr_flows": 38775,
+      "nr_packets": 31365000,
+      "nr_megabytes": 101758,
+      "time_start": "2022-01-30 12:49:01",
+      "duration_seconds": 154,
+      "source_ips": [
+        "75.34.122.98",
+        "80.83.200.214",
+        "109.2.17.144",
+        "22.56.34.108",
+        "98.180.25.16",
+        ...
+      ]
+    }
+  ],
+  "target": "Anonymous",
+  "tags": [
+    "Amplification attack",
+    "Multi-vector attack",
+    "TCP",
+    "TCP flag attack",
+    "UDP"
+  ],
+  "key": "601fd86e43c004281210cb02d7f6d821",
+  "time_start": "2022-01-30 12:49:01",
+  "time_end": "2022-01-30 12:51:35",
+  "duration_seconds": 154,
+  "total_flows": 46721,
+  "total_megabytes": 102897,
+  "total_packets": 189744000,
+  "total_ips": 4397,
+  "avg_bps": 5193740008,
+  "avg_pps": 960028,
+  "avg_Bpp": 497
+}
+   ```
+
+</details>
+
+<details>
+   <summary>(Click to expand) Fingerprint from PCAP data: DNS amplification attack with fragmented packets</summary>
+
+```json
+{
+  "attack_vectors": [
+    {
+      "service": "Fragmented IP packets",
+      "protocol": "UDP",
+      "source_port": 0,
+      "fraction_of_attack": null,
+      "destination_ports": {
+        "0": 1.0
+      },
+      "tcp_flags": null,
+      "nr_packets": 4190,
+      "nr_megabytes": 5,
+      "time_start": "2013-08-15 01:32:40.901023+02:00",
+      "duration_seconds": 5,
+      "source_ips": [
+        "75.34.122.98",
+        "80.83.200.214",
+        "109.2.17.144",
+        "22.56.34.108",
+        "98.180.25.16",
+        ...
+      ],
+      "ethernet_type": {
+        "IPv4": 1.0
+      },
+      "fragmentation_offset": {
+        "0": 0.727,
+        "1480": 0.247
+      }
+    },
+    {
+      "service": "DNS",
+      "protocol": "UDP",
+      "source_port": 53,
+      "fraction_of_attack": 0.945,
+      "destination_ports": "random",
+      "tcp_flags": null,
+      "nr_packets": 166750,
+      "nr_megabytes": 21,
+      "time_start": "2013-08-15 00:56:40.211654+02:00",
+      "duration_seconds": 22,
+      "source_ips": [
+        "75.34.122.98",
+        "80.83.200.214",
+        "109.2.17.144",
+        "22.56.34.108",
+        "98.180.25.16",
+        ...
+      ],
+      "ethernet_type": {
+        "IPv4": 1.0
+      },
+      "fragmentation_offset": {
+        "0": 1.0
+      },
+      "dns_query_name": {
+        "ddostheinter.net": 0.999
+      },
+      "dns_query_type": {
+        "A": 0.999
+      }
+    }
+  ],
+  "target": "227.213.154.241",
+  "tags": [
+    "UDP",
+    "Fragmentation attack",
+    "Amplification attack",
+  ],
+  "key": "2e8c013d61ccaf88a1016828c16b9f0e",
+  "time_start": "2013-08-15 00:56:40.211654+02:00",
+  "time_end": "2013-08-15 00:57:03.199791+02:00",
+  "duration_seconds": 22,
+  "total_packets": 176393,
+  "total_megabytes": 22,
+  "total_ips": 8044,
+  "avg_bps": 8039206,
+  "avg_pps": 8017,
+  "avg_Bpp": 125
+}
+```
+
+</details>
+
 ## Acknowledgment
 
 <table style="border-collapse: collapse">
