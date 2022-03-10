@@ -1,12 +1,17 @@
 <div style="text-align: center; vertical-align: center">
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 <img src="media/logo-CONCORDIA.png" style="width: 30%; padding-right: 3%" alt="Concordia logo">
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 <img src="media/header.png" style="width: 25%; padding-right: 3%" alt="DDoS Clearing House logo">
-<img src="media/nomoreddos.svg#gh-dark-mode-only" style="width: 30%; padding-right: 3%" alt="NoMoreDDoS logo">
-<img src="media/nomoreddos-light.png#gh-light-mode-only" style="width: 30%; padding-right: 3%" alt="NoMoreDDoS logo">
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+<img src="media/nomoreddos.svg#gh-light-mode-only" style="width: 30%; padding-right: 3%" alt="NoMoreDDoS logo">
+<img src="media/nomoreddos-light.png#gh-dark-mode-only" style="width: 30%; padding-right: 3%" alt="NoMoreDDoS logo">
 </div>
 
-<div style="text-align: center;">
+<br/>
 
+<div style="content-align: center;">
+    
 ![Python](https://img.shields.io/badge/python-v3.8+-blue.svg)
 [![GitHub Issues](https://img.shields.io/github/issues/ddos-clearing-house/ddos_dissector)](https://github.com/ddos-clearing-house/ddos_dissector/issues)
 ![Contributions welcome](https://img.shields.io/badge/contributions-welcome-orange.svg)
