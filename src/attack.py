@@ -75,8 +75,14 @@ class AttackVector:
 
         if self.filetype == FileType.PCAP:
             self.eth_type = dict(get_outliers(self.data, 'ethernet_type', 0.05, return_others=True)) or 'random'
-            self.frag_offset = dict(get_outliers(self.data, 'fragmentation_offset', fraction_for_outlier=0.1,
-                                                 return_fractions=True)) or 'random'
+            self.frame_len = dict(get_outliers(self.data, 'nr_bytes', 0.05, return_others=True)) or 'random'
+
+            if isinstance(self.eth_type, dict) and ('IPv4' in self.eth_type.keys() or 'IPv6' in self.eth_type.keys()):
+                # IP packets
+                self.frag_offset = dict(get_outliers(self.data, 'fragmentation_offset', fraction_for_outlier=0.1,
+                                                     return_others=True)) or 'random'
+                self.ttl = dict(get_outliers(self.data, 'ttl', fraction_for_outlier=0.1,
+                                             return_others=True)) or 'random'
             if self.service == 'DNS':
                 self.dns_query_name = dict(get_outliers(self.data, 'dns_query_name', fraction_for_outlier=0.1,
                                                         return_others=True)) or 'random'
@@ -86,7 +92,7 @@ class AttackVector:
                 self.http_uri = dict(get_outliers(self.data, 'http_uri', fraction_for_outlier=0.05,
                                                   return_others=True)) or 'random'
                 self.http_method = dict(get_outliers(self.data, 'http_method', fraction_for_outlier=0.1,
-                                                     return_fractions=True)) or 'random'
+                                                     return_others=True)) or 'random'
                 self.http_user_agent = dict(get_outliers(self.data, 'http_user_agent', fraction_for_outlier=0.05,
                                                          return_others=True)) or 'random'
             elif self.service == 'NTP':
@@ -128,7 +134,10 @@ class AttackVector:
         }
         if self.filetype == FileType.PCAP:
             fields.update({'ethernet_type': self.eth_type,
-                           'fragmentation_offset': self.frag_offset})
+                           'frame_len': self.frame_len})
+            if 'IPv4' in self.eth_type.keys() or 'IPv6' in self.eth_type.keys():  # IP packets
+                fields.update({'fragmentation_offset': self.frag_offset,
+                               'ttl': self.ttl})
             if self.service == 'DNS':
                 fields.update({'dns_query_name': self.dns_query_name,
                                'dns_query_type': self.dns_query_type})
@@ -206,7 +215,7 @@ class Fingerprint:
         :return: None
         """
         with open(filename, 'w') as file:
-            json.dump(self.as_dict(anonymous=not self.show_target), file)
+            json.dump(self.as_dict(anonymous=not self.show_target), file, indent=4)
 
     def upload_to_ddosdb(self, host: str, username: str, password: str, noverify: bool = False) -> int:
         """

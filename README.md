@@ -11,7 +11,7 @@
 <br/>
 
 <div style="content-align: center;">
-    
+
 ![Python](https://img.shields.io/badge/python-v3.8+-blue.svg)
 [![GitHub Issues](https://img.shields.io/github/issues/ddos-clearing-house/ddos_dissector)](https://github.com/ddos-clearing-house/ddos_dissector/issues)
 ![Contributions welcome](https://img.shields.io/badge/contributions-welcome-orange.svg)
@@ -218,7 +218,7 @@ Example: python src/main.py -f /data/part1.nfdump /data/part2.nfdump --summary -
       "nr_packets": 4190,
       "nr_megabytes": 5,
       "time_start": "2013-08-15 01:32:40.901023+02:00",
-      "duration_seconds": 5,
+      "duration_seconds": 0,
       "source_ips": [
         "75.34.122.98",
         "80.83.200.214",
@@ -230,9 +230,23 @@ Example: python src/main.py -f /data/part1.nfdump /data/part2.nfdump --summary -
       "ethernet_type": {
         "IPv4": 1.0
       },
+      "frame_len": {
+        "1514": 0.684,
+        "693": 0.173,
+        "296": 0.057,
+        "others": 0.086
+      },
       "fragmentation_offset": {
         "0": 0.727,
-        "1480": 0.247
+        "1480": 0.247,
+        "others": 0.026
+      },
+      "ttl": {
+        "54": 0.159,
+        "57": 0.142,
+        "55": 0.123,
+        "59": 0.119,
+        "others": 0.457
       }
     },
     {
@@ -257,8 +271,20 @@ Example: python src/main.py -f /data/part1.nfdump /data/part2.nfdump --summary -
       "ethernet_type": {
         "IPv4": 1.0
       },
+      "frame_len": {
+        "103": 0.695,
+        "87": 0.208,
+        "others": 0.097
+      },
       "fragmentation_offset": {
         "0": 1.0
+      },
+      "ttl": {
+        "120": 0.1,
+        "119": 0.085,
+        "121": 0.085,
+        "118": 0.07,
+        "others": 0.66
       },
       "dns_query_name": {
         "ddostheinter.net": 0.999
@@ -268,11 +294,11 @@ Example: python src/main.py -f /data/part1.nfdump /data/part2.nfdump --summary -
       }
     }
   ],
-  "target": "227.213.154.241",
+  "target": "Anonymous",
   "tags": [
-    "UDP",
     "Fragmentation attack",
     "Amplification attack",
+    "UDP"
   ],
   "key": "2e8c013d61ccaf88a1016828c16b9f0e",
   "time_start": "2013-08-15 00:56:40.211654+02:00",
