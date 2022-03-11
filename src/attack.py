@@ -217,28 +217,30 @@ class Fingerprint:
         with open(filename, 'w') as file:
             json.dump(self.as_dict(anonymous=not self.show_target), file, indent=4)
 
-    def upload_to_ddosdb(self, host: str, username: str, password: str, noverify: bool = False) -> int:
+    def upload_to_ddosdb(self, host: str, token: str, protocol: str = 'https', noverify: bool = False) -> int:
         """
         Upload fingerprint to a DDoS-DB instance
         :param host: hostname of the DDoS-DB instance, without schema (like db.example.com)
-        :param username: DDoS-DB username
-        :param password: DDoS-DB password
+        :param token: DDoS-DB Authorization Token
+        :param protocol: Protocol to use (http or https)
         :param noverify: (bool) ignore invalid TLS certificate
         :return: HTTP response code
         """
         LOGGER.info(f"Uploading fingerprint to DDoS-DB: {host}")
 
-        files = {"json": BytesIO(json.dumps(self.as_dict(anonymous=not self.show_target)).encode())}
+        fp_json = json.dumps(self.as_dict(anonymous=not self.show_target))
         headers = {
-            "X-Username": username,
-            "X-Password": password,
-            "X-Filename": self.checksum
+            "Authorization": f"Token {token}"
         }
 
         try:
             try:
-                urllib3.disable_warnings()
-                r = requests.post("https://" + host + "/upload-file", files=files, headers=headers, verify=not noverify)
+                if noverify:
+                    urllib3.disable_warnings()
+                r = requests.post(protocol+"://" + host + "/api/fingerprint/",
+                                  json=fp_json,
+                                  headers=headers,
+                                  verify=not noverify)
             except requests.exceptions.SSLError:
                 LOGGER.critical(f"SSL Certificate verification of the server {host} failed. To ignore the certificate "
                                 f"pass the --noverify flag.")
