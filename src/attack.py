@@ -13,6 +13,7 @@ from netaddr import IPAddress, IPNetwork
 
 from util import AMPLIFICATION_SERVICES, TCP_FLAG_NAMES, get_outliers, FileType
 from logger import LOGGER
+from misp import search_misp_events, add_misp_fingerprint
 
 __all__ = ["Attack", "AttackVector", "Fingerprint"]
 
@@ -237,7 +238,7 @@ class Fingerprint:
             try:
                 if noverify:
                     urllib3.disable_warnings()
-                r = requests.post(protocol+"://" + host + "/api/fingerprint/",
+                r = requests.post(protocol + "://" + host + "/api/fingerprint/",
                                   json=fp_json,
                                   headers=headers,
                                   verify=not noverify)
@@ -260,12 +261,41 @@ class Fingerprint:
             LOGGER.info("Error Code: {}".format(r.status_code))
         return r.status_code
 
-    def upload_to_misp(self, host: str, username: str, password: str) -> int:
+    def upload_to_misp(self, host: str, token: str, protocol: str = 'https', noverify: bool = False) -> int:
         """
-        TODO: upload fingerprint to a MISP instance
+        Upload fingerprint to a MISP instance
         :param host: hostname of the MISP instance, without schema (like misp.example.com)
-        :param username: MISP username
-        :param password: MISP password
+        :param token: MISP Authorization Token (Auth Key)
+        :param protocol: Protocol to use (http or https)
+        :param noverify: (bool) ignore invalid TLS certificate
         :return: HTTP response code
         """
-        ...
+        LOGGER.info(f"Uploading fingerprint to MISP: {host}")
+
+        fingerprint = self.as_dict(anonymous=not self.show_target)
+
+        misp_events = None
+        filter = {
+            "minimal": True,
+            "tag": "DDoSCH",
+            'eventinfo': fingerprint['key'],
+        }
+        LOGGER.info(f"Checking if fingerprint {fingerprint['key']} is already present in the MISP")
+        try:
+            misp_events = search_misp_events(host, token, protocol, noverify, filter)
+
+        except requests.exceptions.SSLError:
+            LOGGER.critical(f"SSL Certificate verification of the server {host} failed. To ignore the certificate "
+                            f"pass the --noverify flag.")
+            LOGGER.info("Fingerprint NOT uploaded")
+            return 500
+
+        if misp_events:
+            LOGGER.error("The fingerprint already exists.")
+            LOGGER.info("Fingerprint NOT uploaded")
+            return 500
+
+        add_misp_fingerprint(host, token, protocol, noverify, fingerprint)
+
+        return 201
+
