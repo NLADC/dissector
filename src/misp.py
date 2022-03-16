@@ -113,6 +113,7 @@ def add_misp_fingerprint(host, token, protocol, noverify, fp):
     # that will be added as comments to the event
     fingerprint_fields = [
         'time_start',
+        'time_end',
         'duration_seconds',
         'total_flows',
         'total_megabytes',
@@ -172,7 +173,7 @@ def add_misp_fingerprint(host, token, protocol, noverify, fp):
                                         comment=f'vector {i} {av_dict} ({av_dict}:fraction)')
 
             for av_field in attack_vector_fields:
-                if av_field in attack_vector and attack_vector[av_field]:
+                if av_field in attack_vector and attack_vector[av_field] is not None:
                     LOGGER.debug(f'Adding field {av_field}')
                     event.add_attribute(category='Network activity', type='comment',
                                         value=attack_vector[av_field],
@@ -213,7 +214,6 @@ def add_misp_fingerprint(host, token, protocol, noverify, fp):
             event.add_object(ddos, pythonify=True)
 
         event.publish()
-        # event = misp.add_event(event, pythonify=True)
         event = misp.add_event(event, pythonify=True)
 
         result = add_misp_tag_to_event(host, token, protocol, noverify, event.id, ddosch_tag['Tag']['id'])
