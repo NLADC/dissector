@@ -18,11 +18,37 @@
 
 ## DDoS DISSECTOR - Overview
 
-DDos_Dissector is responsible for summarizing DDoS attack traffic from stored traffic (pcap/flows). The key point is to build a heuristic/algorithm that can find similarities in the analyzed network traffic. 
+DDoS_Dissector is responsible for summarizing DDoS attack traffic from stored traffic (pcap/flows). The key point is to build a heuristic/algorithm that can find similarities in the analyzed network traffic. 
 
 In order to improve software efficiency, we are working on software components that can parse specific DDoS attacks, such as amplification and TCP Syn flood attacks. 
 
-## External Dependencies
+## Docker container
+
+You can run DDoS_Dissector in a docker container. This way, you do not have to install
+dependencies yourself and can start analyzing traffic captures right away.
+The only requirement is to have [Docker](https://docs.docker.com/get-docker/) installed and running.
+
+1. Clone this repository: `git clone https://github.com/ddos-clearing-house/ddos_dissector`
+2. Build the docker image (669MB): `cd ddos_dissector; docker build -t dissector .`
+3. Run dissector in a docker container (from the root of this repository):
+    ```bash
+    docker run -v $(pwd):/app dissector [arguments]
+    ```
+    **Note:** the volume specified with the `-v` flag mounts the current working directory to /app in the
+docker container. Make sure you are in the root of this repository when calling the command and the pcap file you wish to analyze is also somewhere in this directory. Alternatively, add an additional volume to mount the location of your traffic file to the docker container, e.g., `-v /home/me/pcaps:/data`
+   
+    **Note:** If you have an instance of [DDoSDB](https://github.com/ddos-clearing-house/ddosdb) running locally on localhost and wish to upload fingerprints to it, 
+add the following flag to the `docker run` command to use the host network instead of the docker-created network: `--network="host"`
+
+    **Example command:**
+   ```bash
+   docker run --network="host" -v $(pwd):/app dissector -f /app/pcap_samples/sample1.pcap -u -n --host https://localhost/ --user user --passwd pass
+   ```
+   
+
+## Install locally
+
+### Dependencies
 
 Be sure to have tshark[1], nfdump[2] and python3[3] in your path.
 
@@ -34,13 +60,16 @@ On Debian 10, install via apt
 ```apt install tshark nfdump python3
 ```
 
-## How to start?
+### Installation and use
 
 1. Install the dissector
 
 ```bash
+
 git clone https://github.com/ddos-clearing-house/ddos_dissector
 cd ddos_dissector
+
+=======
 
 pip install -r requirements.txt
 
