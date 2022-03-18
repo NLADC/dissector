@@ -121,7 +121,13 @@ def read_pcap(filename: Path) -> pd.DataFrame:
         error(f"tshark command stderr:\n{process.stderr.decode('utf-8')}")
 
     output_buffer = StringIO(process.stdout.decode("utf-8"))
-    data: pd.DataFrame = pd.read_csv(output_buffer, parse_dates=['frame.time'], low_memory=False)
+    try:
+        data: pd.DataFrame = pd.read_csv(output_buffer, parse_dates=['frame.time'], low_memory=False, delimiter=',')
+    except pd.errors.ParserError as e:
+        LOGGER.info(f'Error reading PCAP file: {e}')
+        LOGGER.info(f'Skipping the offending lines...')
+        data: pd.DataFrame = pd.read_csv(output_buffer, parse_dates=['frame.time'], low_memory=False, delimiter=',',
+                                         on_bad_lines='skip')
 
     # Keep only relevant columns & rename
     data = data[data.columns.intersection(PCAP_COLUMN_NAMES.keys())].rename(columns=PCAP_COLUMN_NAMES)
