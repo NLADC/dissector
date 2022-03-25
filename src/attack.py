@@ -4,7 +4,6 @@ import hashlib
 import requests
 import urllib3
 import pandas as pd
-from io import BytesIO
 from pathlib import Path
 from typing import Dict, List
 from functools import total_ordering
@@ -13,6 +12,7 @@ from netaddr import IPAddress, IPNetwork
 
 from util import AMPLIFICATION_SERVICES, TCP_FLAG_NAMES, get_outliers, FileType
 from logger import LOGGER
+from misp import MispInstance
 
 __all__ = ["Attack", "AttackVector", "Fingerprint"]
 
@@ -217,53 +217,79 @@ class Fingerprint:
         with open(filename, 'w') as file:
             json.dump(self.as_dict(anonymous=not self.show_target), file, indent=4)
 
-    def upload_to_ddosdb(self, host: str, username: str, password: str, noverify: bool = False) -> int:
+    def upload_to_ddosdb(self, host: str, token: str, protocol: str = 'https', noverify: bool = False) -> int:
         """
         Upload fingerprint to a DDoS-DB instance
         :param host: hostname of the DDoS-DB instance, without schema (like db.example.com)
-        :param username: DDoS-DB username
-        :param password: DDoS-DB password
+        :param token: DDoS-DB Authorization Token
+        :param protocol: Protocol to use (http or https)
         :param noverify: (bool) ignore invalid TLS certificate
         :return: HTTP response code
         """
         LOGGER.info(f"Uploading fingerprint to DDoS-DB: {host}")
 
-        files = {"json": BytesIO(json.dumps(self.as_dict(anonymous=not self.show_target)).encode())}
+        fp_json = json.dumps(self.as_dict(anonymous=not self.show_target))
         headers = {
-            "X-Username": username,
-            "X-Password": password,
-            "X-Filename": self.checksum
+            "Authorization": f"Token {token}"
         }
 
         try:
             try:
-                urllib3.disable_warnings()
-                r = requests.post("https://" + host + "/upload-file", files=files, headers=headers, verify=not noverify)
+                if noverify:
+                    urllib3.disable_warnings()
+                r = requests.post(protocol + "://" + host + "/api/fingerprint/",
+                                  json=fp_json,
+                                  headers=headers,
+                                  verify=not noverify)
             except requests.exceptions.SSLError:
                 LOGGER.critical(f"SSL Certificate verification of the server {host} failed. To ignore the certificate "
                                 f"pass the --noverify flag.")
-                LOGGER.info("Fingerprint NOT uploaded")
+                LOGGER.info("Fingerprint NOT uploaded to DDoS-DB")
                 return 500
         except requests.exceptions.RequestException as e:
-            LOGGER.critical("Cannot connect to the server to upload fingerprint")
+            LOGGER.critical("Cannot connect to the DDoS-DB server to upload fingerprint")
             LOGGER.debug(e)
             return 500
 
         if r.status_code == 403:
-            LOGGER.info("Invalid credentials or no permission to upload fingerprints.")
+            LOGGER.info("Invalid DDoS-DB credentials or no permission to upload fingerprints.")
         elif r.status_code == 201:
             LOGGER.info(f"Upload success! URL: https://{host}/details?key={self.checksum}")
         else:
-            LOGGER.info("Internal Server Error.")
+            LOGGER.info("DDoS-DB Internal Server Error.")
             LOGGER.info("Error Code: {}".format(r.status_code))
         return r.status_code
 
-    def upload_to_misp(self, host: str, username: str, password: str) -> int:
+    def upload_to_misp(self, misp_instance: MispInstance) -> int:
         """
-        TODO: upload fingerprint to a MISP instance
-        :param host: hostname of the MISP instance, without schema (like misp.example.com)
-        :param username: MISP username
-        :param password: MISP password
+        Upload fingerprint to a MISP instance
+        :param misp_instance: MISP instance to which to upload the fingerprint
         :return: HTTP response code
         """
-        ...
+        LOGGER.info(f"Uploading fingerprint to MISP: {misp_instance.host}")
+
+        fingerprint_json = self.as_dict(anonymous=not self.show_target)
+
+        misp_filter = {
+            "minimal": True,
+            "tag": "DDoSCH",
+            'eventinfo': self.checksum,
+        }
+
+        LOGGER.debug(f"Checking if fingerprint {self.checksum} is already present in the MISP")
+        try:
+            misp_events = misp_instance.search_misp_events(misp_filter)
+        except requests.exceptions.SSLError:
+            LOGGER.critical(f"SSL Certificate verification of the server {misp_instance.host} failed. "
+                            f"To ignore the certificate pass the --noverify flag.")
+            LOGGER.info("Fingerprint NOT uploaded.")
+            return 500
+
+        if misp_events:
+            LOGGER.critical("The fingerprint already exists in this MISP instance.")
+            LOGGER.info("Fingerprint NOT uploaded.")
+            return 500
+
+        misp_instance.add_misp_fingerprint(fingerprint_json)
+
+        return 201

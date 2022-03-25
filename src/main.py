@@ -5,6 +5,7 @@ from netaddr import IPNetwork
 
 from logger import LOGGER
 from util import parse_config, print_logo, determine_filetype
+from misp import MispInstance
 from reader import read_file
 from attack import Attack, Fingerprint
 from analysis import infer_target, extract_attack_vectors, compute_summary
@@ -53,4 +54,8 @@ fingerprint.write_to_file(args.output / (fingerprint.checksum[:16] + ".json"))  
 if args.ddosdb:  # Upload the fingerprint to a specified DDoS-DB instance
     fingerprint.upload_to_ddosdb(**parse_config(args.config), noverify=args.noverify)
 if args.misp:  # Upload the fingerprint to a specified MISP instance
-    fingerprint.upload_to_misp(**parse_config(args.config, misp=True))
+    conf = parse_config(args.config, misp=True)
+    misp_instance = MispInstance(host=conf['host'], token=conf['token'], protocol=conf['protocol'],
+                                 verify_tls=not args.noverify)
+    if misp_instance.misp is not None:
+        fingerprint.upload_to_misp(misp_instance)

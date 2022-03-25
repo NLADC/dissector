@@ -238,13 +238,14 @@ def error(message: str):
 
 def parse_config(file: Path, misp=False) -> Dict[str, str]:
     """
-    Parse the DDoSDB/MISP config file and return host, username, password
+    Parse the DDoSDB/MISP config file and return host, authorization token, protocol (http/https)
     :param file: Config file (ini format)
     :param misp: Get the MISP credentials instead of DDoS-DB credentials.
-    :return: host (str), username (str), password (str)
+    :return: host (str), token (str), protocol (str)
     """
     config = ConfigParser()
     LOGGER.debug(f"Using config file: '{str(file)}'")
+    config.read_dict({'ddosdb': {'protocol': 'https'}, 'misp': {'protocol': 'https'}})
     try:
         with open(file) as f:
             config.read_file(f)
@@ -256,13 +257,13 @@ def parse_config(file: Path, misp=False) -> Dict[str, str]:
     try:
         return {
             "host": config.get(platform, 'host'),
-            "username": config.get(platform, 'user'),
-            "password": config.get(platform, 'pass')
+            "token": config.get(platform, 'token'),
+            "protocol": config.get(platform, 'protocol')
         }
 
     except (NoSectionError, NoOptionError):
         error("Uploading fingerprint failed. "
-              f"The config file must include a section '{platform}' with keys 'host', 'user', and 'pass'.")
+              f"The config file must include a section '{platform}' with keys 'host' and 'token'.")
 
 
 def get_outliers(data: pd.DataFrame,
