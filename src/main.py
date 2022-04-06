@@ -17,9 +17,10 @@ def parse_arguments() -> Namespace:
                         dest="files")
     parser.add_argument("--summary", action="store_true", help="Optional: print fingerprint without source addresses")
     parser.add_argument("--output", type=Path, help="Path to directory in which to save the fingerprint "
-                                                    "(default ./fingerprints)", default=Path('fingerprints'))
-    parser.add_argument("--config", type=Path, help="Path to DDoS-DB/MISP config file (default ./config.ini)",
-                        default=Path('config.ini'))
+                                                    "(default /data-mount/fingerprints)",
+                        default=Path('/data/fingerprints'))
+    parser.add_argument("--config", type=Path, help="Path to DDoS-DB/MISP config file (default /etc/config.ini)",
+                        default=Path('/etc/config.ini'))
     parser.add_argument("--target", type=IPNetwork, help="Optional: target IP address or subnet of this attack")
     parser.add_argument("--ddosdb", action="store_true", help="Optional: directly upload fingerprint to DDoS-DB")
     parser.add_argument("--misp", action="store_true", help="Optional: directly upload fingerprint to MISP")

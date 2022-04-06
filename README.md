@@ -32,24 +32,17 @@ You can run DDoS Dissector in a docker container. This way, you do not have to i
 start analyzing traffic captures right away. The only requirement is to
 have [Docker](https://docs.docker.com/get-docker/) installed and running.
 
-1. Clone this repository: `git clone https://github.com/ddos-clearing-house/ddos_dissector`
-2. Build the docker image: `cd ddos_dissector; docker build -t dissector .`
-3. Run dissector in a docker container (from the root of this repository):
+1. Pull the docker image from [docker hub](https://hub.docker.com/r/ddosclearinghouse/dissector): `docker pull ddosclearinghouse/dissector`
+2. Run dissector in a docker container:
     ```bash
-    docker run -i -v $(pwd):/app -v /path/to/data:/data dissector [options]
+    docker run -i --network="host" \
+    --mount type=bind,source=/abs-path/to/config.ini,target=/etc/config.ini \
+    -v /abs-path/to/data:/data \
+    ddosclearinghouse/dissector -f /data/capture_file [options]
     ```
-   **Note:** We create two volumes: one mounts the curretn working directory to /app, so dissector can save fingerprints
-   to ./fingerprints in the current directory. We also mount a volume from the location of PCAP or FLOW files (here
-   /path/to/data) to /data. We can now access those files in the docker container at /data/file
+   **Note:** We bind-mount the [config file](config.ini.example) with DDoS-DB and MISP tokens to `/etc/config.ini`, and create a volume mount for the location of capture files.
+   We use the local network to also allow connections to a locally running instance of DDoS-DB or MISP. Fingerprints are saved in `your-data-volume/fingerprints`
 
-   **Note:** If you have an instance of [DDoSDB](https://github.com/ddos-clearing-house/ddosdb) running **locally** on
-   localhost and wish to upload fingerprints to it, add the following flag to the `docker run` command to use the host's
-   network instead of the docker-created network: `--network="host"`
-
-   **Example command:**
-   ```bash
-   docker run --network="host" -v $(pwd):/app -v /home/me/data:/data dissector -f /data/capture1.nfdump --config local.ini --ddosdb --noverify
-   ```
 
 ### Option 2: Install locally
 
@@ -98,8 +91,8 @@ options:
   -h, --help            show this help message and exit
   -f FILES [FILES ...], --file FILES [FILES ...]
                         Path to Flow / PCAP capture file(s)
-  --output OUTPUT       Path to directory in which to save the fingerprint (default ./fingerprints)
-  --config CONFIG       Path to DDoS-DB/MISP config file (default ./config.ini)
+  --output OUTPUT       Path to directory in which to save the fingerprint (default /data-mount/fingerprints)
+  --config CONFIG       Path to DDoS-DB/MISP config file (default /etc/config.ini)
   --summary             Optional: print fingerprint without source addresses to stdout
   --target TARGET       Optional: target IP address or subnet of this attack
   --ddosdb              Optional: directly upload fingerprint to a DDoS-DB instance specified in config
