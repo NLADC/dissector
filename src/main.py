@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 from pathlib import Path
 from argparse import ArgumentParser, Namespace
@@ -10,6 +11,8 @@ from reader import read_file
 from attack import Attack, Fingerprint
 from analysis import infer_target, extract_attack_vectors, compute_summary
 
+DOCKERIZED: bool = 'DISSECTOR_DOCKER' in os.environ
+
 
 def parse_arguments() -> Namespace:
     parser = ArgumentParser()
@@ -17,8 +20,8 @@ def parse_arguments() -> Namespace:
                         dest="files")
     parser.add_argument("--summary", action="store_true", help="Optional: print fingerprint without source addresses")
     parser.add_argument("--output", type=Path, help="Path to directory in which to save the fingerprint "
-                                                    "(default /data-mount/fingerprints)",
-                        default=Path('/data/fingerprints'))
+                                                    f"(default {'/data' if DOCKERIZED else '.'}/fingerprints)",
+                        default=Path('/data/fingerprints') if DOCKERIZED else Path('./fingerprints'))
     parser.add_argument("--config", type=Path, help="Path to DDoS-DB/MISP config file (default /etc/config.ini)",
                         default=Path('/etc/config.ini'))
     parser.add_argument("--target", type=IPNetwork, help="Optional: target IP address or subnet of this attack")

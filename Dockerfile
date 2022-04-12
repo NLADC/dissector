@@ -12,6 +12,7 @@ RUN ./autogen.sh && ./configure && make && make install && ldconfig
 COPY requirements.txt /app
 RUN pip install --upgrade pip
 RUN pip install -r /app/requirements.txt
+ENV DISSECTOR_DOCKER=1
 
 COPY src/ /app
 WORKDIR /app

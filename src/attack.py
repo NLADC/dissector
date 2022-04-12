@@ -226,7 +226,7 @@ class Fingerprint:
         :param noverify: (bool) ignore invalid TLS certificate
         :return: HTTP response code
         """
-        LOGGER.info(f"Uploading fingerprint to DDoS-DB: {host}")
+        LOGGER.info(f"Uploading fingerprint to DDoS-DB: {host}...")
 
         fp_json = json.dumps(self.as_dict(anonymous=not self.show_target))
         headers = {
@@ -252,12 +252,14 @@ class Fingerprint:
             return 500
 
         if r.status_code == 403:
-            LOGGER.info("Invalid DDoS-DB credentials or no permission to upload fingerprints.")
+            LOGGER.critical("Invalid DDoS-DB credentials or no permission to upload fingerprints.")
+        elif r.status_code == 413:
+            LOGGER.critical("Fingerprint is too large to upload to this DDoS-DB instance.")
         elif r.status_code == 201:
             LOGGER.info(f"Upload success! URL: https://{host}/details?key={self.checksum}")
         else:
-            LOGGER.info("DDoS-DB Internal Server Error.")
-            LOGGER.info("Error Code: {}".format(r.status_code))
+            LOGGER.critical("DDoS-DB Internal Server Error.")
+            LOGGER.critical("Error Code: {}".format(r.status_code))
         return r.status_code
 
     def upload_to_misp(self, misp_instance: MispInstance) -> int:
