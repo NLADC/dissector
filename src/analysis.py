@@ -3,6 +3,7 @@ import pandas as pd
 from netaddr import IPAddress, IPNetwork
 from typing import Any
 from collections import defaultdict
+from functools import reduce
 
 from logger import LOGGER
 from attack import Attack, AttackVector
@@ -148,6 +149,22 @@ def extract_attack_vectors(attack: Attack) -> list[AttackVector]:
         data = unallocated_data[(unallocated_data.source_port != 0) & (unallocated_data.protocol == protocol)]
         # random source ports
         attack_vectors.append(AttackVector(data=data, source_port=-1, protocol=protocol, filetype=attack.filetype))
+
+    # Combine attack vectors with the same service and protocol. First create a dictionary grouping them:
+    # {(service, protocol): [attack_vectors]}
+    vectors_by_service_protocol: dict[tuple[str, str], list[AttackVector]] = defaultdict(list)
+    for vector in attack_vectors:
+        vectors_by_service_protocol[(vector.service, vector.protocol)].append(vector)
+
+    # Combine attack vectors in the same group by creating a new attack vector with the combined dataframes.
+    reduced_vectors: list[AttackVector] = []
+    for (service, protocol), vectors in vectors_by_service_protocol.items():
+        if len(vectors) > 1:
+            reduced_vectors.append(AttackVector(data=pd.concat([v.data for v in vectors]),
+                                                source_port=-1, protocol=protocol, filetype=attack.filetype))
+        else:
+            reduced_vectors.append(vectors[0])
+    attack_vectors = reduced_vectors
 
     # Compute the fraction of all traffic for each attack vector, discard vectors with less than 5% of traffic
     LOGGER.debug("Computing the fraction of traffic each attack vector contributes.")

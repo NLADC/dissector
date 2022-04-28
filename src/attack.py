@@ -37,7 +37,14 @@ class Attack:
 class AttackVector:
     def __init__(self, data: pd.DataFrame, source_port: int, protocol: str, filetype: FileType):
         self.data = data
-        self.source_port = source_port
+        if source_port == -1:
+            self.source_port = dict(get_outliers(self.data,
+                                                 'source_port',
+                                                 0.1,
+                                                 use_zscore=False,
+                                                 return_others=True)) or 'random'
+        else:
+            self.source_port = source_port
         self.protocol = protocol.upper()
         self.filetype = filetype
         self.destination_ports = dict(get_outliers(self.data,
@@ -59,12 +66,12 @@ class AttackVector:
             elif self.protocol == 'TCP':
                 self.service = socket.getservbyport(source_port, protocol.lower()).upper()
             else:
-                self.service = 'Unknown service'
+                self.service = None
         except OSError:  # service not found by socket.getservbyport
             if self.source_port == 0 and len(self.destination_ports) == 1 and list(self.destination_ports)[0] == 0:
                 self.service = 'Fragmented IP packets'
             else:
-                self.service = 'Unknown service'
+                self.service = None
         except OverflowError:  # Random source port (-1), no specific service
             self.service = None
         if self.protocol == 'TCP':
@@ -76,7 +83,7 @@ class AttackVector:
             self.eth_type = dict(get_outliers(self.data, 'ethernet_type', 0.05, return_others=True)) or 'random'
             self.frame_len = dict(get_outliers(self.data, 'nr_bytes', 0.05, return_others=True)) or 'random'
 
-            if isinstance(self.eth_type, dict) and ('IPv4' in self.eth_type.keys() or 'IPv6' in self.eth_type.keys()):
+            if isinstance(self.eth_type, dict) and ('IPv4' in self.eth_type or 'IPv6' in self.eth_type):
                 # IP packets
                 self.frag_offset = dict(get_outliers(self.data, 'fragmentation_offset', fraction_for_outlier=0.1,
                                                      return_others=True)) or 'random'
