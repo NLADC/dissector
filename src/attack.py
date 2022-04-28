@@ -5,7 +5,6 @@ import requests
 import urllib3
 import pandas as pd
 from pathlib import Path
-from typing import Dict, List
 from functools import total_ordering
 from datetime import datetime
 from netaddr import IPAddress, IPNetwork
@@ -21,7 +20,7 @@ class Attack:
     def __init__(self, data: pd.DataFrame, filetype: FileType):
         self.data = data
         self.filetype = filetype
-        self.attack_vectors: List[AttackVector]
+        self.attack_vectors: list[AttackVector]
 
     def filter_data_on_target(self, target_network: IPNetwork):
         """
@@ -51,7 +50,7 @@ class AttackVector:
         self.time_start: datetime = self.data.time_start.min()
         self.time_end: datetime = self.data.time_end.max()
         self.duration = (self.time_end - self.time_start).seconds
-        self.source_ips: List[IPAddress] = data.source_address.unique()
+        self.source_ips: list[IPAddress] = data.source_address.unique()
         self.fraction_of_attack = 0
         try:
             if self.protocol == 'UDP':
@@ -153,7 +152,7 @@ class AttackVector:
 
 
 class Fingerprint:
-    def __init__(self, target: IPNetwork, summary: Dict[str, int], attack_vectors: List[AttackVector],
+    def __init__(self, target: IPNetwork, summary: dict[str, int], attack_vectors: list[AttackVector],
                  show_target: bool = False):
         if target.version == 4 and target.prefixlen == 32 or target.version == 6 and target.prefixlen == 128:
             self.target: IPAddress = target.network
@@ -177,7 +176,7 @@ class Fingerprint:
             **self.summary
         }
 
-    def determine_tags(self) -> List[str]:
+    def determine_tags(self) -> list[str]:
         """
         Determine the tags that describe this attack. Characteristics such as "Multi-vector attacK", "UDP flood", etc.
         :return: List of tags (strings)

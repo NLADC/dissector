@@ -3,7 +3,7 @@ import pandas as pd
 import socket
 import os
 from enum import Enum
-from typing import Dict, Union, List
+from typing import Union
 from pathlib import Path
 from configparser import ConfigParser, NoOptionError, NoSectionError
 
@@ -12,13 +12,13 @@ from logger import LOGGER
 __all__ = ["IPPROTO_TABLE", "AMPLIFICATION_SERVICES", "TCP_FLAG_NAMES", "ETHERNET_TYPES", "ICMP_TYPES",
            "DNS_QUERY_TYPES", "FileType", "determine_filetype", "print_logo", "error", "parse_config", "get_outliers"]
 
-IPPROTO_TABLE: Dict[int, str] = {
+IPPROTO_TABLE: dict[int, str] = {
     num: name[8:]
     for name, num in vars(socket).items()
     if name.startswith("IPPROTO")
 }
 
-AMPLIFICATION_SERVICES: Dict[int, str] = {  # UDP port -> service name
+AMPLIFICATION_SERVICES: dict[int, str] = {  # UDP port -> service name
     17: "Quote of the Day",
     19: "Chargen",
     53: "DNS",
@@ -49,7 +49,7 @@ AMPLIFICATION_SERVICES: Dict[int, str] = {  # UDP port -> service name
     37810: "DHDiscover"
 }
 
-TCP_FLAG_NAMES: Dict[str, str] = {
+TCP_FLAG_NAMES: dict[str, str] = {
     "F": "FIN",
     "S": "SYN",
     "R": "RESET",
@@ -58,7 +58,7 @@ TCP_FLAG_NAMES: Dict[str, str] = {
     "U": "URGENT",
 }
 
-ETHERNET_TYPES: Dict[int, str] = {
+ETHERNET_TYPES: dict[int, str] = {
     0x0800: "IPv4",
     0x0806: "ARP",
     0x0842: "Wake-on-LAN",
@@ -116,7 +116,7 @@ ETHERNET_TYPES: Dict[int, str] = {
     0xF1C1: "Redundancy Tag (IEEE 802.1CB Frame Replication and Elimination for Reliability)"
 }
 
-ICMP_TYPES: Dict[int, str] = {
+ICMP_TYPES: dict[int, str] = {
     0: "Echo Reply",
     3: "Destination Unreachable",
     5: "Redirect",
@@ -132,7 +132,7 @@ ICMP_TYPES: Dict[int, str] = {
     43: "Extended Echo Reply",
 }
 
-DNS_QUERY_TYPES: Dict[int, str] = {
+DNS_QUERY_TYPES: dict[int, str] = {
     1: "A",
     28: "AAAA",
     18: "AFSDB",
@@ -195,7 +195,7 @@ class FileType(Enum):
         return self.value
 
 
-def determine_filetype(filenames: List[Path]) -> FileType:
+def determine_filetype(filenames: list[Path]) -> FileType:
     """
     Determine whether the input files are Flows or PCAPs; if it's neither or a mix, quit.
     :param filenames:
@@ -236,7 +236,7 @@ def error(message: str):
     sys.exit(-1)
 
 
-def parse_config(file: Path, misp=False) -> Dict[str, str]:
+def parse_config(file: Path, misp=False) -> dict[str, str]:
     """
     Parse the DDoSDB/MISP config file and return host, authorization token, protocol (http/https)
     :param file: Config file (ini format)
@@ -267,7 +267,7 @@ def parse_config(file: Path, misp=False) -> Dict[str, str]:
 
 
 def get_outliers(data: pd.DataFrame,
-                 column: Union[str, List[str]],
+                 column: Union[str, list[str]],
                  fraction_for_outlier: float,
                  use_zscore: bool = True,
                  return_fractions: bool = False,

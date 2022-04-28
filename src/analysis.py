@@ -1,7 +1,7 @@
 import sys
 import pandas as pd
 from netaddr import IPAddress, IPNetwork
-from typing import List, Dict, Any, Tuple
+from typing import Any
 from collections import defaultdict
 
 from logger import LOGGER
@@ -20,7 +20,7 @@ def infer_target(attack: Attack) -> IPNetwork:
     :return: Target IP address as an IPNetwork
     """
     LOGGER.debug("Inferring attack target.")
-    targets: List[IPAddress] = get_outliers(attack.data,
+    targets: list[IPAddress] = get_outliers(attack.data,
                                             column='destination_address',
                                             fraction_for_outlier=0.5,
                                             use_zscore=False)
@@ -68,7 +68,7 @@ def infer_target(attack: Attack) -> IPNetwork:
     return best_network
 
 
-def extract_attack_vectors(attack: Attack) -> List[AttackVector]:
+def extract_attack_vectors(attack: Attack) -> list[AttackVector]:
     """
     Extract the attack vector(s) that make up this attack, from the Attack object. e.g. DNS amplfication vector
     :param attack: Attack object from which extract vectors
@@ -87,7 +87,7 @@ def extract_attack_vectors(attack: Attack) -> List[AttackVector]:
                                               use_zscore=False)
     protocol_source_port_outliers = list(set(with_fragmented_packets) | set(without_fragmented_packets))
 
-    attack_vectors: List[AttackVector] = []
+    attack_vectors: list[AttackVector] = []
     attack_vector_data = pd.DataFrame()
     fragmentation_protocols = set()  # protocols for which a significant fraction of traffic is fragmented packets
 
@@ -117,7 +117,7 @@ def extract_attack_vectors(attack: Attack) -> List[AttackVector]:
     # remove destination port 0
     protocol_dest_port_outliers = [(proto, port) for proto, port in protocol_dest_port_outliers if port != 0]
 
-    def combine_outliers(port_protocol_tuples: List[Tuple[str, int]]) -> List[Tuple[str, List[int]]]:
+    def combine_outliers(port_protocol_tuples: list[tuple[str, int]]) -> list[tuple[str, list[int]]]:
         """
         Combine destination ports in (protocol, destination_port) tuples with the same protocol.
         example: [("UDP", 5), ("UDP", 6), ("TCP", 7)] -> [("UDP", [5, 6]), ("TCP", [7])]
@@ -173,7 +173,7 @@ def extract_attack_vectors(attack: Attack) -> List[AttackVector]:
     return sorted(attack_vectors)
 
 
-def compute_summary(attack_vectors: List[AttackVector]) -> Dict[str, Any]:
+def compute_summary(attack_vectors: list[AttackVector]) -> dict[str, Any]:
     """
     Compute the summary statistics of the attack given its attack vectors
     :param attack_vectors: List of attack vectors that make up the attack

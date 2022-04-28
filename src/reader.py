@@ -2,7 +2,6 @@ import shutil
 import subprocess
 import numpy as np
 import pandas as pd
-from typing import Dict
 from pathlib import Path
 from io import StringIO
 from netaddr import IPAddress
@@ -12,7 +11,7 @@ from util import error, IPPROTO_TABLE, FileType, ETHERNET_TYPES, ICMP_TYPES, DNS
 
 __all__ = ["read_flow", "read_pcap", "read_file"]
 
-FLOW_COLUMN_NAMES: Dict[str, str] = {
+FLOW_COLUMN_NAMES: dict[str, str] = {
     'ts': "time_start",
     'te': "time_end",
     'pr': "protocol",
@@ -25,7 +24,7 @@ FLOW_COLUMN_NAMES: Dict[str, str] = {
     'flg': "tcp_flags"
 }
 
-PCAP_COLUMN_NAMES: Dict[str, str] = {
+PCAP_COLUMN_NAMES: dict[str, str] = {
     'ip.dst': "destination_address",
     'ip.src': "source_address",
     'tcp.flags': "tcp_flags",
@@ -184,4 +183,3 @@ def read_file(filename: Path, filetype: FileType) -> pd.DataFrame:
         return read_pcap(filename)
     else:
         return error("Invalid FileType")
-
