@@ -126,8 +126,8 @@ class AttackVector:
         fields = {
             'service': self.service,
             'protocol': self.protocol,
-            'source_port': self.source_port if self.source_port != -1 else "random",
             'fraction_of_attack': self.fraction_of_attack if self.source_port != 0 else None,
+            'source_port': self.source_port if self.source_port != -1 else "random",
             'destination_ports': self.destination_ports,
             'tcp_flags': self.tcp_flags,
             f'nr_{"flows" if self.filetype == FileType.FLOW else "packets"}': len(self),
