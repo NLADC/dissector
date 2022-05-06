@@ -316,7 +316,7 @@ Example: python src/main.py -f /data/part1.nfdump /data/part2.nfdump --summary -
          <img src="media/eu-flag.png" style="width: 75px" alt="EU Flag"/>
       </td>
       <td>
-         This project has received funding from the European Union's Horizon 2020 <br>reseach and innovation program under grant agreement no. 830927.
+         This project has received funding from the European Union's Horizon 2020 <br>research and innovation program under grant agreement no. 830927.
       </td>
    </tr>
 </table>
