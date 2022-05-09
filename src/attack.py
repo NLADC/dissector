@@ -60,7 +60,7 @@ class AttackVector:
         self.source_ips: list[IPAddress] = data.source_address.unique()
         self.fraction_of_attack = 0
         try:
-            if self.protocol == 'UDP':
+            if self.protocol == 'UDP' and source_port != -1:
                 self.service = (AMPLIFICATION_SERVICES.get(self.source_port, None) or
                                 socket.getservbyport(source_port, protocol.lower()).upper())
             elif self.protocol == 'TCP':
@@ -109,7 +109,7 @@ class AttackVector:
                                                    return_others=True)) or 'random'
 
     def __str__(self):
-        return f"[AttackVector] {self.service} on port {self.source_port}, protocol {self.protocol}"
+        return f"[AttackVector ({self.fraction_of_attack * 100}% of traffic) {self.protocol}, service: {self.service}]"
 
     def __repr__(self):
         return self.__str__()

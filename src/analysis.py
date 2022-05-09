@@ -169,13 +169,14 @@ def extract_attack_vectors(attack: Attack) -> list[AttackVector]:
     # Compute the fraction of all traffic for each attack vector, discard vectors with less than 5% of traffic
     LOGGER.debug("Computing the fraction of traffic each attack vector contributes.")
     while True:
-        total_packets = sum([v.packets for v in attack_vectors])
+        total_bytes = sum([v.bytes for v in attack_vectors])
         for vector in attack_vectors:
-            vector.fraction_of_attack = round(vector.packets / total_packets, 3)
+            vector.fraction_of_attack = round(vector.bytes / total_bytes, 3)
             if vector.fraction_of_attack < 0.05:
                 break
         else:
             break
+        LOGGER.debug(f'removing {vector} ({vector.fraction_of_attack * 100}% of traffic)')
         attack_vectors.remove(vector)
 
     # Create attack vector(s) with fragmented packets
