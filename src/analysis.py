@@ -3,7 +3,6 @@ import pandas as pd
 from netaddr import IPAddress, IPNetwork
 from typing import Any
 from collections import defaultdict
-from functools import reduce
 
 from logger import LOGGER
 from attack import Attack, AttackVector

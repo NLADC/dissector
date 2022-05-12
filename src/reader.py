@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 from io import StringIO
+from netaddr.core import AddrFormatError
 from netaddr import IPAddress
 
 from logger import LOGGER
@@ -130,22 +131,29 @@ def read_pcap(filename: Path) -> pd.DataFrame:
 
     # Keep only relevant columns & rename
     data = data[data.columns.intersection(PCAP_COLUMN_NAMES.keys())].rename(columns=PCAP_COLUMN_NAMES)
+    data.dropna(subset=['ethernet_type'], inplace=True)
 
     LOGGER.debug("Ensuring all columns have the correct data types.")
     # map IP protocol number to name
     data['protocol'] = data['protocol'].map(IPPROTO_TABLE).astype(str)
     # map common EtherType names
-    data['ethernet_type'] = data['ethernet_type'].map(lambda r: ETHERNET_TYPES.get(int(r, 16), str(r))).astype(str)
+    data['ethernet_type'] = data['ethernet_type'].map(lambda r: ETHERNET_TYPES.get(int(str(r), 16), str(r))).astype(str)
     # map ICMP types to their name
     data['icmp_type'] = data['icmp_type'].fillna(-1).map(lambda r: ICMP_TYPES.get(int(r), str(r))).astype(str)
     # map DNS query types to their name
     data['dns_query_type'] = data['dns_query_type'].fillna(-1)\
         .map(lambda r: DNS_QUERY_TYPES.get(int(r), str(r))).astype(str)
 
-    # Consolidate address and port fields
-    data['source_address'] = data['source_address'].fillna(data['col_source_address']).apply(IPAddress)
-    data['destination_address'] = data['destination_address'].fillna(data['col_destination_address']).apply(IPAddress)
+    # Consolidate address and port fields, drop rows with invalid IPAddress
+    def ip_cast(address):
+        try:
+            return IPAddress(address)
+        except AddrFormatError:
+            return np.nan
+    data['source_address'] = data['source_address'].fillna(data['col_source_address']).apply(ip_cast)
+    data['destination_address'] = data['destination_address'].fillna(data['col_destination_address']).apply(ip_cast)
     data.drop(['col_source_address', 'col_destination_address'], axis=1, inplace=True)
+    data.dropna(subset=['source_address', 'destination_address'], inplace=True)
 
     data['source_port'] = data['tcp_source_port'].fillna(data['udp_source_port'])\
         .fillna(0).astype(np.ushort)
