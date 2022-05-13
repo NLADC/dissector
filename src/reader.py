@@ -1,7 +1,10 @@
+import os
 import shutil
 import subprocess
+import multiprocessing
 import numpy as np
 import pandas as pd
+import time
 from pathlib import Path
 from io import StringIO
 from netaddr.core import AddrFormatError
@@ -65,7 +68,6 @@ def read_flow(filename: Path) -> pd.DataFrame:
         error("nfdump software not found; it should be on the $PATH. Install from https://github.com/phaag/nfdump")
 
     command = [nfdump, "-r", str(filename), "-o", "extended", "-o", "csv"]
-    LOGGER.info(f'Reading "{filename}"...')
     process = subprocess.run(command, capture_output=True)
     if process.returncode != 0:
         LOGGER.error("nfdump command failed!\n")
@@ -106,8 +108,6 @@ def read_pcap(filename: Path) -> pd.DataFrame:
     if not tshark:
         error("Tshark software not found; it should be on the $PATH. Install from https://tshark.dev/")
 
-    LOGGER.info(f'Loading "{filename}"...')
-
     # Create command
     command = [tshark, "-r", str(filename), "-T", "fields"]
     for field in PCAP_COLUMN_NAMES:
@@ -141,7 +141,7 @@ def read_pcap(filename: Path) -> pd.DataFrame:
     # map ICMP types to their name
     data['icmp_type'] = data['icmp_type'].fillna(-1).map(lambda r: ICMP_TYPES.get(int(r), str(r))).astype(str)
     # map DNS query types to their name
-    data['dns_query_type'] = data['dns_query_type'].fillna(-1)\
+    data['dns_query_type'] = data['dns_query_type'].fillna(-1) \
         .map(lambda r: DNS_QUERY_TYPES.get(int(r), str(r))).astype(str)
 
     # Consolidate address and port fields, drop rows with invalid IPAddress
@@ -150,14 +150,15 @@ def read_pcap(filename: Path) -> pd.DataFrame:
             return IPAddress(address)
         except AddrFormatError:
             return np.nan
+
     data['source_address'] = data['source_address'].fillna(data['col_source_address']).apply(ip_cast)
     data['destination_address'] = data['destination_address'].fillna(data['col_destination_address']).apply(ip_cast)
     data.drop(['col_source_address', 'col_destination_address'], axis=1, inplace=True)
     data.dropna(subset=['source_address', 'destination_address'], inplace=True)
 
-    data['source_port'] = data['tcp_source_port'].fillna(data['udp_source_port'])\
+    data['source_port'] = data['tcp_source_port'].fillna(data['udp_source_port']) \
         .fillna(0).astype(np.ushort)
-    data['destination_port'] = data['tcp_destination_port'].fillna(data['udp_destination_port'])\
+    data['destination_port'] = data['tcp_destination_port'].fillna(data['udp_destination_port']) \
         .fillna(0).astype(np.ushort)
     data.drop(['tcp_source_port', 'udp_source_port', 'tcp_destination_port', 'udp_destination_port'],
               axis=1, inplace=True)
@@ -178,16 +179,32 @@ def read_pcap(filename: Path) -> pd.DataFrame:
     return data
 
 
-def read_file(filename: Path, filetype: FileType) -> pd.DataFrame:
+def read_file(filename: Path, filetype: FileType, nr_processes: int) -> pd.DataFrame:
     """
     Read capture file into Dataframe using either read_flow or read_pcap
     :param filename: Path to capture file
     :param filetype: FLOW or PCAP
+    :param nr_processes: int: number of processes used to concurrently read the capture file.
     :return: Dataframe with traffic data
     """
+    LOGGER.info(f'Loading "{filename}"...')
+
     if filetype == FileType.FLOW:
         return read_flow(filename)
     elif filetype == FileType.PCAP:
-        return read_pcap(filename)
+        if filename.stat().st_size < (5 ** 6):  # PCAP is smaller than 5MB
+            return read_pcap(filename)
+        LOGGER.debug(f'Splitting PCAP file {filename} into chunks of 5MB.')
+        subprocess.run(['tcpdump', '-r', filename, '-w', '/tmp/dissector_chunk', '-C', '5'], capture_output=True)
+        chunks = [Path(rootdir) / file for rootdir, _, files in os.walk('/tmp')
+                  for file in files if file.startswith('dissector_chunk')]
+
+        pool = multiprocessing.Pool(nr_processes)
+        results = pool.map(read_pcap, chunks)  # Read the PCAP chunks concurrently
+        pool.close()
+        pool.join()
+        for chunk in chunks:
+            os.remove(chunk)  # Remove the temporary PCAP chunks from /tmp
+        return pd.concat(results)  # Concatenate the partial dataframes
     else:
         return error("Invalid FileType")
