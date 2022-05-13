@@ -5,7 +5,6 @@ import requests
 import urllib3
 import pandas as pd
 from pathlib import Path
-from typing import Dict, List
 from functools import total_ordering
 from datetime import datetime
 from netaddr import IPAddress, IPNetwork
@@ -21,7 +20,7 @@ class Attack:
     def __init__(self, data: pd.DataFrame, filetype: FileType):
         self.data = data
         self.filetype = filetype
-        self.attack_vectors: List[AttackVector]
+        self.attack_vectors: list[AttackVector]
 
     def filter_data_on_target(self, target_network: IPNetwork):
         """
@@ -38,7 +37,14 @@ class Attack:
 class AttackVector:
     def __init__(self, data: pd.DataFrame, source_port: int, protocol: str, filetype: FileType):
         self.data = data
-        self.source_port = source_port
+        if source_port == -1:
+            self.source_port = dict(get_outliers(self.data,
+                                                 'source_port',
+                                                 0.1,
+                                                 use_zscore=False,
+                                                 return_others=True)) or 'random'
+        else:
+            self.source_port = source_port
         self.protocol = protocol.upper()
         self.filetype = filetype
         self.destination_ports = dict(get_outliers(self.data,
@@ -51,25 +57,26 @@ class AttackVector:
         self.time_start: datetime = self.data.time_start.min()
         self.time_end: datetime = self.data.time_end.max()
         self.duration = (self.time_end - self.time_start).seconds
-        self.source_ips: List[IPAddress] = data.source_address.unique()
+        self.source_ips: list[IPAddress] = data.source_address.unique()
         self.fraction_of_attack = 0
         try:
-            if self.protocol == 'UDP':
+            if self.protocol == 'UDP' and source_port != -1:
                 self.service = (AMPLIFICATION_SERVICES.get(self.source_port, None) or
                                 socket.getservbyport(source_port, protocol.lower()).upper())
             elif self.protocol == 'TCP':
                 self.service = socket.getservbyport(source_port, protocol.lower()).upper()
             else:
-                self.service = 'Unknown service'
+                self.service = None
         except OSError:  # service not found by socket.getservbyport
             if self.source_port == 0 and len(self.destination_ports) == 1 and list(self.destination_ports)[0] == 0:
                 self.service = 'Fragmented IP packets'
             else:
-                self.service = 'Unknown service'
+                self.service = None
         except OverflowError:  # Random source port (-1), no specific service
             self.service = None
         if self.protocol == 'TCP':
             self.tcp_flags = dict(get_outliers(self.data, 'tcp_flags', 0.2, return_others=True)) or None
+
         else:
             self.tcp_flags = None
 
@@ -77,7 +84,7 @@ class AttackVector:
             self.eth_type = dict(get_outliers(self.data, 'ethernet_type', 0.05, return_others=True)) or 'random'
             self.frame_len = dict(get_outliers(self.data, 'nr_bytes', 0.05, return_others=True)) or 'random'
 
-            if isinstance(self.eth_type, dict) and ('IPv4' in self.eth_type.keys() or 'IPv6' in self.eth_type.keys()):
+            if isinstance(self.eth_type, dict) and ('IPv4' in self.eth_type or 'IPv6' in self.eth_type):
                 # IP packets
                 self.frag_offset = dict(get_outliers(self.data, 'fragmentation_offset', fraction_for_outlier=0.1,
                                                      return_others=True)) or 'random'
@@ -103,7 +110,7 @@ class AttackVector:
                                                    return_others=True)) or 'random'
 
     def __str__(self):
-        return f"[AttackVector] {self.service} on port {self.source_port}, protocol {self.protocol}"
+        return f"[AttackVector ({self.fraction_of_attack * 100}% of traffic) {self.protocol}, service: {self.service}]"
 
     def __repr__(self):
         return self.__str__()
@@ -114,14 +121,14 @@ class AttackVector:
     def __lt__(self, other):
         if type(other) != AttackVector:
             return NotImplemented
-        return self.service == "Fragmented IP packets" or self.bytes < other.bytes
+        return self.bytes < other.bytes and self.service != "Fragmented IP packets"
 
     def as_dict(self, summarized: bool = False) -> dict:
         fields = {
             'service': self.service,
             'protocol': self.protocol,
-            'source_port': self.source_port if self.source_port != -1 else "random",
             'fraction_of_attack': self.fraction_of_attack if self.source_port != 0 else None,
+            'source_port': self.source_port if self.source_port != -1 else "random",
             'destination_ports': self.destination_ports,
             'tcp_flags': self.tcp_flags,
             f'nr_{"flows" if self.filetype == FileType.FLOW else "packets"}': len(self),
@@ -153,7 +160,7 @@ class AttackVector:
 
 
 class Fingerprint:
-    def __init__(self, target: IPNetwork, summary: Dict[str, int], attack_vectors: List[AttackVector],
+    def __init__(self, target: IPNetwork, summary: dict[str, int], attack_vectors: list[AttackVector],
                  show_target: bool = False):
         if target.version == 4 and target.prefixlen == 32 or target.version == 6 and target.prefixlen == 128:
             self.target: IPAddress = target.network
@@ -177,7 +184,7 @@ class Fingerprint:
             **self.summary
         }
 
-    def determine_tags(self) -> List[str]:
+    def determine_tags(self) -> list[str]:
         """
         Determine the tags that describe this attack. Characteristics such as "Multi-vector attacK", "UDP flood", etc.
         :return: List of tags (strings)

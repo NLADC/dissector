@@ -1,7 +1,7 @@
 import sys
 import pandas as pd
 from netaddr import IPAddress, IPNetwork
-from typing import List, Dict, Any, Tuple
+from typing import Any
 from collections import defaultdict
 
 from logger import LOGGER
@@ -20,7 +20,7 @@ def infer_target(attack: Attack) -> IPNetwork:
     :return: Target IP address as an IPNetwork
     """
     LOGGER.debug("Inferring attack target.")
-    targets: List[IPAddress] = get_outliers(attack.data,
+    targets: list[IPAddress] = get_outliers(attack.data,
                                             column='destination_address',
                                             fraction_for_outlier=0.5,
                                             use_zscore=False)
@@ -68,7 +68,7 @@ def infer_target(attack: Attack) -> IPNetwork:
     return best_network
 
 
-def extract_attack_vectors(attack: Attack) -> List[AttackVector]:
+def extract_attack_vectors(attack: Attack) -> list[AttackVector]:
     """
     Extract the attack vector(s) that make up this attack, from the Attack object. e.g. DNS amplfication vector
     :param attack: Attack object from which extract vectors
@@ -87,7 +87,7 @@ def extract_attack_vectors(attack: Attack) -> List[AttackVector]:
                                               use_zscore=False)
     protocol_source_port_outliers = list(set(with_fragmented_packets) | set(without_fragmented_packets))
 
-    attack_vectors: List[AttackVector] = []
+    attack_vectors: list[AttackVector] = []
     attack_vector_data = pd.DataFrame()
     fragmentation_protocols = set()  # protocols for which a significant fraction of traffic is fragmented packets
 
@@ -117,7 +117,7 @@ def extract_attack_vectors(attack: Attack) -> List[AttackVector]:
     # remove destination port 0
     protocol_dest_port_outliers = [(proto, port) for proto, port in protocol_dest_port_outliers if port != 0]
 
-    def combine_outliers(port_protocol_tuples: List[Tuple[str, int]]) -> List[Tuple[str, List[int]]]:
+    def combine_outliers(port_protocol_tuples: list[tuple[str, int]]) -> list[tuple[str, list[int]]]:
         """
         Combine destination ports in (protocol, destination_port) tuples with the same protocol.
         example: [("UDP", 5), ("UDP", 6), ("TCP", 7)] -> [("UDP", [5, 6]), ("TCP", [7])]
@@ -149,31 +149,51 @@ def extract_attack_vectors(attack: Attack) -> List[AttackVector]:
         # random source ports
         attack_vectors.append(AttackVector(data=data, source_port=-1, protocol=protocol, filetype=attack.filetype))
 
+    # Combine attack vectors with the same service and protocol. First create a dictionary grouping them:
+    # {(service, protocol): [attack_vectors]}
+    vectors_by_service_protocol: dict[tuple[str, str], list[AttackVector]] = defaultdict(list)
+    for vector in attack_vectors:
+        vectors_by_service_protocol[(vector.service, vector.protocol)].append(vector)
+
+    # Combine attack vectors in the same group by creating a new attack vector with the combined dataframes.
+    reduced_vectors: list[AttackVector] = []
+    for (service, protocol), vectors in vectors_by_service_protocol.items():
+        if len(vectors) > 1:
+            reduced_vectors.append(AttackVector(data=pd.concat([v.data for v in vectors]),
+                                                source_port=-1, protocol=protocol, filetype=attack.filetype))
+        else:
+            reduced_vectors.append(vectors[0])
+    attack_vectors = reduced_vectors
+
     # Compute the fraction of all traffic for each attack vector, discard vectors with less than 5% of traffic
     LOGGER.debug("Computing the fraction of traffic each attack vector contributes.")
     while True:
-        total_packets = sum([v.packets for v in attack_vectors])
+        total_bytes = sum([v.bytes for v in attack_vectors])
         for vector in attack_vectors:
-            vector.fraction_of_attack = round(vector.packets / total_packets, 3)
+            vector.fraction_of_attack = round(vector.bytes / total_bytes, 3)
             if vector.fraction_of_attack < 0.05:
                 break
         else:
             break
+        LOGGER.debug(f'removing {vector} ({vector.fraction_of_attack * 100}% of traffic)')
         attack_vectors.remove(vector)
 
     # Create attack vector(s) with fragmented packets
     for frag_proto in fragmentation_protocols:
         LOGGER.debug(f"Computing {frag_proto} fragmentation vector")
         # Only keep flows in the fragmented packets vector with source IP address that occurs in another attack vector.
-        attack_vector_data = pd.concat([v.data for v in attack_vectors if v.protocol == frag_proto])
-        data = attack.data[(attack.data.source_port == 0) & (attack.data.protocol == frag_proto) &
-                           attack.data.source_address.isin(attack_vector_data.source_address)]
-        attack_vectors.append(AttackVector(data, source_port=0, protocol=frag_proto, filetype=attack.filetype))
+        try:
+            attack_vector_data = pd.concat([v.data for v in attack_vectors if v.protocol == frag_proto])
+            data = attack.data[(attack.data.source_port == 0) & (attack.data.protocol == frag_proto) &
+                               attack.data.source_address.isin(attack_vector_data.source_address)]
+            attack_vectors.append(AttackVector(data, source_port=0, protocol=frag_proto, filetype=attack.filetype))
+        except ValueError:  # No objects to concatenate (attack vector may be previously removed)
+            pass
 
     return sorted(attack_vectors)
 
 
-def compute_summary(attack_vectors: List[AttackVector]) -> Dict[str, Any]:
+def compute_summary(attack_vectors: list[AttackVector]) -> dict[str, Any]:
     """
     Compute the summary statistics of the attack given its attack vectors
     :param attack_vectors: List of attack vectors that make up the attack
