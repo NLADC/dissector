@@ -182,10 +182,13 @@ def extract_attack_vectors(attack: Attack) -> list[AttackVector]:
     for frag_proto in fragmentation_protocols:
         LOGGER.debug(f"Computing {frag_proto} fragmentation vector")
         # Only keep flows in the fragmented packets vector with source IP address that occurs in another attack vector.
-        attack_vector_data = pd.concat([v.data for v in attack_vectors if v.protocol == frag_proto])
-        data = attack.data[(attack.data.source_port == 0) & (attack.data.protocol == frag_proto) &
-                           attack.data.source_address.isin(attack_vector_data.source_address)]
-        attack_vectors.append(AttackVector(data, source_port=0, protocol=frag_proto, filetype=attack.filetype))
+        try:
+            attack_vector_data = pd.concat([v.data for v in attack_vectors if v.protocol == frag_proto])
+            data = attack.data[(attack.data.source_port == 0) & (attack.data.protocol == frag_proto) &
+                               attack.data.source_address.isin(attack_vector_data.source_address)]
+            attack_vectors.append(AttackVector(data, source_port=0, protocol=frag_proto, filetype=attack.filetype))
+        except ValueError:  # No objects to concatenate (attack vector may be previously removed)
+            pass
 
     return sorted(attack_vectors)
 

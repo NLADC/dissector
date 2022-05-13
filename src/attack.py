@@ -76,6 +76,7 @@ class AttackVector:
             self.service = None
         if self.protocol == 'TCP':
             self.tcp_flags = dict(get_outliers(self.data, 'tcp_flags', 0.2, return_others=True)) or None
+
         else:
             self.tcp_flags = None
 
@@ -120,7 +121,7 @@ class AttackVector:
     def __lt__(self, other):
         if type(other) != AttackVector:
             return NotImplemented
-        return self.service == "Fragmented IP packets" or self.bytes < other.bytes
+        return self.bytes < other.bytes and self.service != "Fragmented IP packets"
 
     def as_dict(self, summarized: bool = False) -> dict:
         fields = {
