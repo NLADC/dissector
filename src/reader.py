@@ -135,7 +135,7 @@ def read_pcap(filename: Path) -> pd.DataFrame:
 
     LOGGER.debug("Ensuring all columns have the correct data types.")
     # map IP protocol number to name
-    data['protocol'] = data['protocol'].map(IPPROTO_TABLE).astype(str)
+    data['protocol'] = data['protocol'].map(IPPROTO_TABLE).fillna(data['service']).astype(str)
     # map common EtherType names
     data['ethernet_type'] = data['ethernet_type'].map(lambda r: ETHERNET_TYPES.get(int(str(r), 16), str(r))).astype(str)
     # map ICMP types to their name
