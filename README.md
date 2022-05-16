@@ -24,9 +24,9 @@
 The Dissector summarizes DDoS attack traffic from stored traffic captures (pcap/flows). The resulting summary is in the
 form of a DDoS Fingerprint; a JSON file in which the attack's characteristics are described.
 
-## How to use
+## How to use the Dissector
 
-### Option 1: Docker
+### Option 1: in Docker
 
 You can run DDoS Dissector in a docker container. This way, you do not have to install dependencies yourself and can
 start analyzing traffic captures right away. The only requirement is to
@@ -44,37 +44,41 @@ have [Docker](https://docs.docker.com/get-docker/) installed and running.
    We use the local network to also allow connections to a locally running instance of DDoS-DB or MISP. Fingerprints are saved in `your-data-volume/fingerprints`
 
 
-### Option 2: Install locally
+### Option 2: Installed locally
 
 1. Install the dependencies to read PCAPs (tshark) and Flows (nfdump):
 
-- [1] https://tshark.dev/
-- [2] https://github.com/phaag/nfdump
+    1. https://tshark.dev/
+    2. https://github.com/phaag/nfdump
 
-2. Install the Dissector
+2. Clone the Dissector repository
 
-```bash
-git clone https://github.com/ddos-clearing-house/ddos_dissector;
-cd ddos_dissector;
-```
+    ```bash
+    git clone https://github.com/ddos-clearing-house/ddos_dissector;
+    cd ddos_dissector;
+    ```
 
-Optionally create a python environment for the dissector and install the python requirements:
+3. [Advised] create a python virtual environment or conda environment for the dissector and install the python requirements:
 
-```bash
-python -m venv ./python-venv
-source python-venv/bin/activate
-pip install -r requirements.txt
-```
+    Venv:
+    ```bash
+    python -m venv ./python-venv
+    source python-venv/bin/activate
+    pip install -r requirements.txt
+    ```
+    [Conda](https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html):
+    ```bash
+    conda create -n dissector python=3.10
+    conda activate dissector
+    pip install -r requirements.txt
+    ```
 
-3. Get a traffic capture file to be analized
+4. Get a traffic capture file to be analized (PCAP files should have the `.pcap` extension, Flows should have the `.nfdump` extension)
 
-PCAP files should have the `.pcap` extension, Flows should have the `.nfdump` extension
-
-3. Run the dissector
-
-```
-python src/main.py -f data/attack_traffic.nfdump --summary
-```
+5. Run the dissector:
+    ```bash
+    python src/main.py -f data/attack_traffic.nfdump --summary
+    ```
 
 ## Options
 
@@ -85,21 +89,23 @@ python src/main.py -f data/attack_traffic.nfdump --summary
  / /_/ / (__  |__  )  __/ /__/ /_/ /_/ / /    
 /_____/_/____/____/\___/\___/\__/\____/_/     
 
-usage: main.py [-h] -f FILES [FILES ...] [--summary] [--output OUTPUT] [--target TARGET] [--config CONFIG] [--ddosdb] [--misp] [--noverify] [--debug] [--show-target]
+usage: main.py [-h] -f FILES [FILES ...] [--summary] [--output OUTPUT] [--config CONFIG] [--nprocesses N] 
+[--target TARGET] [--ddosdb] [--misp] [--noverify] [--debug] [--show-target]
 
 options:
   -h, --help            show this help message and exit
   -f FILES [FILES ...], --file FILES [FILES ...]
-                        Path to Flow / PCAP capture file(s)
-  --output OUTPUT       Path to directory in which to save the fingerprint (default /data-mount/fingerprints)
-  --config CONFIG       Path to DDoS-DB/MISP config file (default /etc/config.ini)
-  --summary             Optional: print fingerprint without source addresses to stdout
+                        Path to Flow / PCAP file(s)
+  --summary             Optional: print fingerprint without source addresses
+  --output OUTPUT       Path to directory in which to save the fingerprint (default ./fingerprints)
+  --config CONFIG       Path to DDoS-DB and/or MISP config file (default /etc/config.ini)
+  --nprocesses N        Number of processes used to concurrently read PCAPs (default is the number of CPU cores)
   --target TARGET       Optional: target IP address or subnet of this attack
-  --ddosdb              Optional: directly upload fingerprint to a DDoS-DB instance specified in config
-  --misp                Optional: directly upload fingerprint to a MISP instance specified in config
-  --noverify            Optional: Don't verify TLS certificates for MISP / DDoSDB
+  --ddosdb              Optional: directly upload fingerprint to DDoS-DB
+  --misp                Optional: directly upload fingerprint to MISP
+  --noverify            Optional: Don't verify TLS certificates
   --debug               Optional: show debug messages
-  --show-target         Optional: Do NOT anonymize the target IP address / network in the fingerprint.
+  --show-target         Optional: Do NOT anonymize the target IP address / network in the fingerprint
 
 Example: python src/main.py -f /data/part1.nfdump /data/part2.nfdump --summary --config ./localhost.ini --ddosdb --noverify
 ```

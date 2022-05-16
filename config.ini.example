@@ -1,9 +1,10 @@
-[ddosdb]
+[ddosdb]  # Define your ddosdb host and token here. To upload to this DDoS-DB, add --ddosdb to the dissector command
 host=ddosdb.example.com
 token=c2c0689dce8314c5267a4a1ffb81163494ab9ddb555ec3d7b45cb88110372a3b
-# default protocol is https, but in case of a development DDoSDB instance without TLS: uncomment below
-#protocol=http
 
-[misp]
+# default protocol is https, but in case of a development DDoSDB instance without TLS: uncomment below
+# protocol=http
+
+[misp]  # When uploading to a MISP instance, provide the authentication here
 host=misp.example.com
 token=Lkmmnw8qhzSiJZRp3hIuxJql1sVDE5HVIOjUTBMP
