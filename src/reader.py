@@ -13,46 +13,46 @@ from netaddr import IPAddress
 from logger import LOGGER
 from util import error, IPPROTO_TABLE, FileType, ETHERNET_TYPES, ICMP_TYPES, DNS_QUERY_TYPES
 
-__all__ = ["read_flow", "read_pcap", "read_file"]
+__all__ = ['read_flow', 'read_pcap', 'read_file']
 
 FLOW_COLUMN_NAMES: dict[str, str] = {
-    'ts': "time_start",
-    'te': "time_end",
-    'pr': "protocol",
-    'sa': "source_address",
-    'da': "destination_address",
-    'sp': "source_port",
-    'dp': "destination_port",
-    'ipkt': "nr_packets",
-    'ibyt': "nr_bytes",
-    'flg': "tcp_flags"
+    'ts': 'time_start',
+    'te': 'time_end',
+    'pr': 'protocol',
+    'sa': 'source_address',
+    'da': 'destination_address',
+    'sp': 'source_port',
+    'dp': 'destination_port',
+    'ipkt': 'nr_packets',
+    'ibyt': 'nr_bytes',
+    'flg': 'tcp_flags'
 }
 
 PCAP_COLUMN_NAMES: dict[str, str] = {
-    'ip.dst': "destination_address",
-    'ip.src': "source_address",
-    'tcp.flags': "tcp_flags",
-    'ip.proto': "protocol",
-    '_ws.col.Destination': "col_destination_address",
-    '_ws.col.Source': "col_source_address",
-    '_ws.col.Protocol': "service",
-    'dns.qry.name': "dns_query_name",
-    'dns.qry.type': "dns_query_type",
-    'eth.type': "ethernet_type",
-    'frame.len': "nr_bytes",
-    'udp.length': "udp_length",
-    'http.request.uri': "http_uri",
-    'http.request.method': "http_method",
-    'http.user_agent': "http_user_agent",
-    'icmp.type': "icmp_type",
-    'ip.frag_offset': "fragmentation_offset",
-    'ip.ttl': "ttl",
-    'ntp.priv.reqcode': "ntp_requestcode",
-    'tcp.dstport': "tcp_destination_port",
-    'tcp.srcport': "tcp_source_port",
-    'udp.dstport': "udp_destination_port",
-    'udp.srcport': "udp_source_port",
-    'frame.time': "time_start"
+    'ip.dst': 'destination_address',
+    'ip.src': 'source_address',
+    'tcp.flags': 'tcp_flags',
+    'ip.proto': 'protocol',
+    '_ws.col.Destination': 'col_destination_address',
+    '_ws.col.Source': 'col_source_address',
+    '_ws.col.Protocol': 'service',
+    'dns.qry.name': 'dns_query_name',
+    'dns.qry.type': 'dns_query_type',
+    'eth.type': 'ethernet_type',
+    'frame.len': 'nr_bytes',
+    'udp.length': 'udp_length',
+    'http.request.uri': 'http_uri',
+    'http.request.method': 'http_method',
+    'http.user_agent': 'http_user_agent',
+    'icmp.type': 'icmp_type',
+    'ip.frag_offset': 'fragmentation_offset',
+    'ip.ttl': 'ttl',
+    'ntp.priv.reqcode': 'ntp_requestcode',
+    'tcp.dstport': 'tcp_destination_port',
+    'tcp.srcport': 'tcp_source_port',
+    'udp.dstport': 'udp_destination_port',
+    'udp.srcport': 'udp_source_port',
+    'frame.time': 'time_start'
 }
 
 
@@ -63,26 +63,26 @@ def read_flow(filename: Path) -> pd.DataFrame:
     :return: DataFrame of the contents
     """
     # Check if nfdump software is available
-    nfdump = shutil.which("nfdump")
+    nfdump = shutil.which('nfdump')
     if nfdump is None:
-        error("nfdump software not found; it should be on the $PATH. Install from https://github.com/phaag/nfdump")
+        error('nfdump software not found; it should be on the $PATH. Install from https://github.com/phaag/nfdump')
 
-    command = [nfdump, "-r", str(filename), "-o", "extended", "-o", "csv"]
+    command = [nfdump, '-r', str(filename), '-o', 'extended', '-o', 'csv']
     process = subprocess.run(command, capture_output=True)
     if process.returncode != 0:
-        LOGGER.error("nfdump command failed!\n")
-        error(f"nfdump command stderr:\n{process.stderr.decode('utf-8')}")
-    LOGGER.debug("nfdump finished reading FLOW dump.")
+        LOGGER.error('nfdump command failed!\n')
+        error(f'nfdump command stderr:\n{process.stderr.decode("utf-8")}')
+    LOGGER.debug('nfdump finished reading FLOW dump.')
 
     # Process nfdump output
-    output_buffer = StringIO(process.stdout.decode("utf-8").rsplit('\n', 4)[0])  # Discard summary rows
-    LOGGER.info("Loading data into a dataframe.")
-    data: pd.DataFrame = pd.read_csv(output_buffer, encoding="utf8", parse_dates=['ts', 'te'])
+    output_buffer = StringIO(process.stdout.decode('utf-8').rsplit('\n', 4)[0])  # Discard summary rows
+    LOGGER.info('Loading data into a dataframe.')
+    data: pd.DataFrame = pd.read_csv(output_buffer, encoding='utf8', parse_dates=['ts', 'te'])
 
     # Keep only relevant columns & rename
     data = data[data.columns.intersection(FLOW_COLUMN_NAMES.keys())].rename(columns=FLOW_COLUMN_NAMES)
 
-    LOGGER.debug("Ensuring all columns have the correct data types.")
+    LOGGER.debug('Ensuring all columns have the correct data types.')
 
     data['source_address'] = data['source_address'].apply(IPAddress)
     data['destination_address'] = data['destination_address'].apply(IPAddress)
@@ -93,7 +93,7 @@ def read_flow(filename: Path) -> pd.DataFrame:
     data['nr_packets'] = data['nr_packets'].astype(int)
     data['nr_bytes'] = data['nr_bytes'].astype(int)
 
-    LOGGER.debug("Done loading data into dataframe.")
+    LOGGER.debug('Done loading data into dataframe.')
     return data
 
 
@@ -104,23 +104,23 @@ def read_pcap(filename: Path) -> pd.DataFrame:
     :return: DataFrame of the contents
     """
     # Check if tshark software is available
-    tshark = shutil.which("tshark")
+    tshark = shutil.which('tshark')
     if not tshark:
-        error("Tshark software not found; it should be on the $PATH. Install from https://tshark.dev/")
+        error('Tshark software not found; it should be on the $PATH. Install from https://tshark.dev/')
 
     # Create command
-    command = [tshark, "-r", str(filename), "-T", "fields"]
+    command = [tshark, '-r', str(filename), '-T', 'fields']
     for field in PCAP_COLUMN_NAMES:
-        command.extend(["-e", field])
+        command.extend(['-e', field])
     for option in ['header=y', 'separator=,', 'quote=d', 'occurrence=f']:
-        command.extend(["-E", option])
+        command.extend(['-E', option])
 
     process = subprocess.run(command, capture_output=True)
     if process.returncode != 0:
-        LOGGER.error("tshark command failed!\n")
-        error(f"tshark command stderr:\n{process.stderr.decode('utf-8')}")
+        LOGGER.error('tshark command failed!\n')
+        error(f'tshark command stderr:\n{process.stderr.decode("utf-8")}')
 
-    output_buffer = StringIO(process.stdout.decode("utf-8"))
+    output_buffer = StringIO(process.stdout.decode('utf-8'))
     try:
         data: pd.DataFrame = pd.read_csv(output_buffer, parse_dates=['frame.time'], low_memory=False, delimiter=',')
     except pd.errors.ParserError as e:
@@ -133,7 +133,7 @@ def read_pcap(filename: Path) -> pd.DataFrame:
     data = data[data.columns.intersection(PCAP_COLUMN_NAMES.keys())].rename(columns=PCAP_COLUMN_NAMES)
     data.dropna(subset=['ethernet_type'], inplace=True)
 
-    LOGGER.debug("Ensuring all columns have the correct data types.")
+    LOGGER.debug('Ensuring all columns have the correct data types.')
     # map IP protocol number to name
     data['protocol'] = data['protocol'].map(IPPROTO_TABLE).fillna(data['service']).astype(str)
     # map common EtherType names
@@ -207,4 +207,4 @@ def read_file(filename: Path, filetype: FileType, nr_processes: int) -> pd.DataF
             os.remove(chunk)  # Remove the temporary PCAP chunks from /tmp
         return pd.concat(results)  # Concatenate the partial dataframes
     else:
-        return error("Invalid FileType")
+        return error('Invalid FileType')

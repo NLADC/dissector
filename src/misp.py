@@ -21,9 +21,9 @@ class MispInstance:
 
         try:
             self.misp = ExpandedPyMISP(f'{self.protocol}://{self.host}', self.token, ssl=self.verify_tls,
-                                       tool="dissector")
+                                       tool='dissector')
         except PyMISPError:
-            LOGGER.critical(f"Could not connect to MISP instance at '{self.protocol}://{self.host}'.")
+            LOGGER.critical(f'Could not connect to MISP instance at "{self.protocol}://{self.host}".')
             self.misp = None
 
     def search_misp_events(self, misp_filter: dict = None) -> Optional[dict]:
@@ -57,11 +57,11 @@ class MispInstance:
         :param tag_color: Color of the new tag
         :return: Server response if succesful, else None
         """
-        LOGGER.debug(f"Creating a {tag_name} tag in MISP")
+        LOGGER.debug(f'Creating a {tag_name} tag in MISP')
 
         if not self.verify_tls:
             urllib3.disable_warnings()
-        response = requests.post(f"{self.protocol}://{self.host}/tags/add",
+        response = requests.post(f'{self.protocol}://{self.host}/tags/add',
                                  json={'name': tag_name, 'colour': tag_color},
                                  headers={'Authorization': self.token,
                                           'Accept': 'application/json'},
@@ -80,15 +80,15 @@ class MispInstance:
         :param tag_id:
         :return:
         """
-        LOGGER.debug("Adding DDoSCH tag to the event")
+        LOGGER.debug('Adding DDoSCH tag to the event')
 
         if not self.verify_tls:
             urllib3.disable_warnings()
-        response = requests.post(f"{self.protocol}://{self.host}/events/addTag/{event_id}/{tag_id}",
+        response = requests.post(f'{self.protocol}://{self.host}/events/addTag/{event_id}/{tag_id}',
                                  headers={'Authorization': self.token,
                                           'Accept': 'application/json'},
                                  timeout=10, verify=self.verify_tls)
-        LOGGER.debug("status:{}".format(response.status_code))
+        LOGGER.debug(f'status: {response.status_code}')
 
         try:
             response.raise_for_status()
@@ -104,7 +104,7 @@ class MispInstance:
         :return:
         """
 
-        LOGGER.info("Uploading the fingerprint to MISP")
+        LOGGER.info('Uploading the fingerprint to MISP')
         start = time.time()
 
         # Maximum number of source IPs to include
@@ -160,7 +160,7 @@ class MispInstance:
         LOGGER.debug(ddosch_tag)
 
         # Create an event to link everything to
-        LOGGER.debug("Creating a new event for the fingerprint")
+        LOGGER.debug('Creating a new event for the fingerprint')
         event = MISPEvent()
         event.info = fingerprint_json['key']
 
@@ -193,7 +193,7 @@ class MispInstance:
         # Add each attack vector as a MISP object to the MISP event
         for v_i, attack_vector in enumerate(fingerprint_json['attack_vectors']):
             LOGGER.debug(f'Processing Attack Vector #{v_i}')
-            ddos_object = MISPObject(name="ddos")
+            ddos_object = MISPObject(name='ddos')
             # ATTACK VECTOR PROTOCOL
             ddos_object.add_attribute('protocol',
                                       attack_vector['protocol'],
@@ -252,4 +252,4 @@ class MispInstance:
 
         result = self.add_misp_tag_to_event(event.id, ddosch_tag['Tag']['id'])
         LOGGER.debug(result)
-        LOGGER.debug("That took {} seconds".format(time.time() - start))
+        LOGGER.debug('That took {} seconds'.format(time.time() - start))

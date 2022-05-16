@@ -13,7 +13,7 @@ from util import AMPLIFICATION_SERVICES, TCP_FLAG_NAMES, get_outliers, FileType
 from logger import LOGGER
 from misp import MispInstance
 
-__all__ = ["Attack", "AttackVector", "Fingerprint"]
+__all__ = ['Attack', 'AttackVector', 'Fingerprint']
 
 
 class Attack:
@@ -28,7 +28,7 @@ class Attack:
         :param target_network: target network of this attack
         :return: None
         """
-        LOGGER.debug("Filtering attack data on target IP address.")
+        LOGGER.debug('Filtering attack data on target IP address.')
         target_addresses = [x for x in self.data.destination_address if x in target_network]
         self.data = self.data[self.data.destination_address.isin(target_addresses)]
 
@@ -110,7 +110,7 @@ class AttackVector:
                                                    return_others=True)) or 'random'
 
     def __str__(self):
-        return f"[AttackVector ({self.fraction_of_attack * 100}% of traffic) {self.protocol}, service: {self.service}]"
+        return f'[AttackVector ({self.fraction_of_attack * 100}% of traffic) {self.protocol}, service: {self.service}]'
 
     def __repr__(self):
         return self.__str__()
@@ -121,14 +121,14 @@ class AttackVector:
     def __lt__(self, other):
         if type(other) != AttackVector:
             return NotImplemented
-        return self.bytes < other.bytes and self.service != "Fragmented IP packets"
+        return self.bytes < other.bytes and self.service != 'Fragmented IP packets'
 
     def as_dict(self, summarized: bool = False) -> dict:
         fields = {
             'service': self.service,
             'protocol': self.protocol,
             'fraction_of_attack': self.fraction_of_attack if self.service != 'Fragmented IP packets' else None,
-            'source_port': self.source_port if self.source_port != -1 else "random",
+            'source_port': self.source_port if self.source_port != -1 else 'random',
             'destination_ports': self.destination_ports,
             'tcp_flags': self.tcp_flags,
             f'nr_{"flows" if self.filetype == FileType.FLOW else "packets"}': len(self),
@@ -136,7 +136,7 @@ class AttackVector:
             'nr_megabytes': int(self.bytes) // 1_000_000,
             'time_start': str(self.time_start),
             'duration_seconds': self.duration,
-            'source_ips': f"{len(self.source_ips)} IP addresses ommitted" if summarized
+            'source_ips': f'{len(self.source_ips)} IP addresses ommitted' if summarized
             else [str(i) for i in self.source_ips],
         }
         if self.filetype == FileType.PCAP:
@@ -178,7 +178,7 @@ class Fingerprint:
     def as_dict(self, anonymous: bool = False, summarized: bool = False) -> dict:
         return {
             'attack_vectors': [av.as_dict(summarized) for av in self.attack_vectors],
-            'target': str(self.target) if not anonymous else "Anonymous",
+            'target': str(self.target) if not anonymous else 'Anonymous',
             'tags': self.tags,
             'key': self.checksum,
             **self.summary
@@ -190,29 +190,29 @@ class Fingerprint:
         :return: List of tags (strings)
         """
         tags = []
-        if len([v for v in self.attack_vectors if v.service != "Fragmented IP packets"]) > 1:
-            tags.append("Multi-vector attack")
+        if len([v for v in self.attack_vectors if v.service != 'Fragmented IP packets']) > 1:
+            tags.append('Multi-vector attack')
         if isinstance(self.target, IPNetwork):
-            tags.append("Carpet bombing attack")
+            tags.append('Carpet bombing attack')
         for vector in self.attack_vectors:
             tags.append(vector.protocol)
             if vector.service is None:
-                tags.append(f"{vector.protocol} flood attack")
-            if vector.protocol == "TCP":
+                tags.append(f'{vector.protocol} flood attack')
+            if vector.protocol == 'TCP':
                 if len(vector.tcp_flags) == 1:
                     flags = list(vector.tcp_flags)[0]
-                    flag_names = ""
+                    flag_names = ''
                     for k, v in TCP_FLAG_NAMES.items():
                         if k in flags:
-                            flag_names += v + " "
-                    flag_names += "no flag " if flag_names == "" else "flag "
-                    tags.append(f"TCP {flag_names}attack")
+                            flag_names += v + ' '
+                    flag_names += 'no flag ' if flag_names == '' else 'flag '
+                    tags.append(f'TCP {flag_names}attack')
                 else:
-                    tags.append("TCP flag attack")
-            elif vector.service == "Fragmented IP packets":
-                tags.append("Fragmentation attack")
+                    tags.append('TCP flag attack')
+            elif vector.service == 'Fragmented IP packets':
+                tags.append('Fragmentation attack')
             elif vector.service in AMPLIFICATION_SERVICES.values():
-                tags.append("Amplification attack")
+                tags.append('Amplification attack')
         return list(set(tags))
 
     def write_to_file(self, filename: Path):
@@ -233,40 +233,40 @@ class Fingerprint:
         :param noverify: (bool) ignore invalid TLS certificate
         :return: HTTP response code
         """
-        LOGGER.info(f"Uploading fingerprint to DDoS-DB: {host}...")
+        LOGGER.info(f'Uploading fingerprint to DDoS-DB: {host}...')
 
         fp_json = json.dumps(self.as_dict(anonymous=not self.show_target))
         headers = {
-            "Authorization": f"Token {token}"
+            'Authorization': f'Token {token}'
         }
 
         try:
             try:
                 if noverify:
                     urllib3.disable_warnings()
-                r = requests.post(protocol + "://" + host + "/api/fingerprint/",
+                r = requests.post(f'{protocol}://{host}/api/fingerprint/',
                                   json=fp_json,
                                   headers=headers,
                                   verify=not noverify)
             except requests.exceptions.SSLError:
-                LOGGER.critical(f"SSL Certificate verification of the server {host} failed. To ignore the certificate "
-                                f"pass the --noverify flag.")
-                LOGGER.info("Fingerprint NOT uploaded to DDoS-DB")
+                LOGGER.critical(f'SSL Certificate verification of the server {host} failed. To ignore the certificate '
+                                f'pass the --noverify flag.')
+                LOGGER.info('Fingerprint NOT uploaded to DDoS-DB')
                 return 500
         except requests.exceptions.RequestException as e:
-            LOGGER.critical("Cannot connect to the DDoS-DB server to upload fingerprint")
+            LOGGER.critical('Cannot connect to the DDoS-DB server to upload fingerprint')
             LOGGER.debug(e)
             return 500
 
         if r.status_code == 403:
-            LOGGER.critical("Invalid DDoS-DB credentials or no permission to upload fingerprints.")
+            LOGGER.critical('Invalid DDoS-DB credentials or no permission to upload fingerprints.')
         elif r.status_code == 413:
-            LOGGER.critical("Fingerprint is too large to upload to this DDoS-DB instance.")
+            LOGGER.critical('Fingerprint is too large to upload to this DDoS-DB instance.')
         elif r.status_code == 201:
-            LOGGER.info(f"Upload success! URL: https://{host}/details?key={self.checksum}")
+            LOGGER.info(f'Upload success! URL: https://{host}/details?key={self.checksum}')
         else:
-            LOGGER.critical("DDoS-DB Internal Server Error.")
-            LOGGER.critical("Error Code: {}".format(r.status_code))
+            LOGGER.critical('DDoS-DB Internal Server Error.')
+            LOGGER.critical('Error Code: {}'.format(r.status_code))
         return r.status_code
 
     def upload_to_misp(self, misp_instance: MispInstance) -> int:
@@ -275,28 +275,28 @@ class Fingerprint:
         :param misp_instance: MISP instance to which to upload the fingerprint
         :return: HTTP response code
         """
-        LOGGER.info(f"Uploading fingerprint to MISP: {misp_instance.host}")
+        LOGGER.info(f'Uploading fingerprint to MISP: {misp_instance.host}')
 
         fingerprint_json = self.as_dict(anonymous=not self.show_target)
 
         misp_filter = {
-            "minimal": True,
-            "tag": "DDoSCH",
+            'minimal': True,
+            'tag': 'DDoSCH',
             'eventinfo': self.checksum,
         }
 
-        LOGGER.debug(f"Checking if fingerprint {self.checksum} is already present in the MISP")
+        LOGGER.debug(f'Checking if fingerprint {self.checksum} is already present in the MISP')
         try:
             misp_events = misp_instance.search_misp_events(misp_filter)
         except requests.exceptions.SSLError:
-            LOGGER.critical(f"SSL Certificate verification of the server {misp_instance.host} failed. "
-                            f"To ignore the certificate pass the --noverify flag.")
-            LOGGER.info("Fingerprint NOT uploaded.")
+            LOGGER.critical(f'SSL Certificate verification of the server {misp_instance.host} failed. '
+                            f'To ignore the certificate pass the --noverify flag.')
+            LOGGER.info('Fingerprint NOT uploaded.')
             return 500
 
         if misp_events:
-            LOGGER.critical("The fingerprint already exists in this MISP instance.")
-            LOGGER.info("Fingerprint NOT uploaded.")
+            LOGGER.critical('The fingerprint already exists in this MISP instance.')
+            LOGGER.info('Fingerprint NOT uploaded.')
             return 500
 
         misp_instance.add_misp_fingerprint(fingerprint_json)
