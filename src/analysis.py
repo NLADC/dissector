@@ -76,16 +76,16 @@ def extract_attack_vectors(attack: Attack) -> list[AttackVector]:
     """
     LOGGER.info("Extracting attack vectors.")
     # Get (protocol, source_port) outliers including fragmented packets
-    with_fragmented_packets = get_outliers(attack.data,
-                                           column=['protocol', 'source_port'],
-                                           fraction_for_outlier=0.05,
-                                           use_zscore=False)
+    with_source_port_0 = get_outliers(attack.data,
+                                      column=['protocol', 'source_port'],
+                                      fraction_for_outlier=0.05,
+                                      use_zscore=False)
     # Get (protocol, source_port) outliers when ignoring fragmented packets
-    without_fragmented_packets = get_outliers(attack.data[attack.data.source_port != 0],
-                                              column=['protocol', 'source_port'],
-                                              fraction_for_outlier=0.05,
-                                              use_zscore=False)
-    protocol_source_port_outliers = list(set(with_fragmented_packets) | set(without_fragmented_packets))
+    without_source_port_0 = get_outliers(attack.data[attack.data.source_port != 0],
+                                         column=['protocol', 'source_port'],
+                                         fraction_for_outlier=0.05,
+                                         use_zscore=False)
+    protocol_source_port_outliers = list(set(with_source_port_0) | set(without_source_port_0))
 
     attack_vectors: list[AttackVector] = []
     attack_vector_data = pd.DataFrame()
@@ -97,7 +97,7 @@ def extract_attack_vectors(attack: Attack) -> list[AttackVector]:
     for protocol, source_port in protocol_source_port_outliers:
         data = attack.data[(attack.data.source_port == source_port) & (attack.data.protocol == protocol)]
         attack_vector_data = pd.concat([attack_vector_data, data])
-        if source_port == 0 and protocol != "ICMP":
+        if source_port == 0 and protocol in ['UDP', 'TCP']:
             # Don't add fragmented packets as a vector at this stage; it should not count towards the fraction of attack
             fragmentation_protocols.add(protocol)
             continue
