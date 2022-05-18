@@ -191,7 +191,7 @@ class Fingerprint:
     def as_dict(self, anonymous: bool = False, summarized: bool = False) -> dict:
         return {
             'attack_vectors': [av.as_dict(summarized) for av in self.attack_vectors],
-            'target': str(self.target) if not anonymous else "Anonymous",
+            'target': str(self.target) if not anonymous else "Anonymized",
             'tags': self.tags,
             'key': self.checksum,
             **self.summary
