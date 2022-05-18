@@ -9,8 +9,9 @@ from configparser import ConfigParser, NoOptionError, NoSectionError
 
 from logger import LOGGER
 
-__all__ = ["IPPROTO_TABLE", "AMPLIFICATION_SERVICES", "TCP_FLAG_NAMES", "ETHERNET_TYPES", "ICMP_TYPES",
-           "DNS_QUERY_TYPES", "FileType", "determine_filetype", "print_logo", "error", "parse_config", "get_outliers"]
+__all__ = ['IPPROTO_TABLE', 'AMPLIFICATION_SERVICES', 'TCP_FLAG_NAMES', 'TCP_BIT_NUMBERS', 'ETHERNET_TYPES',
+           'ICMP_TYPES', 'DNS_QUERY_TYPES', 'FileType', 'determine_filetype', 'print_logo', 'error', 'parse_config',
+           'get_outliers']
 
 IPPROTO_TABLE: dict[int, str] = {
     num: name[8:]
@@ -57,6 +58,8 @@ TCP_FLAG_NAMES: dict[str, str] = {
     "A": "ACK",
     "U": "URGENT",
 }
+
+TCP_BIT_NUMBERS: dict[int, str] = dict(zip(range(1, 7), TCP_FLAG_NAMES.keys()))
 
 ETHERNET_TYPES: dict[int, str] = {
     0x0800: "IPv4",
@@ -245,7 +248,7 @@ def parse_config(file: Path, misp=False) -> dict[str, str]:
     """
     config = ConfigParser()
     LOGGER.debug(f"Using config file: '{str(file)}'")
-    config.read_dict({'ddosdb': {'protocol': 'https'}, 'misp': {'protocol': 'https'}})
+    config.read_dict({'ddosdb': {'protocol': 'https'}, 'misp': {'protocol': 'https'}})  # Default protocol
     try:
         with open(file) as f:
             config.read_file(f)

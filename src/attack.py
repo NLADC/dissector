@@ -9,7 +9,7 @@ from functools import total_ordering
 from datetime import datetime
 from netaddr import IPAddress, IPNetwork
 
-from util import AMPLIFICATION_SERVICES, TCP_FLAG_NAMES, get_outliers, FileType
+from util import AMPLIFICATION_SERVICES, TCP_FLAG_NAMES, TCP_BIT_NUMBERS, get_outliers, FileType
 from logger import LOGGER
 from misp import MispInstance
 
@@ -63,7 +63,7 @@ class AttackVector:
             if self.protocol == 'UDP' and source_port != -1:
                 self.service = (AMPLIFICATION_SERVICES.get(self.source_port, None) or
                                 socket.getservbyport(source_port, protocol.lower()).upper())
-            elif self.protocol == 'TCP':
+            elif self.protocol == 'TCP' and source_port != -1:
                 self.service = socket.getservbyport(source_port, protocol.lower()).upper()
             else:
                 self.service = None
@@ -76,6 +76,19 @@ class AttackVector:
             self.service = None
         if self.protocol == 'TCP':
             self.tcp_flags = dict(get_outliers(self.data, 'tcp_flags', 0.2, return_others=True)) or None
+            if self.filetype == FileType.PCAP:  # Transform the numeric TCP flag representation to identifiable letters
+                flag_letters = {}
+                for key in self.tcp_flags:
+                    new_key = '..'
+                    value = int(str(key)[2:])
+                    for bit in range(5, -1, -1):  # bit locations: ..543210
+                        if value - 2 ** bit >= 0:
+                            new_key += TCP_BIT_NUMBERS[bit + 1]
+                            value -= 2 ** bit
+                        else:
+                            new_key += '.'
+                    flag_letters[new_key] = self.tcp_flags[key]
+                self.tcp_flags = flag_letters
 
         else:
             self.tcp_flags = None
