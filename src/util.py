@@ -258,7 +258,8 @@ def parse_config(file: Path, misp=False) -> dict[str, str]:
         return {
             'host': config.get(platform, 'host'),
             'token': config.get(platform, 'token'),
-            'protocol': config.get(platform, 'protocol')
+            'protocol': config.get(platform, 'protocol'),
+            "sharing_group": config.get(platform, 'sharing_group', fallback=None),
         }
 
     except (NoSectionError, NoOptionError):

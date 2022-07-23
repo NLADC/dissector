@@ -12,12 +12,13 @@ __all__ = ['MispInstance']
 
 
 class MispInstance:
-    def __init__(self, host: str, token: str, protocol: str, verify_tls: bool):
+    def __init__(self, host: str, token: str, protocol: str, verify_tls: bool,  sharing_group: str):
         self.host = host
         self.token = token
         self.protocol = protocol
         self.verify_tls = verify_tls
         self.misp: ExpandedPyMISP
+        self.sharing_group = sharing_group
 
         try:
             self.misp = ExpandedPyMISP(f'{self.protocol}://{self.host}', self.token, ssl=self.verify_tls,
@@ -159,6 +160,15 @@ class MispInstance:
         ddosch_tag = self.add_misp_tag('DDoSCH', '#ff7dfd')
         LOGGER.debug(ddosch_tag)
 
+        # Retrieve (or create) the sharing group if specified
+        misp_sharing_group = None
+        if self.sharing_group:
+            misp_sharing_group = [sh_grp for sh_grp in self.misp.sharing_groups(pythonify=True) if sh_grp.name == self.sharing_group]
+            if len(misp_sharing_group) == 0:
+                misp_sharing_group = self.misp.add_sharing_group({'name': self.sharing_group}, pythonify=True)
+            else:
+                misp_sharing_group = misp_sharing_group[0]
+
         # Create an event to link everything to
         LOGGER.debug('Creating a new event for the fingerprint')
         event = MISPEvent()
@@ -247,8 +257,10 @@ class MispInstance:
 
             event.add_object(ddos_object, pythonify=True)
 
-        event.publish()
         event = self.misp.add_event(event, pythonify=True)
+        if misp_sharing_group:
+            event = self.misp.change_sharing_group_on_entity(event, misp_sharing_group.id, pythonify=True)
+        event.publish()
 
         result = self.add_misp_tag_to_event(event.id, ddosch_tag['Tag']['id'])
         LOGGER.debug(result)

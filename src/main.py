@@ -66,6 +66,6 @@ if __name__ == '__main__':
     if args.misp:  # Upload the fingerprint to a specified MISP instance
         conf = parse_config(args.config, misp=True)
         misp_instance = MispInstance(host=conf['host'], token=conf['token'], protocol=conf['protocol'],
-                                     verify_tls=not args.noverify)
+                                     verify_tls=not args.noverify, sharing_group=conf['sharing_group'])
         if misp_instance.misp is not None:
             fingerprint.upload_to_misp(misp_instance)
