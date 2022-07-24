@@ -224,7 +224,7 @@ class Fingerprint:
         with open(filename, 'w') as file:
             json.dump(self.as_dict(anonymous=not self.show_target), file, indent=4)
 
-    def upload_to_ddosdb(self, host: str, token: str, protocol: str = 'https', noverify: bool = False) -> int:
+    def upload_to_ddosdb(self, host: str, token: str, protocol: str = 'https', noverify: bool = False, sharing_group: str = None) -> int:
         """
         Upload fingerprint to a DDoS-DB instance
         :param host: hostname of the DDoS-DB instance, without schema (like db.example.com)
