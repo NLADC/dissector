@@ -255,12 +255,20 @@ def parse_config(file: Path, misp=False) -> dict[str, str]:
 
     platform = 'misp' if misp else 'ddosdb'
     try:
-        return {
-            'host': config.get(platform, 'host'),
-            'token': config.get(platform, 'token'),
-            'protocol': config.get(platform, 'protocol'),
-            "sharing_group": config.get(platform, 'sharing_group', fallback=None),
-        }
+        if misp:
+            return {
+                'host': config.get(platform, 'host'),
+                'token': config.get(platform, 'token'),
+                'protocol': config.get(platform, 'protocol'),
+                "sharing_group": config.get(platform, 'sharing_group', fallback=None),
+                "publish": "True" if config.getboolean(platform, 'publish', fallback=False) else "False",
+            }
+        else:
+            return {
+                'host': config.get(platform, 'host'),
+                'token': config.get(platform, 'token'),
+                'protocol': config.get(platform, 'protocol'),
+            }
 
     except (NoSectionError, NoOptionError):
         error("Uploading fingerprint failed. "
