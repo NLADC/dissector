@@ -8,6 +8,9 @@ token=c2c0689dce8314c5267a4a1ffb81163494ab9ddb555ec3d7b45cb88110372a3b
 [misp]  # When uploading to a MISP instance, provide the authentication here
 host=misp.example.com
 token=Lkmmnw8qhzSiJZRp3hIuxJql1sVDE5HVIOjUTBMP
-# By default events are published with Community distribution
+# By default events are created with Community distribution
 # If needed you can specify a sharing group instead: uncomment below and adjust name
 #sharing_group=Sharing Group Name
+# By default events are not published automatically.
+# Uncomment if you do want events to be published
+#publish=true
