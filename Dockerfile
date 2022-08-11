@@ -1,7 +1,7 @@
 FROM python:3.9-slim-buster
 
 RUN apt-get update && apt-get upgrade -y;
-RUN DEBIAN_FRONTEND=noninteractive apt-get install -y autotools-dev autoconf make flex byacc git libtool pkg-config libbz2-dev tshark
+RUN DEBIAN_FRONTEND=noninteractive apt-get install -y autotools-dev autoconf make flex byacc git libtool pkg-config libbz2-dev tshark tcpdump
 
 # Install nfdump
 RUN git clone https://github.com/phaag/nfdump.git /app/nfdump
