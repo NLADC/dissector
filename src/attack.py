@@ -240,18 +240,26 @@ class Fingerprint:
         with open(filename, 'w') as file:
             json.dump(self.as_dict(anonymous=not self.show_target), file, indent=4)
 
-    def upload_to_ddosdb(self, host: str, token: str, protocol: str = 'https', noverify: bool = False) -> int:
+    def upload_to_ddosdb(self,
+                         host: str,
+                         token: str,
+                         protocol: str = 'https',
+                         noverify: bool = False,
+                         shareable: bool = False) -> int:
         """
         Upload fingerprint to a DDoS-DB instance
         :param host: hostname of the DDoS-DB instance, without schema (like db.example.com)
         :param token: DDoS-DB Authorization Token
         :param protocol: Protocol to use (http or https)
         :param noverify: (bool) ignore invalid TLS certificate
+        :param shareable: (bool) allow the DDoS-DB to push fingerprint on to other DDoS-DB instances
         :return: HTTP response code
         """
         LOGGER.info(f'Uploading fingerprint to DDoS-DB: {host}...')
 
-        fp_json = json.dumps(self.as_dict(anonymous=not self.show_target))
+        fp_dict = self.as_dict(anonymous=not self.show_target)
+        fp_dict['shareable'] = bool(shareable)
+        fp_json = json.dumps(fp_dict)
         headers = {
             'Authorization': f'Token {token}'
         }
@@ -279,7 +287,7 @@ class Fingerprint:
         elif r.status_code == 413:
             LOGGER.critical('Fingerprint is too large to upload to this DDoS-DB instance.')
         elif r.status_code == 201:
-            LOGGER.info(f'Upload success! URL: https://{host}/details?key={self.checksum}')
+            LOGGER.info(f'Upload success! URL: {protocol}://{host}/details?key={self.checksum}')
         else:
             LOGGER.critical('DDoS-DB Internal Server Error.')
             LOGGER.critical('Error Code: {}'.format(r.status_code))

@@ -2,6 +2,11 @@
 host=ddosdb.example.com
 token=c2c0689dce8314c5267a4a1ffb81163494ab9ddb555ec3d7b45cb88110372a3b
 
+# By default fingerprints are set to not being shareable.
+# Meaning they will not be pushed onwards to other DDoS-DB instances
+# Uncomment if you do want fingerprints to be set to shareable by default
+# shareable=true
+
 # default protocol is https, but in case of a development DDoSDB instance without TLS: uncomment below
 # protocol=http
 
