@@ -4,7 +4,8 @@ import subprocess
 import multiprocessing
 import numpy as np
 import pandas as pd
-import time
+import datetime
+
 from pathlib import Path
 from io import StringIO
 from netaddr.core import AddrFormatError
@@ -121,8 +122,11 @@ def read_pcap(filename: Path) -> pd.DataFrame:
         error(f'tshark command stderr:\n{process.stderr.decode("utf-8")}')
 
     output_buffer = StringIO(process.stdout.decode('utf-8'))
+
     try:
-        data: pd.DataFrame = pd.read_csv(output_buffer, parse_dates=['frame.time'], low_memory=False, delimiter=',')
+        data: pd.DataFrame = pd.read_csv(
+            output_buffer, parse_dates=['frame.time'], low_memory=False, delimiter=',',
+            date_parser=lambda x: datetime.datetime.strptime(x, "%b %d, %Y %H:%M:%S.%f000 %Z"))
     except pd.errors.ParserError as e:
         LOGGER.info(f'Error reading PCAP file: {e}')
         LOGGER.info(f'Skipping the offending lines...')
