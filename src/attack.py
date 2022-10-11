@@ -1,6 +1,8 @@
 import socket
 import json
 import hashlib
+from typing import List
+
 import requests
 import urllib3
 import pandas as pd
@@ -22,14 +24,14 @@ class Attack:
         self.filetype = filetype
         self.attack_vectors: list[AttackVector]
 
-    def filter_data_on_target(self, target_network: IPNetwork):
+    def filter_data_on_target(self, target: List[IPNetwork]):
         """
         Only keep traffic directed at the target in Attack.data
-        :param target_network: target network of this attack
+        :param target: target network(s) of this attack
         :return: None
         """
         LOGGER.debug('Filtering attack data on target IP address.')
-        target_addresses = [x for x in self.data.destination_address if x in target_network]
+        target_addresses = [x for t in target for x in self.data.destination_address if x in t]
         self.data = self.data[self.data.destination_address.isin(target_addresses)]
 
 
@@ -176,12 +178,14 @@ class AttackVector:
 
 
 class Fingerprint:
-    def __init__(self, target: IPNetwork, summary: dict[str, int], attack_vectors: list[AttackVector],
+    def __init__(self, target: List[IPNetwork], summary: dict[str, int], attack_vectors: list[AttackVector],
                  show_target: bool = False):
-        if target.version == 4 and target.prefixlen == 32 or target.version == 6 and target.prefixlen == 128:
-            self.target: IPAddress = target.network
-        else:
-            self.target: IPNetwork = target
+        self.target: List[IPNetwork] = []
+        for t in target:
+            if t.version == 4 and t.prefixlen == 32 or t.version == 6 and t.prefixlen == 128:
+                self.target.append(t.network)
+            else:
+                self.target.append(t)
         self.summary = summary
         self.attack_vectors = attack_vectors
         self.show_target = show_target
@@ -194,7 +198,7 @@ class Fingerprint:
     def as_dict(self, anonymous: bool = False, summarized: bool = False) -> dict:
         return {
             'attack_vectors': [av.as_dict(summarized) for av in self.attack_vectors],
-            'target': str(self.target) if not anonymous else 'Anonymized',
+            'target': ', '.join([str(t) for t in self.target]) if not anonymous else 'Anonymized',
             'tags': self.tags,
             'key': self.checksum,
             **self.summary
