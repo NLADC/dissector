@@ -1,4 +1,6 @@
 import os
+from typing import List
+
 import pandas as pd
 from pathlib import Path
 from argparse import ArgumentParser, Namespace
@@ -27,7 +29,8 @@ def parse_arguments() -> Namespace:
     parser.add_argument('--nprocesses', dest='n', type=int, help='Number of processes used to concurrently read PCAPs '
                                                                  '(default is the number of CPU cores)',
                         default=os.cpu_count())
-    parser.add_argument('--target', type=IPNetwork, help='Optional: target IP address or subnet of this attack')
+    parser.add_argument('--target', type=IPNetwork, nargs='+', dest='targets',
+                        help='Optional: target IP address or subnet of this attack')
     parser.add_argument('--ddosdb', action='store_true', help='Optional: directly upload fingerprint to DDoS-DB')
     parser.add_argument('--misp', action='store_true', help='Optional: directly upload fingerprint to MISP')
     parser.add_argument('--noverify', action='store_true', help="Optional: Don't verify TLS certificates")
@@ -47,8 +50,8 @@ if __name__ == '__main__':
     # Read the file(s) into a dataframe
     data: pd.DataFrame = pd.concat([read_file(f, filetype=filetype, nr_processes=args.n) for f in args.files])
     attack = Attack(data, filetype)  # Construct an Attack object with the DDoS data
-    target = args.target or infer_target(attack)  # Infer the attack target if not passed as an argument
-    attack.filter_data_on_target(target_network=target)  # Keep only the traffic sent to the target
+    target: List[IPNetwork] = args.targets or [infer_target(attack)]  # Infer attack target if not passed as argument
+    attack.filter_data_on_target(target=target)  # Keep only the traffic sent to the target
     attack_vectors = extract_attack_vectors(attack)  # Extract the attack vectors from the attack
     summary = compute_summary(attack_vectors)  # Compute summary statistics of the attack (e.g. average bps / Bpp / pps)
     # Generate fingeperint
