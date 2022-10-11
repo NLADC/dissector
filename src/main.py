@@ -1,4 +1,5 @@
 import os
+import sys
 from typing import List
 
 import pandas as pd
@@ -53,6 +54,9 @@ if __name__ == '__main__':
     target: List[IPNetwork] = args.targets or [infer_target(attack)]  # Infer attack target if not passed as argument
     attack.filter_data_on_target(target=target)  # Keep only the traffic sent to the target
     attack_vectors = extract_attack_vectors(attack)  # Extract the attack vectors from the attack
+    if len(attack_vectors) == 0:
+        LOGGER.critical(f'No attack vectors found in traffic capture.')
+        sys.exit(1)
     summary = compute_summary(attack_vectors)  # Compute summary statistics of the attack (e.g. average bps / Bpp / pps)
     # Generate fingeperint
     fingerprint = Fingerprint(target=target, summary=summary, attack_vectors=attack_vectors,
