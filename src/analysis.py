@@ -3,6 +3,8 @@ import pandas as pd
 from netaddr import IPAddress, IPNetwork
 from typing import Any
 from collections import defaultdict
+from datetime import datetime
+import pytz
 
 from logger import LOGGER
 from attack import Attack, AttackVector
@@ -201,14 +203,14 @@ def compute_summary(attack_vectors: list[AttackVector]) -> dict[str, Any]:
     """
     filetype = attack_vectors[0].filetype
     data = pd.concat([v.data for v in attack_vectors])
-    time_start = data.time_start.min()
-    time_end = data.time_end.max()
+    time_start: datetime = pytz.utc.localize(data.time_start.min())
+    time_end: datetime = pytz.utc.localize(data.time_end.max())
     duration = (time_end - time_start).seconds
     nr_bytes = int(data.nr_bytes.sum())
     nr_packets = int(data.nr_packets.sum())
     return {
-        'time_start': str(time_start),
-        'time_end': str(time_end),
+        'time_start': time_start.isoformat(),
+        'time_end': time_end.isoformat(),
         'duration_seconds': duration,
         f'total_{"flows" if filetype == FileType.FLOW else "packets"}': len(data),
         'total_megabytes': nr_bytes // 1_000_000,

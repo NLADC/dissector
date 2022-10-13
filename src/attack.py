@@ -2,7 +2,7 @@ import socket
 import json
 import hashlib
 from typing import List
-
+import pytz
 import requests
 import urllib3
 import pandas as pd
@@ -56,8 +56,8 @@ class AttackVector:
                                                    return_others=True)) or 'random'
         self.packets = self.data.nr_packets.sum()
         self.bytes = self.data.nr_bytes.sum()
-        self.time_start: datetime = self.data.time_start.min()
-        self.time_end: datetime = self.data.time_end.max()
+        self.time_start: datetime = pytz.utc.localize(self.data.time_start.min())
+        self.time_end: datetime = pytz.utc.localize(self.data.time_end.max())
         self.duration = (self.time_end - self.time_start).seconds
         self.source_ips: list[IPAddress] = data.source_address.unique()
         self.fraction_of_attack = 0
@@ -152,7 +152,7 @@ class AttackVector:
             f'nr_{"flows" if self.filetype == FileType.FLOW else "packets"}': len(self),
             'nr_packets': int(self.packets),
             'nr_megabytes': int(self.bytes) // 1_000_000,
-            'time_start': str(self.time_start),
+            'time_start': self.time_start.isoformat(),
             'duration_seconds': self.duration,
             'source_ips': f'{len(self.source_ips)} IP addresses ommitted' if summarized
             else [str(i) for i in self.source_ips],
