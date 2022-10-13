@@ -262,7 +262,7 @@ class Fingerprint:
         LOGGER.info(f'Uploading fingerprint to DDoS-DB: {host}...')
 
         fp_dict = self.as_dict(anonymous=not self.show_target)
-        fp_dict['shareable'] = bool(shareable)
+        fp_dict['shareable'] = shareable
         fp_json = json.dumps(fp_dict)
         headers = {
             'Authorization': f'Token {token}'

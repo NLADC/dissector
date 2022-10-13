@@ -3,7 +3,7 @@ import pandas as pd
 import socket
 import os
 from enum import Enum
-from typing import Union
+from typing import Union, Any
 from pathlib import Path
 from configparser import ConfigParser, NoOptionError, NoSectionError
 
@@ -240,7 +240,7 @@ def error(message: str):
     sys.exit(-1)
 
 
-def parse_config(file: Path, misp=False) -> dict[str, str]:
+def parse_config(file: Path, misp=False) -> dict[str, Any]:
     """
     Parse the DDoSDB/MISP config file and return host, authorization token, protocol (http/https)
     :param file: Config file (ini format)
@@ -264,15 +264,15 @@ def parse_config(file: Path, misp=False) -> dict[str, str]:
                 'host': config.get(platform, 'host'),
                 'token': config.get(platform, 'token'),
                 'protocol': config.get(platform, 'protocol'),
-                "sharing_group": config.get(platform, 'sharing_group', fallback=None),
-                "publish": "True" if config.getboolean(platform, 'publish', fallback=False) else "False",
+                'sharing_group': config.get(platform, 'sharing_group', fallback=None),
+                'publish': config.getboolean(platform, 'publish', fallback=False)
             }
         else:
             return {
                 'host': config.get(platform, 'host'),
                 'token': config.get(platform, 'token'),
                 'protocol': config.get(platform, 'protocol'),
-                "shareable": "True" if config.getboolean(platform, 'shareable', fallback=False) else "False",
+                'shareable': config.getboolean(platform, 'shareable', fallback=False)
             }
 
     except (NoSectionError, NoOptionError):
