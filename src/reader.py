@@ -32,7 +32,7 @@ FLOW_COLUMN_NAMES: dict[str, str] = {
 PCAP_COLUMN_NAMES: dict[str, str] = {
     'ip.dst': 'destination_address',
     'ip.src': 'source_address',
-    'tcp.flags': 'tcp_flags',
+    'tcp.flags.str': 'tcp_flags',
     'ip.proto': 'protocol',
     '_ws.col.Destination': 'col_destination_address',
     '_ws.col.Source': 'col_source_address',
