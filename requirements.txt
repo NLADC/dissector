@@ -11,7 +11,7 @@ pymisp==2.4.155.1
 pyrsistent==0.18.1
 python-dateutil==2.8.2
 pytz==2021.3
-requests==2.27.1
+requests==2.31.0
 six==1.16.0
 urllib3==1.26.8
 wrapt==1.14.0
