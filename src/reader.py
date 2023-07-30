@@ -53,7 +53,7 @@ PCAP_COLUMN_NAMES: dict[str, str] = {
     'tcp.srcport': 'tcp_source_port',
     'udp.dstport': 'udp_destination_port',
     'udp.srcport': 'udp_source_port',
-    'frame.time': 'time_start'
+    '_ws.col.Time': 'time_start'
 }
 
 
@@ -110,7 +110,7 @@ def read_pcap(filename: Path) -> pd.DataFrame:
         error('Tshark software not found; it should be on the $PATH. Install from https://tshark.dev/')
 
     # Create command
-    command = [tshark, '-r', str(filename), '-T', 'fields']
+    command = [tshark, '-r', str(filename), '-t', 'ud', '-T', 'fields']
     for field in PCAP_COLUMN_NAMES:
         command.extend(['-e', field])
     for option in ['header=y', 'separator=,', 'quote=d', 'occurrence=f']:
@@ -125,12 +125,11 @@ def read_pcap(filename: Path) -> pd.DataFrame:
 
     try:
         data: pd.DataFrame = pd.read_csv(
-            output_buffer, parse_dates=['frame.time'], low_memory=False, delimiter=',',
-            date_parser=lambda x: datetime.datetime.strptime(x, "%b %d, %Y %H:%M:%S.%f000 %Z"))
+            output_buffer, parse_dates=['_ws.col.Time'], low_memory=False, delimiter=',')
     except pd.errors.ParserError as e:
         LOGGER.info(f'Error reading PCAP file: {e}')
         LOGGER.info(f'Skipping the offending lines...')
-        data: pd.DataFrame = pd.read_csv(output_buffer, parse_dates=['frame.time'], low_memory=False, delimiter=',',
+        data: pd.DataFrame = pd.read_csv(output_buffer, parse_dates=['_ws.col.Time'], low_memory=False, delimiter=',',
                                          on_bad_lines='skip')
 
     # Keep only relevant columns & rename
