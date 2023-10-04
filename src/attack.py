@@ -1,72 +1,113 @@
 import socket
+import time
 import json
 import hashlib
-from typing import List
 import pytz
 import requests
 import urllib3
-import pandas as pd
+import pprint
 from pathlib import Path
-from functools import total_ordering
-from datetime import datetime
-from netaddr import IPAddress, IPNetwork
+from datetime import datetime, timedelta
 
-from util import AMPLIFICATION_SERVICES, TCP_FLAG_NAMES, TCP_BIT_NUMBERS, get_outliers, FileType
+from util import AMPLIFICATION_SERVICES, ETHERNET_TYPES, DNS_QUERY_TYPES, ICMP_TYPES, TCP_FLAG_NAMES, \
+    get_outliers_single, get_outliers_mult, FileType
 from logger import LOGGER
 from misp import MispInstance
+
+import duckdb
+from duckdb import DuckDBPyConnection
 
 __all__ = ['Attack', 'AttackVector', 'Fingerprint']
 
 
 class Attack:
-    def __init__(self, data: pd.DataFrame, filetype: FileType):
-        self.data = data
+    def __init__(self, db: DuckDBPyConnection, view: str, filetype: FileType):
+        self.db = db
+        self.view = view
         self.filetype = filetype
-        self.attack_vectors: list[AttackVector]
+        # self.attack_vectors: list[AttackVector]
+        df = db.execute(f"select count() as entries, sum(nr_packets) as total from '{view}'").fetchdf()
+        LOGGER.debug(f"Attack object contains {int(df['entries'][0])} entries, with information on {int(df['total'][0])} packets")
 
-    def filter_data_on_target(self, target: List[IPNetwork]):
+    def filter_data_on_target(self, target: list[str]):
         """
         Only keep traffic directed at the target in Attack.data
         :param target: target network(s) of this attack
         :return: None
         """
-        LOGGER.debug('Filtering attack data on target IP address.')
-        target_addresses = [x for t in target for x in self.data.destination_address if x in t]
-        self.data = self.data[self.data.destination_address.isin(target_addresses)]
+        LOGGER.debug('Filtering attack data on target IP address(es).')
+        if isinstance(target, str):
+            target = [target]
+
+        ip_list = "','".join(target)
+        viewid = f"target"
+        sql = f"create view '{viewid}' as select * from '{self.view}' where destination_address in ('{ip_list}')"
+        LOGGER.debug(sql)
+        self.db.execute(sql)
+        self.view = viewid
+        df = self.db.execute(f"select count() as entries, sum(nr_packets) as total from '{self.view}'").fetchdf()
+        LOGGER.debug(f"Attack object contains {int(df['entries'][0])} entries, with information on {int(df['total'][0])} packets")
 
 
-@total_ordering
 class AttackVector:
-    def __init__(self, data: pd.DataFrame, source_port: int, protocol: str, filetype: FileType):
-        self.data = data
-        if source_port == -1:
-            self.source_port = dict(get_outliers(self.data,
-                                                 'source_port',
-                                                 0.1,
-                                                 use_zscore=False,
-                                                 return_others=True)) or 'random'
-        else:
-            self.source_port = source_port
-        self.protocol = protocol.upper()
+    def __init__(self, db: DuckDBPyConnection, view: str, source_port, protocol: str, filetype: FileType):
+
+        pp = pprint.PrettyPrinter(indent=4)
+
+        # self.data = data
+        self.db = db
+        self.source_port = source_port
+        self.protocol = protocol
         self.filetype = filetype
-        self.destination_ports = dict(get_outliers(self.data,
-                                                   'destination_port',
-                                                   0.1,
-                                                   use_zscore=False,
-                                                   return_others=True)) or 'random'
-        self.packets = self.data.nr_packets.sum()
-        self.bytes = self.data.nr_bytes.sum()
-        self.time_start: datetime = pytz.utc.localize(self.data.time_start.min())
-        self.time_end: datetime = pytz.utc.localize(self.data.time_end.max())
+
+        self.view = f"{view}_{self.protocol}_{str(source_port)}" if source_port >= 0 \
+            else f"{view}_{self.protocol}_min_{str(abs(source_port))}"
+        self.input_view = view
+        self.input_protocol = protocol
+        self.input_source_port = source_port
+        start = time.time()
+        if source_port  == -1:
+            db.execute(
+                f"create view '{self.view}' as select * from '{view}' where protocol='{protocol}'")
+            self.source_port = \
+                dict(get_outliers_single(db, self.view, 'source_port', 0.1, use_zscore=False, return_others=True)) or "random"
+        else:
+            db.execute(
+                f"create view '{self.view}' as select * from '{view}' where protocol='{protocol}' and source_port={source_port}")
+
+        results = db.execute(
+            f"select count() as entries, sum(nr_packets) as nr_packets, "
+            "sum(nr_bytes) as nr_bytes, min(time_start) as time_start, max(time_end) as time_end "
+            f" from '{self.view}'").fetchdf()
+        LOGGER.debug(f"\n{results}")
+        self.entries = int(results['entries'][0])
+
+        if self.entries == 0:
+            return
+
+        self.packets = int(results['nr_packets'][0])
+        self.bytes = int(results['nr_bytes'][0])
+        self.time_start: datetime = pytz.utc.localize(results['time_start'][0])
+        self.time_end: datetime = pytz.utc.localize(results['time_end'][0])
         self.duration = (self.time_end - self.time_start).seconds
-        self.source_ips: list[IPAddress] = data.source_address.unique()
+
+        results = db.execute(f"select distinct(source_address) from '{self.view}'").fetchdf()
+        self.source_ips = list(results['source_address'])
+        LOGGER.debug(f"{len(self.source_ips)} IP Addresses")
+
+        self.destination_ports = \
+            dict(get_outliers_single(db, self.view, 'destination_port', 0.1,
+                                     use_zscore=False, return_others=True))\
+            or "random"
+        LOGGER.debug(self.destination_ports)
         self.fraction_of_attack = 0
+
         try:
             if self.protocol == 'UDP' and source_port != -1:
                 self.service = (AMPLIFICATION_SERVICES.get(self.source_port, None) or
-                                socket.getservbyport(source_port, protocol.lower()).upper())
+                                socket.getservbyport(source_port, self.protocol.lower()).upper())
             elif self.protocol == 'TCP' and source_port != -1:
-                self.service = socket.getservbyport(source_port, protocol.lower()).upper()
+                self.service = socket.getservbyport(source_port, self.protocol.lower()).upper()
             else:
                 self.service = None
         except OSError:  # service not found by socket.getservbyport
@@ -76,54 +117,96 @@ class AttackVector:
                 self.service = None
         except OverflowError:  # Random source port (-1), no specific service
             self.service = None
-        if self.protocol == 'TCP':
-            self.tcp_flags = dict(get_outliers(self.data, 'tcp_flags', 0.2, return_others=True)) or None
-            if self.filetype == FileType.PCAP:  # Transform the numeric TCP flag representation to identifiable letters
-                flag_letters = {}
-                for key, value in self.tcp_flags.items():
-                    flag_letters[key.replace('·', '.')] = value
-                self.tcp_flags = flag_letters
+        LOGGER.debug(f"service: {self.service}")
 
-        else:
-            self.tcp_flags = None
+        self.tcp_flags = None
+        if self.protocol == 'TCP':
+            tcp_flags = dict(get_outliers_single(db, self.view, 'tcp_flags', 0.1, return_others=True))
+            # tcp_flags = dataframe_to_dict(flags['df'], None, others=flags['others'])
+            # tcp_flags = dict(flags)
+
+            if tcp_flags:
+                self.tcp_flags = {}
+                for key, value in tcp_flags.items():
+                    self.tcp_flags[key.replace('·', '.')] = value
 
         if self.filetype == FileType.PCAP:
-            self.eth_type = dict(get_outliers(self.data, 'ethernet_type', 0.05, return_others=True)) or 'random'
-            self.frame_len = dict(get_outliers(self.data, 'nr_bytes', 0.05, return_others=True)) or 'random'
+            self.eth_type = get_outliers_single(db, self.view, 'eth_type', 0.05, return_others=True)
+            LOGGER.debug(self.eth_type)
+            if self.eth_type:
+                et = dict()
+                for key, value in self.eth_type:
+                    et[ETHERNET_TYPES.get(int(key), "others")] = value
+                self.eth_type = et
+            LOGGER.debug(f"eth_type: {self.eth_type}\n")
+
+            self.frame_len = dict(get_outliers_single(db, self.view, 'nr_bytes', 0.05, return_others=True)) or "random"
+            LOGGER.debug(f"frame_len: {self.frame_len}\n")
 
             if isinstance(self.eth_type, dict) and ('IPv4' in self.eth_type or 'IPv6' in self.eth_type):
-                # IP packets
-                self.frag_offset = dict(get_outliers(self.data, 'fragmentation_offset', fraction_for_outlier=0.1,
-                                                     return_others=True)) or 'random'
-                self.ttl = dict(get_outliers(self.data, 'ttl', fraction_for_outlier=0.1,
-                                             return_others=True)) or 'random'
+                self.frag_offset = \
+                    dict(get_outliers_single(db, self.view, 'fragmentation_offset', 0.1, return_others=True))
+                LOGGER.debug(f"frag_offset: {self.frag_offset}\n")
+
+                self.ttl = dict(get_outliers_single(db, self.view, 'ttl', 0.1, return_others=True)) or "random"
+                LOGGER.debug(f"ttl: {self.ttl}\n")
+
             if self.service == 'DNS':
-                self.dns_query_name = dict(get_outliers(self.data, 'dns_query_name', fraction_for_outlier=0.1,
-                                                        return_others=True)) or 'random'
-                self.dns_query_type = dict(get_outliers(self.data, 'dns_query_type', fraction_for_outlier=0.1,
-                                                        return_others=True)) or 'random'
-            elif self.service in ['HTTP', 'HTTPS']:
-                self.http_uri = dict(get_outliers(self.data, 'http_uri', fraction_for_outlier=0.05,
-                                                  return_others=True)) or 'random'
-                self.http_method = dict(get_outliers(self.data, 'http_method', fraction_for_outlier=0.1,
-                                                     return_others=True)) or 'random'
-                self.http_user_agent = dict(get_outliers(self.data, 'http_user_agent', fraction_for_outlier=0.05,
-                                                         return_others=True)) or 'random'
-            elif self.service == 'NTP':
-                self.ntp_requestcode = dict(get_outliers(self.data, 'ntp_requestcode', fraction_for_outlier=0.1,
-                                                         return_others=True)) or 'random'
+                self.dns_query_name = \
+                    dict(get_outliers_single(db, self.view, 'dns_qry_name', 0.1, return_others=True)) or "random"
+                LOGGER.debug(f"dns_query_name: {self.dns_query_name}\n")
+
+                self.dns_query_type = \
+                    dict(get_outliers_single(db, self.view, 'dns_qry_type', 0.1, return_others=False))
+                if self.dns_query_type:
+                    dqt = dict()
+                    for key, value in self.dns_query_type.items():
+                        dqt[DNS_QUERY_TYPES.get(int(key), "others")] = value
+                    self.dns_query_type = dqt
+                else:
+                    self.dns_query_type = "random"
+                LOGGER.debug(f"dns_query_type: {self.dns_query_type}\n")
+
             elif self.protocol == 'ICMP':
-                self.icmp_type = dict(get_outliers(self.data, 'icmp_type', fraction_for_outlier=0.1,
-                                                   return_others=True)) or 'random'
+                self.icmp_type = \
+                    dict(get_outliers_single(db, self.view, 'icmp_type', 0.1, return_others=False)) or None
+                if self.icmp_type:
+                    icmpt = dict()
+                    for key, value in self.icmp_type.items():
+                        icmpt[ICMP_TYPES.get(int(key), "others")] = value
+                    self.icmp_type = icmpt
+                else:
+                    self.icmp_type = "random"
+                LOGGER.debug(f"icmp_type: {self.icmp_type}\n")
+
+            elif self.service in ['HTTP', 'HTTPS']:
+                self.http_uri = \
+                    dict(get_outliers_single(db, self.view, 'http_uri', 0.05, return_others=True)) or None
+                LOGGER.debug(f"http_uri: {self.http_uri}\n")
+
+                self.http_method = \
+                    dict(get_outliers_single(db, self.view, 'http_method', 0.1, return_others=True)) or None
+                LOGGER.debug(f"http_method: {self.http_method}\n")
+
+                self.http_user_agent = \
+                    dict(get_outliers_single(db, self.view, 'http_user_agent', 0.05, return_others=True)) or None
+                LOGGER.debug(f"http_user_agent: {self.http_user_agent}\n")
+
+            elif self.service == 'NTP':
+                self.ntp_requestcode = dict(get_outliers_single(
+                    db, self.view, 'ntp_requestcode', fraction_for_outlier=0.1, return_others=True)) or 'random'
+                LOGGER.debug(f"ntp_requestcode: {self.ntp_requestcode}\n")
 
     def __str__(self):
-        return f'[AttackVector ({self.fraction_of_attack * 100}% of traffic) {self.protocol}, service: {self.service}]'
+        if self.service == 'Fragmented IP packets':
+            self.fraction_of_attack = 0
+        return f'[AttackVector ({round(self.fraction_of_attack * 100, 1)}% of traffic) {self.protocol}, service: {self.service}]'
 
     def __repr__(self):
         return self.__str__()
 
     def __len__(self):
-        return len(self.data)
+        return int(self.packets)
 
     def __lt__(self, other):
         if type(other) != AttackVector:
@@ -135,10 +218,11 @@ class AttackVector:
             'service': self.service,
             'protocol': self.protocol,
             'fraction_of_attack': self.fraction_of_attack if self.service != 'Fragmented IP packets' else None,
+            # 'fraction_of_attack': self.fraction_of_attack,
             'source_port': self.source_port if self.source_port != -1 else 'random',
             'destination_ports': self.destination_ports,
             'tcp_flags': self.tcp_flags,
-            f'nr_{"flows" if self.filetype == FileType.FLOW else "packets"}': len(self),
+            f'nr_{"flows" if self.filetype == FileType.FLOW else "packets"}': self.entries,
             'nr_packets': int(self.packets),
             'nr_megabytes': int(self.bytes) // 1_000_000,
             'time_start': self.time_start.isoformat(),
@@ -146,6 +230,7 @@ class AttackVector:
             'source_ips': f'{len(self.source_ips)} IP addresses ommitted' if summarized
             else [str(i) for i in self.source_ips],
         }
+
         if self.filetype == FileType.PCAP:
             fields.update({'ethernet_type': self.eth_type,
                            'frame_len': self.frame_len})
@@ -165,16 +250,17 @@ class AttackVector:
                 fields.update({'icmp_type': self.icmp_type})
         return fields
 
+    def summ_nr_pkts(self) -> int:
+        return self.packets if self.service != 'Fragmented IP packets' else 0
+
+    def summ_nr_bytes(self) -> int:
+        return self.bytes if self.service != 'Fragmented IP packets' else 0
+
 
 class Fingerprint:
-    def __init__(self, target: List[IPNetwork], summary: dict[str, int], attack_vectors: list[AttackVector],
+    def __init__(self, target: str, summary: dict[str, int], attack_vectors: list[AttackVector],
                  show_target: bool = False):
-        self.target: List[IPNetwork] = []
-        for t in target:
-            if t.version == 4 and t.prefixlen == 32 or t.version == 6 and t.prefixlen == 128:
-                self.target.append(t.network)
-            else:
-                self.target.append(t)
+        self.target = target
         self.summary = summary
         self.attack_vectors = attack_vectors
         self.show_target = show_target
@@ -187,7 +273,7 @@ class Fingerprint:
     def as_dict(self, anonymous: bool = False, summarized: bool = False) -> dict:
         return {
             'attack_vectors': [av.as_dict(summarized) for av in self.attack_vectors],
-            'target': ', '.join([str(t) for t in self.target]) if not anonymous else 'Anonymized',
+            'target': self.target if not anonymous else 'Anonymized',
             'tags': self.tags,
             'key': self.checksum,
             **self.summary
@@ -201,8 +287,8 @@ class Fingerprint:
         tags = []
         if len([v for v in self.attack_vectors if v.service != 'Fragmented IP packets']) > 1:
             tags.append('Multi-vector attack')
-        if isinstance(self.target, IPNetwork):
-            tags.append('Carpet bombing attack')
+        # if isinstance(self.target, IPNetwork):
+        #     tags.append('Carpet bombing attack')
         for vector in self.attack_vectors:
             tags.append(vector.protocol)
             if vector.service is None:
