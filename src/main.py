@@ -1,18 +1,19 @@
+import ipaddress
 import os
-import sys
-from typing import List
+import time
+import duckdb
+import pprint
 
-import pandas as pd
 from pathlib import Path
 from argparse import ArgumentParser, Namespace
-from netaddr import IPNetwork
 
 from logger import LOGGER
-from util import parse_config, print_logo, determine_filetype
 from misp import MispInstance
-from reader import read_file
+from reader import read_files
 from attack import Attack, Fingerprint
 from analysis import infer_target, extract_attack_vectors, compute_summary
+from util import parquet_files_to_view, FileType, determine_filetype, determine_source_filetype, \
+    print_logo, parse_config
 
 DOCKERIZED: bool = 'DISSECTOR_DOCKER' in os.environ
 
@@ -30,8 +31,8 @@ def parse_arguments() -> Namespace:
     parser.add_argument('--nprocesses', dest='n', type=int, help='Number of processes used to concurrently read PCAPs '
                                                                  '(default is the number of CPU cores)',
                         default=os.cpu_count())
-    parser.add_argument('--target', type=IPNetwork, nargs='+', dest='targets',
-                        help='Optional: target IP address or subnet of this attack')
+    parser.add_argument('--target', type=str, dest='target',
+                        help='Optional: target IP address of this attack (subnet currently unsupported)')
     parser.add_argument('--ddosdb', action='store_true', help='Optional: directly upload fingerprint to DDoS-DB')
     parser.add_argument('--misp', action='store_true', help='Optional: directly upload fingerprint to MISP')
     parser.add_argument('--noverify', action='store_true', help="Optional: Don't verify TLS certificates")
@@ -42,27 +43,82 @@ def parse_arguments() -> Namespace:
 
 
 if __name__ == '__main__':
+    pp = pprint.PrettyPrinter(indent=4)
+
     print_logo()
+
     args = parse_arguments()
     if args.debug:
         LOGGER.setLevel('DEBUG')
 
+    if args.target:
+        try:
+            test = ipaddress.ip_address(args.target)
+        except Exception as e:
+            LOGGER.info("Malformed target specified")
+            exit(2)
+
     filetype = determine_filetype(args.files)
-    # Read the file(s) into a dataframe
-    data: pd.DataFrame = pd.concat([read_file(f, filetype=filetype, nr_processes=args.n) for f in args.files])
-    attack = Attack(data, filetype)  # Construct an Attack object with the DDoS data
-    target: List[IPNetwork] = args.targets or [infer_target(attack)]  # Infer attack target if not passed as argument
-    attack.filter_data_on_target(target=target)  # Keep only the traffic sent to the target
-    attack_vectors = extract_attack_vectors(attack)  # Extract the attack vectors from the attack
+
+    start = time.time()
+    if filetype == FileType.PQT:
+        # If parquet files: check all contain data from either pcap or flow, but not both
+        LOGGER.debug("Determine source file type in parquet files")
+        fts = [determine_source_filetype(f) for f in args.files]
+        ft = set(fts)
+        if len(ft) > 1:
+            LOGGER.error("More than one source file type in these parquet files")
+            exit(1)
+        filetype = list(ft)[0]
+        LOGGER.debug(f"Original file type is {filetype.value}")
+        pqt_files = [str(f) for f in args.files]
+    else:
+        # Convert the file(s) to parquet
+        dst_dir = "/tmp" if DOCKERIZED else f"{os.getcwd()}/parquet"
+        pqt_files = read_files(args.files, dst_dir=dst_dir, filetype=filetype, nr_processes=args.n)
+        duration = time.time()-start
+        LOGGER.info(f"Conversion took {duration:.2f}s")
+        LOGGER.debug(pqt_files)
+
+    if args.debug and not DOCKERIZED:
+        # Store duckdb on disk in debug mode if not dockerized
+        os.makedirs('duckdb', exist_ok=True)
+        db_name = "duckdb/"+os.path.basename(args.files[0])+".duckdb"
+        LOGGER.debug(f"Basename: {db_name}")
+        if os.path.exists(db_name):
+            os.remove(db_name)
+        db = duckdb.connect(db_name)
+    else:
+        # Otherwise just an in-memory database
+        db = duckdb.connect()
+
+    # Explicitly set number of threads
+    db.execute(f"SET threads={args.n}")
+
+    start = time.time()
+
+    view = parquet_files_to_view(db, pqt_files, filetype)
+    attack = Attack(db, view, filetype)
+
+    target = args.target or infer_target(attack)  # Infer attack target if not passed as argument
+    LOGGER.debug(target)
+    if not target:
+        LOGGER.info("No attack targets found")
+        exit(0)
+
+    attack.filter_data_on_target(target)
+    attack_vectors = extract_attack_vectors(attack)
     if len(attack_vectors) == 0:
         LOGGER.critical(f'No attack vectors found in traffic capture.')
-        sys.exit(1)
+        exit(1)
     summary = compute_summary(attack_vectors)  # Compute summary statistics of the attack (e.g. average bps / Bpp / pps)
-    # Generate fingeperint
+    # Generate fingerprint
     fingerprint = Fingerprint(target=target, summary=summary, attack_vectors=attack_vectors,
                               show_target=args.show_target)
 
-    if args.summary:  # If the user wants a preview, show the finerprint in the terminal
+    duration = time.time() - start
+    LOGGER.info(f"Analysis took {duration:.2f}s")
+    if args.summary:  # If the user wants a preview, show the fingerprint in the terminal
         LOGGER.info(str(fingerprint))
 
     args.output.mkdir(parents=True, exist_ok=True)
@@ -77,3 +133,5 @@ if __name__ == '__main__':
                                      publish=conf['publish'])
         if misp_instance.misp is not None:
             fingerprint.upload_to_misp(misp_instance)
+
+    db.close()

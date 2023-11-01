@@ -1,20 +1,28 @@
+import datetime
 import sys
 import pandas as pd
+import duckdb
+from duckdb import DuckDBPyConnection
 import socket
 import os
+import time
 from enum import Enum
 from typing import Union, Any
 from pathlib import Path
 from configparser import ConfigParser, NoOptionError, NoSectionError
+from collections import OrderedDict
+from typing import Union
 
 from logger import LOGGER
 
+import pprint
 
-__all__ = ['IPPROTO_TABLE', 'AMPLIFICATION_SERVICES', 'TCP_FLAG_NAMES', 'TCP_BIT_NUMBERS', 'ETHERNET_TYPES',
+__all__ = ['IPPROTO_TABLE', 'AMPLIFICATION_SERVICES', 'ETHERNET_TYPES', 'TCP_FLAG_NAMES',
            'ICMP_TYPES', 'DNS_QUERY_TYPES', 'FileType', 'determine_filetype', 'print_logo', 'error', 'parse_config',
-           'get_outliers']
+           'get_outliers_single', 'get_outliers_mult', 'parquet_files_to_view',
+           'determine_source_filetype']
 
-IPPROTO_TABLE: dict[int, str] = {
+IPPROTO_TABLE: OrderedDict() = {
     num: name[8:]
     for name, num in vars(socket).items()
     if name.startswith('IPPROTO')
@@ -59,8 +67,6 @@ TCP_FLAG_NAMES: dict[str, str] = {
     'A': 'ACK',
     'U': 'URGENT',
 }
-
-TCP_BIT_NUMBERS: dict[int, str] = dict(zip(range(1, 7), TCP_FLAG_NAMES.keys()))
 
 ETHERNET_TYPES: dict[int, str] = {
     0x0800: 'IPv4',
@@ -187,6 +193,18 @@ DNS_QUERY_TYPES: dict[int, str] = {
     63: 'ZONEMD'
 }
 
+INT_COLUMNS: list[str] = [
+    'source_port',
+    'destination_port',
+    'fragmentation_offset',
+    'ntp_requestcode',
+    'ttl',
+    'nr_bytes',
+    'nr_packets',
+    'icmp_type',
+    'eth_type',
+]
+
 
 class FileType(Enum):
     """
@@ -194,9 +212,26 @@ class FileType(Enum):
     """
     FLOW = 'Flow'
     PCAP = 'PCAP'
+    PQT = 'Parquet'
 
     def __str__(self):
         return self.value
+
+
+def determine_source_filetype(filename: Path) -> FileType:
+    # pcap conversion will have a pcap_file column
+    # flow conversion will have a flowsrc column
+    filetype = None
+    pp = pprint.PrettyPrinter(indent=4)
+    db = duckdb.connect()
+    db.execute(f"create view test as select * from '{filename}'")
+    df = db.execute("describe test").fetchdf()
+    db.close()
+    if 'flowsrc' in list(df['column_name']):
+        filetype = FileType.FLOW
+    elif 'pcap_file' in list(df['column_name']):
+        filetype = FileType.PCAP
+    return filetype
 
 
 def determine_filetype(filenames: list[Path]) -> FileType:
@@ -205,20 +240,27 @@ def determine_filetype(filenames: list[Path]) -> FileType:
     :param filenames:
     :return: PCAP or FLOW
     """
+
+    pcapsuffixes = ['.pcap', '.pcapng', '.erf']
+
     filetype = None
     for filename in filenames:
         if not filename.exists() or not filename.is_file() or not os.access(filename, os.R_OK):
             error(f'{filename} does not exist or is not readable. If using docker, did you mount the location '
                   f'as a volume?')
 
-        if filename.suffix.lower() == '.pcap' and filetype in [FileType.PCAP, None]:
+        if (filename.suffix.lower() in pcapsuffixes or os.path.basename(filename).lower().startswith('snort.log.'))\
+            and filetype in [FileType.PCAP, None]:
             filetype = FileType.PCAP
-        elif filename.suffix.lower() == '.nfdump' and filetype in [FileType.FLOW, None]:
+        elif filename.suffix.lower() == '.parquet' and filetype in [FileType.PQT, None]:
+            filetype = FileType.PQT
+        elif (filename.suffix.lower() == '.nfdump' or filename.name.startswith('nfcapd.'))\
+                and filetype in [FileType.FLOW, None]:
             filetype = FileType.FLOW
         else:
             if filetype is None:
                 error(f"File extesion '{filename.suffix}' not recognized. "
-                      'Please use .pcap for PCAPS and .nfdump for Flows.')
+                      'Please use .pcap for PCAPS and .nfdump or nfcapd. for Flows.')
             else:
                 error('Please use only one type of capture file to create a fingerprint (.pcap or .nfdump)')
     LOGGER.debug(f'Input file type: {filetype}')
@@ -280,36 +322,114 @@ def parse_config(file: Path, misp=False) -> dict[str, Any]:
               f"The config file must include a section '{platform}' with keys 'host' and 'token'.")
 
 
-def get_outliers(data: pd.DataFrame,
-                 column: Union[str, list[str]],
-                 fraction_for_outlier: float,
-                 use_zscore: bool = True,
-                 return_fractions: bool = False,
-                 return_others: bool = False) -> list:
-    """
-    Find the outlier(s) in a pandas DataFrame
-    :param data: DataFrame in which to find outlier(s)
-    :param column: column or combination of columns in the dataframe for which to find outlier value(s)
-    :param fraction_for_outlier: if a value comprises this fraction or more of the data, it is considered an outleir
-    :param use_zscore: Also take into account the z-score to determine outliers (> 2 * std from the mean)
-    :param return_fractions: Return the fractions of traffic occupied by each outlier.
-    :param return_others: in the outliers, return the fraction of "others" - i.e., the non-outlier values combined
-    :return:
-    """
-    packets_per_value = data.groupby(column).nr_packets.sum().sort_values(ascending=False)
-    fractions = packets_per_value / packets_per_value.sum()
+def get_outliers_single(db: DuckDBPyConnection,
+                        view: str,
+                        column: str,
+                        fraction_for_outlier: float,
+                        return_others: bool = False,
+                        use_zscore=True):
 
-    zscores = (fractions - fractions.mean()) / fractions.std()
-    LOGGER.debug(f"top 5 '{column}':\n{fractions.head()}")
+    start = time.time()
+    sql = f"select {column}, sum(nr_packets)/(select sum(nr_packets) from '{view}') as frac from '{view}'"\
+          " group by all order by frac desc"
 
-    outliers = [(key, round(fraction, 3)) if return_fractions or return_others else key
-                for key, fraction in fractions.items()
-                if fraction > fraction_for_outlier or (zscores[key] > 2 and use_zscore)]
+    df_all = db.execute(sql).fetchdf()
 
-    if len(outliers) > 0:
-        LOGGER.debug(f"Outlier(s) in column '{column}': {outliers}\n")
-        if return_others and (explained := sum([fraction for _, fraction in outliers])) < 0.99:
+    zscores = (df_all['frac'] - df_all['frac'].mean()) / df_all['frac'].std()
+    LOGGER.debug(f"top 5 '{column}':\n{df_all.head()}")
+    LOGGER.debug(f"{len(df_all)} results")
+
+    outliers = []
+
+    if not df_all.empty:
+        # Explicit cast for integer column types (otherwise int turns to float)
+        column_type = int if column in INT_COLUMNS else type(df_all.iloc[0][column])
+
+        # If the top result already below fraction and zscore<2 then don't bother
+        # (Shaves two seconds of the time needed for traversing 64k destination ports)
+        row = df_all.iloc[0]
+        if row['frac'] <= fraction_for_outlier and ((use_zscore and zscores[0] <= 2) or not use_zscore):
+            outliers = []
+        else:
+            outliers = [(column_type(row[column]), round(row['frac'], 3)) for index, row in df_all.iterrows()
+                        if row['frac'] > fraction_for_outlier or (use_zscore and zscores[index] > 2)]
+
+        if outliers and return_others and (explained := sum([fraction for _, fraction in outliers])) < 0.99:
             outliers.append(('others', round(1 - explained, 3)))
-    else:
-        LOGGER.debug(f"No outlier found in column '{column}'")
+
+    duration = time.time() - start
+    LOGGER.debug(f" took {duration:.2f}s")
+
     return outliers
+
+
+def get_outliers_mult(db: DuckDBPyConnection,
+                      view: str,
+                      columns: list[str],
+                      fraction_for_outlier: float):
+
+    pp = pprint.PrettyPrinter(indent=4)
+
+    start = time.time()
+    cols = ','.join(columns)
+
+    df_all = db.execute(
+        f"select {cols}, sum(nr_packets)/(select sum(nr_packets) from '{view}') as frac from '{view}'"
+        f" group by all order by frac desc").fetchdf()
+
+    df_frac = df_all[df_all['frac'] > fraction_for_outlier].copy()
+    others = None
+    df_frac['frac'] = df_frac['frac'].map(lambda frac: round(frac, 3))
+
+    duration = time.time() - start
+    LOGGER.debug(f"{view} --> {columns}({fraction_for_outlier})\n{df_all.head()}")
+    LOGGER.debug(f" took {duration:.2f}s")
+
+    return df_frac
+
+
+def parquet_files_to_view(db: DuckDBPyConnection, pqt_files: list, filetype: FileType) -> str:
+    # Create view on parquet file(s)
+    db.execute(f"CREATE VIEW raw AS SELECT * FROM read_parquet({pqt_files})")
+
+    if filetype == FileType.FLOW:
+        sql = "create view data as select ts as time_start, te as time_end, pr as protocol, "\
+              "sa as source_address, da as destination_address, "\
+              "sp as source_port, dp as destination_port, "\
+              "ipkt as nr_packets, ibyt as nr_bytes, flg as tcp_flags "\
+              "from raw"
+        LOGGER.debug(sql)
+        db.execute(sql)
+        return 'data'
+
+    elif filetype == FileType.PCAP:
+        # First create a table that can be used to convert ip_proto --> protocol string
+        df_ipproto = pd.DataFrame.from_dict({"ip_proto": IPPROTO_TABLE.keys(), "protocol": IPPROTO_TABLE.values()})
+        db.execute("create table ipproto_table as select * from df_ipproto")
+
+        # Create a view from that, flattening udp/tcp ports onto one src/dst port (and replacing NaN with 0 as well)
+        # Do similar for source/destination address
+        sql = "create view data as select " \
+              "coalesce(ip_src, col_source) as source_address, " \
+              "coalesce(ip_dst, col_destination) as destination_address, " \
+              "coalesce(tcp_srcport, udp_srcport, 0) as source_port, " \
+              "coalesce(tcp_dstport, udp_dstport, 0) as destination_port, " \
+              "coalesce(ip_frag_offset, 0) as fragmentation_offset, " \
+              "coalesce(ntp_priv_reqcode, 0) as ntp_requestcode, " \
+              "coalesce(ip_ttl, 0) as ttl, "\
+              "coalesce(ipproto_table.protocol, col_protocol) as protocol, "\
+              "col_protocol as service, " \
+              "frame_time as time_start, " \
+              "frame_time as time_end, " \
+              "frame_len as nr_bytes, " \
+              "1 as nr_packets, "\
+              "icmp_type, tcp_flags, eth_type, "\
+              "dns_qry_name, dns_qry_type, "\
+              "http_request_uri as http_uri, "\
+              "http_request_method as http_method, http_user_agent "\
+              "from raw left join ipproto_table on (raw.ip_proto=ipproto_table.ip_proto)"
+
+        LOGGER.debug(sql)
+        db.execute(sql)
+
+        return 'data'
