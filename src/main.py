@@ -3,6 +3,7 @@ import os
 import time
 import duckdb
 import pprint
+import tempfile
 
 from pathlib import Path
 from argparse import ArgumentParser, Namespace
@@ -74,7 +75,7 @@ if __name__ == '__main__':
         pqt_files = [str(f) for f in args.files]
     else:
         # Convert the file(s) to parquet
-        dst_dir = "/tmp" if DOCKERIZED else f"{os.getcwd()}/parquet"
+        dst_dir = tempfile.gettempdir() if DOCKERIZED else f"{os.getcwd()}/parquet"
         pqt_files = read_files(args.files, dst_dir=dst_dir, filetype=filetype, nr_processes=args.n)
         duration = time.time()-start
         LOGGER.info(f"Conversion took {duration:.2f}s")
