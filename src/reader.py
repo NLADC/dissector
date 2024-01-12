@@ -113,9 +113,12 @@ class Pcap2Parquet:
         self.parse_errors = 0
         self.log_parse_errors = log_parse_errors
         self.nr_procs = int(nr_procs)
-
         letters = string.ascii_lowercase
         self.random = ''.join(random.choice(letters) for i in range(10))
+
+        # Honour proper way of setting temp dir (e.g. using $TMPDIR)
+        # Needed if /tmp is set to tmpfs in RAM (which may not be big enough)
+        self.tmp_dir = tempfile.gettempdir()
 
         # Determine splitsize bases on filesize, max pcap size and nr of cores to use.
         # Split files even if smaller than max pcap size to make maximum use of parallel
@@ -143,19 +146,19 @@ class Pcap2Parquet:
         # Solution: copy to tmp folder with extension .pcap...
         if not str(self.src_file).endswith('.pcap'):
             LOGGER.debug(f'Copy/rename file since it does not end in .pcap')
-            shutil.copyfile(self.src_file, f'/tmp/{self.random}.pcap')
-            filename = Path(f'/tmp/{self.random}.pcap')
+            shutil.copyfile(self.src_file, f'{self.tmp_dir}/{self.random}.pcap')
+            filename = Path(f'{self.tmp_dir}/{self.random}.pcap')
             use_tmp = True
         LOGGER.debug(f'Splitting PCAP file {filename} into chunks of {self.splitsize}MB.')
         process = subprocess.run(
-            ['tcpdump', '-r', filename, '-w', f'/tmp/pcap2parquet_{self.random}_chunk', '-C', f'{self.splitsize}'],
+            ['tcpdump', '-r', filename, '-w', f'{self.tmp_dir}/pcap2parquet_{self.random}_chunk', '-C', f'{self.splitsize}'],
             stderr=subprocess.PIPE)
         output = process.stderr
         if process.returncode != 0:
             err = output.decode('utf-8').strip()
             LOGGER.error(f'splitting file failed: {err}')
         else:
-            self.chunks = [Path(rootdir) / file for rootdir, _, files in os.walk('/tmp')
+            self.chunks = [Path(rootdir) / file for rootdir, _, files in os.walk(self.tmp_dir)
                            for file in files if file.startswith(f'pcap2parquet_{self.random}_chunk')]
             LOGGER.debug(f"Split into {len(self.chunks)} chunks")
 
