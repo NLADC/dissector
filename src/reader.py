@@ -75,7 +75,7 @@ class Pcap2Parquet:
         'icmp.type': {'icmp_type': pa.uint8()},
         'ip.frag_offset': {'ip_frag_offset': pa.uint16()},
         'ip.ttl': {'ip_ttl': pa.uint8()},
-        'ntp.priv.reqcode': {'ntp_priv_reqcode': pa.string()},
+        'ntp.priv.reqcode': {'ntp_priv_reqcode': pa.uint8()},
         'tcp.dstport': {'tcp_dstport': pa.uint16()},
         'tcp.srcport': {'tcp_srcport': pa.uint16()},
         'udp.dstport': {'udp_dstport': pa.uint16()},
