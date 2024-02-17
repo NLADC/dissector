@@ -20,7 +20,7 @@ import pprint
 __all__ = ['IPPROTO_TABLE', 'AMPLIFICATION_SERVICES', 'ETHERNET_TYPES', 'TCP_FLAG_NAMES',
            'ICMP_TYPES', 'DNS_QUERY_TYPES', 'FileType', 'determine_filetype', 'print_logo', 'error', 'parse_config',
            'get_outliers_single', 'get_outliers_mult', 'parquet_files_to_view',
-           'determine_source_filetype']
+           'determine_source_filetype', 'get_ttl_distribution', 'get_packet_cdf']
 
 IPPROTO_TABLE: OrderedDict() = {
     num: name[8:]
@@ -249,12 +249,12 @@ def determine_filetype(filenames: list[Path]) -> FileType:
             error(f'{filename} does not exist or is not readable. If using docker, did you mount the location '
                   f'as a volume?')
 
-        if (filename.suffix.lower() in pcapsuffixes or os.path.basename(filename).lower().startswith('snort.log.'))\
-            and filetype in [FileType.PCAP, None]:
+        if (filename.suffix.lower() in pcapsuffixes or os.path.basename(filename).lower().startswith('snort.log.')) \
+                and filetype in [FileType.PCAP, None]:
             filetype = FileType.PCAP
         elif filename.suffix.lower() == '.parquet' and filetype in [FileType.PQT, None]:
             filetype = FileType.PQT
-        elif (filename.suffix.lower() == '.nfdump' or filename.name.startswith('nfcapd.'))\
+        elif (filename.suffix.lower() == '.nfdump' or filename.name.startswith('nfcapd.')) \
                 and filetype in [FileType.FLOW, None]:
             filetype = FileType.FLOW
         else:
@@ -328,9 +328,8 @@ def get_outliers_single(db: DuckDBPyConnection,
                         fraction_for_outlier: float,
                         return_others: bool = False,
                         use_zscore=True):
-
     start = time.time()
-    sql = f"select {column}, sum(nr_packets)/(select sum(nr_packets) from '{view}') as frac from '{view}'"\
+    sql = f"select {column}, sum(nr_packets)/(select sum(nr_packets) from '{view}') as frac from '{view}'" \
           " group by all order by frac desc"
 
     df_all = db.execute(sql).fetchdf()
@@ -367,7 +366,6 @@ def get_outliers_mult(db: DuckDBPyConnection,
                       view: str,
                       columns: list[str],
                       fraction_for_outlier: float):
-
     pp = pprint.PrettyPrinter(indent=4)
 
     start = time.time()
@@ -393,10 +391,10 @@ def parquet_files_to_view(db: DuckDBPyConnection, pqt_files: list, filetype: Fil
     db.execute(f"CREATE VIEW raw AS SELECT * FROM read_parquet({pqt_files})")
 
     if filetype == FileType.FLOW:
-        sql = "create view data as select ts as time_start, te as time_end, pr as protocol, "\
-              "sa as source_address, da as destination_address, "\
-              "sp as source_port, dp as destination_port, "\
-              "ipkt as nr_packets, ibyt as nr_bytes, flg as tcp_flags "\
+        sql = "create view data as select ts as time_start, te as time_end, pr as protocol, " \
+              "sa as source_address, da as destination_address, " \
+              "sp as source_port, dp as destination_port, " \
+              "ipkt as nr_packets, ibyt as nr_bytes, flg as tcp_flags " \
               "from raw"
         LOGGER.debug(sql)
         db.execute(sql)
@@ -416,20 +414,42 @@ def parquet_files_to_view(db: DuckDBPyConnection, pqt_files: list, filetype: Fil
               "coalesce(tcp_dstport, udp_dstport, 0) as destination_port, " \
               "coalesce(ip_frag_offset, 0) as fragmentation_offset, " \
               "coalesce(ntp_priv_reqcode, 0) as ntp_requestcode, " \
-              "coalesce(ip_ttl, 0) as ttl, "\
-              "coalesce(ipproto_table.protocol, col_protocol) as protocol, "\
+              "coalesce(ip_ttl, 0) as ttl, " \
+              "coalesce(ipproto_table.protocol, col_protocol) as protocol, " \
               "col_protocol as service, " \
               "frame_time as time_start, " \
               "frame_time as time_end, " \
               "frame_len as nr_bytes, " \
-              "1 as nr_packets, "\
-              "icmp_type, tcp_flags, eth_type, "\
-              "dns_qry_name, dns_qry_type, "\
-              "http_request_uri as http_uri, "\
-              "http_request_method as http_method, http_user_agent "\
+              "1 as nr_packets, " \
+              "icmp_type, tcp_flags, eth_type, " \
+              "dns_qry_name, dns_qry_type, " \
+              "http_request_uri as http_uri, " \
+              "http_request_method as http_method, http_user_agent " \
               "from raw left join ipproto_table on (raw.ip_proto=ipproto_table.ip_proto)"
 
         LOGGER.debug(sql)
         db.execute(sql)
 
         return 'data'
+
+
+def get_ttl_distribution(db: DuckDBPyConnection,
+                         view: str, ) -> pd.DataFrame:
+    return db.execute(
+        f"select ttl as TTL, 100*count(distinct(source_address))/(select count(distinct(source_address)) "
+        f"from '{view}') as 'percentage of data' from '{view}' group by all order by ttl asc"
+    ).fetchdf()
+
+
+def get_packet_cdf(db: DuckDBPyConnection,
+                   view: str, ) -> pd.DataFrame:
+    part = db.execute(
+        f"select source_address, sum(nr_packets) as data from '{view}' group by all order by data asc"
+    ).fetchdf()
+    part.drop(axis='columns', labels='source_address', inplace=True)
+    total = part['data'].sum()
+    part['Proportion'] = part.cumsum()
+    part['Proportion'] = part['Proportion'] / total
+    part.rename(columns={'data': 'number of packets per source', 'Proportion': 'Fraction of data'}, inplace=True)
+
+    return part
