@@ -329,8 +329,9 @@ def get_outliers_single(db: DuckDBPyConnection,
                         return_others: bool = False,
                         use_zscore=True):
     start = time.time()
-    sql = f"select {column}, sum(nr_packets)/(select sum(nr_packets) from '{view}') as frac from '{view}'" \
-          " group by all order by frac desc"
+    sql = \
+        f"select {column}, sum(nr_packets)/(select sum(nr_packets) from '{view}') as frac from '{view}' " \
+        f"where {column} is not NULL group by all order by frac desc"
 
     df_all = db.execute(sql).fetchdf()
 
