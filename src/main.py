@@ -24,6 +24,7 @@ def parse_arguments() -> Namespace:
     parser.add_argument('-f', '--file', type=Path, help='Path to Flow / PCAP file(s)', nargs='+', required=True,
                         dest='files')
     parser.add_argument('--summary', action='store_true', help='Optional: print fingerprint without source addresses')
+    parser.add_argument('-r', action='store_true', help='Optional: use experimental Rust pcap-converter')
     parser.add_argument('--output', type=Path, help='Path to directory in which to save the fingerprint '
                                                     f'(default {"/data" if DOCKERIZED else "."}/fingerprints)',
                         default=Path('/data/fingerprints') if DOCKERIZED else Path('./fingerprints'))
@@ -76,7 +77,7 @@ if __name__ == '__main__':
     else:
         # Convert the file(s) to parquet
         dst_dir = tempfile.gettempdir() if DOCKERIZED else f"{os.getcwd()}/parquet"
-        pqt_files = read_files(args.files, dst_dir=dst_dir, filetype=filetype, nr_processes=args.n)
+        pqt_files = read_files(args.files, dst_dir=dst_dir, filetype=filetype, nr_processes=args.n, rust_converter=args.r)
         duration = time.time()-start
         LOGGER.info(f"Conversion took {duration:.2f}s")
         LOGGER.debug(pqt_files)
