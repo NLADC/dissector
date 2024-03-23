@@ -421,7 +421,9 @@ def _pcap_convert(source_file: Path, dst_dir: str, nr_processes: int) -> str:
     basename = os.path.basename(source_file)
     output_file = f'{dst_dir}/{basename}.parquet'
 
-    command = ['pcap-converter', '-f', str(source_file), '-o', output_file, '-v']
+    command = ['pcap-converter', '-f', str(source_file), '-o', output_file]
+    if LOGGER.isEnabledFor(logging.DEBUG):
+        command.append('-v')
 
     LOGGER.debug(" ".join(command))
     try:

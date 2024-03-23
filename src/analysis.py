@@ -59,7 +59,7 @@ def extract_attack_vectors(attack: Attack) -> list[AttackVector]:
 
     # Create 'attack' view without fragmentation based on target(s)
     attack.db.execute(f"create view '{attack.view}_nofrag' as select * from '{attack.view}' "
-                      "where source_port>0 and protocol not in ('TCP','UDP')")
+                      "where source_port>0 and protocol in ('TCP','UDP')")
 
     # Get outliers without fragmentation
     df_attacks_nofrag = get_outliers_mult(db=attack.db,
@@ -145,7 +145,7 @@ def extract_attack_vectors(attack: Attack) -> list[AttackVector]:
     while True:
         total_bytes = sum([v.bytes for v in attack_vectors])
         for vector in attack_vectors:
-            vector.fraction_of_attack = round(vector.bytes / total_bytes, 3)
+            vector.fraction_of_attack = round(vector.bytes / total_bytes, 2)
             if vector.fraction_of_attack < 0.05:
                 break
         else:
