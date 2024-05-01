@@ -352,8 +352,11 @@ def get_outliers_single(db: DuckDBPyConnection,
         if row['frac'] <= fraction_for_outlier and ((use_zscore and zscores[0] <= 2) or not use_zscore):
             outliers = []
         else:
-            outliers = [(column_type(row[column]), round(row['frac'], 3)) for index, row in df_all.iterrows()
-                        if row['frac'] > fraction_for_outlier or (use_zscore and zscores[index] > 2)]
+            for index, row in df_all.iterrows():
+                if row['frac'] > fraction_for_outlier or (use_zscore and zscores[index] > 2):
+                    outliers.append((column_type(row[column]), round(row['frac'], 3)))
+                else:
+                    break
 
         if outliers and return_others and (explained := sum([fraction for _, fraction in outliers])) < 0.99:
             outliers.append(('others', round(1 - explained, 3)))
