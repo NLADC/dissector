@@ -8,8 +8,6 @@ import tempfile
 from pathlib import Path
 from argparse import ArgumentParser, Namespace
 
-import matplotlib.pyplot as plt
-
 from logger import LOGGER
 from misp import MispInstance
 from reader import read_files
@@ -131,6 +129,7 @@ if __name__ == '__main__':
     fingerprint.write_to_file(args.output / (fingerprint.checksum[:16] + '.json'))  # write the fingerprint to disk
 
     if args.graph:
+        LOGGER.info("Generating graphs")
         ttl = attack.ttl_distribution()
         create_bar_graph(ttl, 'TTL distribution', max_x=255,
                          filename=args.output / (fingerprint.checksum[:16] + '_ttl'))
