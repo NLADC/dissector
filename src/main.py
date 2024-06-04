@@ -15,6 +15,7 @@ from attack import Attack, Fingerprint
 from analysis import infer_target, extract_attack_vectors, compute_summary
 from util import parquet_files_to_view, FileType, determine_filetype, determine_source_filetype, \
     print_logo, parse_config
+from graphs import create_line_graph, create_bar_graph
 
 DOCKERIZED: bool = 'DISSECTOR_DOCKER' in os.environ
 
@@ -36,6 +37,8 @@ def parse_arguments() -> Namespace:
                         help='Optional: target IP address of this attack (subnet currently unsupported)')
     parser.add_argument('--ddosdb', action='store_true', help='Optional: directly upload fingerprint to DDoS-DB')
     parser.add_argument('--misp', action='store_true', help='Optional: directly upload fingerprint to MISP')
+    parser.add_argument('--graph', action='store_true',
+                        help='Optional: Create graphs of the attack, stored alongside the fingerprint')
     parser.add_argument('--noverify', action='store_true', help="Optional: Don't verify TLS certificates")
     parser.add_argument('--debug', action='store_true', help='Optional: show debug messages')
     parser.add_argument('--show-target', action='store_true', help='Optional: Do NOT anonymize the target IP address '
@@ -77,14 +80,14 @@ if __name__ == '__main__':
         # Convert the file(s) to parquet
         dst_dir = tempfile.gettempdir() if DOCKERIZED else f"{os.getcwd()}/parquet"
         pqt_files = read_files(args.files, dst_dir=dst_dir, filetype=filetype, nr_processes=args.n)
-        duration = time.time()-start
+        duration = time.time() - start
         LOGGER.info(f"Conversion took {duration:.2f}s")
         LOGGER.debug(pqt_files)
 
     if args.debug and not DOCKERIZED:
         # Store duckdb on disk in debug mode if not dockerized
         os.makedirs('duckdb', exist_ok=True)
-        db_name = "duckdb/"+os.path.basename(args.files[0])+".duckdb"
+        db_name = "duckdb/" + os.path.basename(args.files[0]) + ".duckdb"
         LOGGER.debug(f"Basename: {db_name}")
         if os.path.exists(db_name):
             os.remove(db_name)
@@ -124,6 +127,17 @@ if __name__ == '__main__':
 
     args.output.mkdir(parents=True, exist_ok=True)
     fingerprint.write_to_file(args.output / (fingerprint.checksum[:16] + '.json'))  # write the fingerprint to disk
+
+    if args.graph:
+        LOGGER.info("Generating graphs")
+        ttl = attack.ttl_distribution()
+        create_bar_graph(ttl, 'TTL distribution', max_x=255,
+                         filename=args.output / (fingerprint.checksum[:16] + '_ttl'))
+
+        cdf = attack.packet_cdf()
+        create_line_graph(cdf, "Cumulative distribution of packets per source", normalize_x=False,
+                          filename=args.output / (fingerprint.checksum[:16] + '_cdf'))
+
 
     if args.ddosdb:  # Upload the fingerprint to a specified DDoS-DB instance
         fingerprint.upload_to_ddosdb(**parse_config(args.config), noverify=args.noverify)
