@@ -10,7 +10,7 @@ from pathlib import Path
 from datetime import datetime, timedelta
 
 from util import AMPLIFICATION_SERVICES, ETHERNET_TYPES, DNS_QUERY_TYPES, ICMP_TYPES, TCP_FLAG_NAMES, \
-    get_outliers_single, get_outliers_mult, FileType
+    get_outliers_single, get_outliers_mult, get_ttl_distribution, get_packet_cdf, FileType
 from logger import LOGGER
 from misp import MispInstance
 
@@ -47,6 +47,12 @@ class Attack:
         self.view = viewid
         df = self.db.execute(f"select count() as entries, sum(nr_packets) as total from '{self.view}'").fetchdf()
         LOGGER.debug(f"Attack object contains {int(df['entries'][0])} entries, with information on {int(df['total'][0])} packets")
+
+    def ttl_distribution(self):
+        return get_ttl_distribution(self.db, self.view)
+
+    def packet_cdf(self):
+        return get_packet_cdf(self.db, self.view)
 
 
 class AttackVector:

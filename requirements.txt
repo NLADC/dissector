@@ -2,3 +2,5 @@ duckdb
 pandas
 pyarrow
 pymisp
+matplotlib
+seaborn
