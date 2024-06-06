@@ -415,26 +415,49 @@ def read_flow(filename: Path, dst_dir: str) -> str:
 
     return parquetfile
 
+def _pcap_convert(source_file: Path, dst_dir: str, nr_processes: int) -> str:
+    if not os.path.isfile(source_file):
+        raise FileNotFoundError(source_file)
+    basename = os.path.basename(source_file)
+    output_file = f'{dst_dir}/{basename}.parquet'
 
-def read_pcap(filename: Path, dst_dir: str, nr_processes: int) -> str:
+    command = ['pcap-converter', '-f', str(source_file), '-o', output_file,'-v']
+    # if LOGGER.isEnabledFor(logging.DEBUG):
+    #     command.append('-v')
+
+    LOGGER.debug(" ".join(command))
+    try:
+        process = subprocess.run(command) #, stdout=tmp_file, stderr=subprocess.PIPE)
+    except Exception as e:
+        LOGGER.error(f'Error reading {str(source_file)} : {e}')
+
+    return output_file
+
+def read_pcap(filename: Path, dst_dir: str, nr_processes: int, rust_converter: bool) -> str:
     # Store converted parquet file in the current working directory
     start = time.time()
-    pcap2pqt = Pcap2Parquet(filename, dst_dir, False, nr_processes)
-    parquet_file = pcap2pqt.convert()
-    duration = time.time() - start
-    if parquet_file:
+    if rust_converter:
+        LOGGER.debug("Using experimental Rust converter")
+        parquet_file = _pcap_convert(filename, dst_dir, nr_processes)
+        duration = time.time() - start
         LOGGER.debug(f"conversion took {duration:.2f} seconds")
     else:
-        LOGGER.error('Conversion failed')
-        return error('Conversion failed')
+        pcap2pqt = Pcap2Parquet(filename, dst_dir, False, nr_processes)
+        parquet_file = pcap2pqt.convert()
+        duration = time.time() - start
+        if parquet_file:
+            LOGGER.debug(f"conversion took {duration:.2f} seconds")
+        else:
+            LOGGER.error('Conversion failed')
+            return error('Conversion failed')
 
-    if pcap2pqt.parse_errors > 0:
-        LOGGER.debug(f'{pcap2pqt.parse_errors} parse errors during conversion. Error lines were skipped')
+        if pcap2pqt.parse_errors > 0:
+            LOGGER.debug(f'{pcap2pqt.parse_errors} parse errors during conversion. Error lines were skipped')
 
     return parquet_file
 
 
-def read_files(filenames: list[Path], dst_dir: str, filetype: FileType, nr_processes: int) -> list[Path]:
+def read_files(filenames: list[Path], dst_dir: str, filetype: FileType, nr_processes: int, rust_converter: bool) -> list[Path]:
     """
     Convert capture files into parquet using either read_flow or read_pcap
     :param filenames: Paths to capture files
@@ -449,7 +472,7 @@ def read_files(filenames: list[Path], dst_dir: str, filetype: FileType, nr_proce
     if filetype == FileType.PQT:
         return filenames
     elif filetype == FileType.PCAP:
-        pqt_files = [read_pcap(f, dst_dir=dst_dir, nr_processes=nr_processes)
+        pqt_files = [read_pcap(f, dst_dir=dst_dir, nr_processes=nr_processes, rust_converter=rust_converter)
                      for f in filenames]
     elif filetype == FileType.FLOW:
         # No way to parallel process individual flow files, so process files in parallel instead

@@ -355,6 +355,8 @@ def get_outliers_single(db: DuckDBPyConnection,
                 if row['frac'] > fraction_for_outlier or (use_zscore and zscores[index] > 2):
                     outliers.append((column_type(row[column]), round(row['frac'], 3)))
                 else:
+                    # We've iterated to below the threshold, so no need to go on
+                    # since results are ordered by descending fraction
                     break
 
         if outliers and return_others and (explained := sum([fraction for _, fraction in outliers])) < 0.99:
