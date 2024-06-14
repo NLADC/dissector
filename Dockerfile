@@ -8,7 +8,7 @@ WORKDIR /tmp/pcap-converter
 RUN cargo build --release
 
 
-FROM python:3.9-slim-bookworm
+FROM python:3.11-slim-bookworm
 
 RUN apt-get update && apt-get upgrade -y;
 RUN DEBIAN_FRONTEND=noninteractive apt-get install -y autotools-dev autoconf make flex byacc git libtool pkg-config libbz2-dev tshark tcpdump
