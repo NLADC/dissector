@@ -1,6 +1,6 @@
 # Multi-stage build
 # Build pcap-converter first
-FROM rust:bookworm as build
+FROM rust:bookworm AS build
 
 # RUN apt-get update && apt-get install -y git
 RUN git clone https://github.com/NLADC/pcap-converter /tmp/pcap-converter
