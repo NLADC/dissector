@@ -415,6 +415,7 @@ def read_flow(filename: Path, dst_dir: str) -> str:
 
     return parquetfile
 
+
 def _pcap_convert(source_file: Path, dst_dir: str, nr_processes: int) -> str:
     if not os.path.isfile(source_file):
         raise FileNotFoundError(source_file)
@@ -432,6 +433,7 @@ def _pcap_convert(source_file: Path, dst_dir: str, nr_processes: int) -> str:
         LOGGER.error(f'Error reading {str(source_file)} : {e}')
 
     return output_file
+
 
 def read_pcap(filename: Path, dst_dir: str, nr_processes: int, rust_converter: bool) -> str:
     # Store converted parquet file in the current working directory
@@ -457,7 +459,7 @@ def read_pcap(filename: Path, dst_dir: str, nr_processes: int, rust_converter: b
     return parquet_file
 
 
-def read_files(filenames: list[Path], dst_dir: str, filetype: FileType, nr_processes: int, rust_converter: bool) -> list[Path]:
+def read_files(filenames: list[Path], dst_dir: Path, filetype: FileType, nr_processes: int, rust_converter: bool) -> list[Path]:
     """
     Convert capture files into parquet using either read_flow or read_pcap
     :param filenames: Paths to capture files
@@ -467,7 +469,8 @@ def read_files(filenames: list[Path], dst_dir: str, filetype: FileType, nr_proce
     :return: Filename of the resulting parquet file
     """
 
-    LOGGER.debug(f'Converting "{filenames}" with {nr_processes} CPUs, storing them in {dst_dir}')
+    fns_str = ",".join([f"'{str(f)}'" for f in filenames])
+    LOGGER.debug(f'Converting {fns_str} with {nr_processes} CPUs, storing them in {dst_dir}')
     os.makedirs(dst_dir, exist_ok=True)
     if filetype == FileType.PQT:
         return filenames

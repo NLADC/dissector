@@ -38,7 +38,7 @@ have [Docker](https://docs.docker.com/get-docker/) installed and running.
     docker run -i --network="host" \
     --mount type=bind,source=/abs-path/to/config.ini,target=/etc/config.ini \
     -v /abs-path/to/data:/data \
-    ddosclearinghouse/dissector -f /data/capture_file [options]
+    nladc/dissector -r -f /data/capture_file [options]
     ```
    **Note:** We bind-mount the [config file](config.ini.example) with DDoS-DB and MISP tokens to `/etc/config.ini`, and create a volume mount for the location of capture files.
    We use the local network to also allow connections to a locally running instance of DDoS-DB or MISP. Fingerprints are saved in `your-data-volume/fingerprints`
