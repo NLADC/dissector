@@ -35,10 +35,10 @@ have [Docker](https://docs.docker.com/get-docker/) installed and running.
 1. Pull the docker image from [docker hub](https://hub.docker.com/r/ddosclearinghouse/dissector): `docker pull ddosclearinghouse/dissector`
 2. Run dissector in a docker container:
     ```bash
-    docker run -i --network="host" \
+    docker run -i --network="host" --env UID=$(id -u) --env GID=$(id -g) \
     --mount type=bind,source=/abs-path/to/config.ini,target=/etc/config.ini \
     -v /abs-path/to/data:/data \
-    ddosclearinghouse/dissector -f /data/capture_file [options]
+    nladc/dissector -f /data/capture_file [options]
     ```
    **Note:** We bind-mount the [config file](config.ini.example) with DDoS-DB and MISP tokens to `/etc/config.ini`, and create a volume mount for the location of capture files.
    We use the local network to also allow connections to a locally running instance of DDoS-DB or MISP. Fingerprints are saved in `your-data-volume/fingerprints`

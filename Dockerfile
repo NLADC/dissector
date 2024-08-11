@@ -2,8 +2,8 @@
 FROM rust:bookworm AS build
 
 RUN apt-get update && apt-get install -y git
-RUN git clone https://github.com/NLADC/pcap-converter /tmp/pcap-converter
-WORKDIR /tmp/pcap-converter
+RUN git clone https://github.com/NLADC/pcap-converter /var/tmp/pcap-converter
+WORKDIR /var/tmp/pcap-converter
 
 RUN DEBIAN_FRONTEND=noninteractive apt-get install -y autotools-dev autoconf make flex byacc git libtool pkg-config libbz2-dev
 
@@ -22,15 +22,14 @@ RUN apt-get update && apt-get upgrade -y;
 RUN DEBIAN_FRONTEND=noninteractive apt-get install -y tshark tcpdump
 
 # copy pcap-converter and nfdump from build stage
-COPY --from=build /tmp/pcap-converter/target/release/pcap-converter /usr/bin/pcap-converter
+COPY --from=build /var/tmp/pcap-converter/target/release/pcap-converter /usr/bin/pcap-converter
 COPY --from=build /usr/local/bin/nfdump /usr/local/bin/
 COPY --from=build /usr/local/lib/* /usr/local/lib/
-
 RUN ldconfig
 
 # Create user
-RUN adduser --system --group dissector
-USER dissector
+#RUN adduser --system --group dissector
+#USER dissector
 WORKDIR /app
 
 # Create venv and set ENV accordingly
@@ -42,15 +41,17 @@ ENV HOME=/app
 RUN pip install --upgrade pip
 # install wheel
 RUN pip install wheel
-
 # Install dissector dependencies
 COPY requirements.txt /app
 RUN pip install -r /app/requirements.txt
 ENV DISSECTOR_DOCKER=1
 
+# Copy the source files to the image
 COPY src/ /app
+
+# Copy entrypoint.sh to the image
+COPY entrypoint.sh /app
 
 # Ensure intermediate files are stored on disk rather than tmpfs/RAM (default for /tmp)
 ENV TMPDIR=/var/tmp
-
-ENTRYPOINT ["/app/venv/bin/python", "main.py"]
+ENTRYPOINT ["/app/entrypoint.sh", "/app/venv/bin/python", "main.py"]
