@@ -376,6 +376,7 @@ class Fingerprint:
         else:
             LOGGER.critical('DDoS-DB Internal Server Error.')
             LOGGER.critical('Error Code: {}'.format(r.status_code))
+            LOGGER.critical('Reason    : {}'.format(r.json()))
         return r.status_code
 
     def upload_to_misp(self, misp_instance: MispInstance) -> int:

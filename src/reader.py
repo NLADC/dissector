@@ -350,8 +350,8 @@ def read_flow(filename: Path, dst_dir: str) -> str:
 
     # The default fields that should be carried over to the parquet file
     # exid == exporter id
-    parquet_fields = ['ts', 'te', 'sa', 'da', 'sp', 'dp', 'pr', 'flg',
-                      'ipkt', 'ibyt', 'ra']
+    parquet_fields = ['ts', 'te', 'sa', 'da', 'sp', 'dp', 'pr', 'flg', 'ipkt', 'ibyt', 'ra']
+    fmt_str = "csv:%ts,%te,%sa,%da,%sp,%dp,%pr,%flg,%ipkt,%ibyt,%ra"
 
     drop_columns = [a for a in nf_fields if a not in parquet_fields]
 
@@ -360,12 +360,36 @@ def read_flow(filename: Path, dst_dir: str) -> str:
     tmp_file, tmp_filename = tempfile.mkstemp()
     os.close(tmp_file)
 
+    # Ensure timestamps stay in UTC rather than converted to local TZ
+    new_env = dict(os.environ)
+    new_env['TZ'] = 'UTC'
+
     try:
         with open(tmp_filename, 'a', encoding='utf-8') as f:
-            subprocess.run(['nfdump', '-r', str(filename), '-o', 'csv', '-q'], stdout=f)
+            result = subprocess.run(['nfdump', '-r', str(filename), '-o', fmt_str, '-q'],
+                           stdout=f, stderr = subprocess.PIPE, env=new_env)
     except Exception as e:
         LOGGER.error(f'Error reading {str(filename)} : {e}')
         return None
+
+    new_nfdump = True
+    if result.stderr.startswith(b'Unknown output mode'):
+        new_nfdump = False
+        LOGGER.debug("nfdump is not the most recent version (and cannot use -o csv:%field,%field,... output mode)")
+        LOGGER.debug(" -> defaulting to using -o csv only")
+    else:
+        LOGGER.debug("nfdump is a more recent version that can use -o csv:%field,%field,... output mode")
+
+    if not new_nfdump:
+        # Older version of nfdump. Use the standard csv output, removing unwanted columns after conversion
+        try:
+            with open(tmp_filename, 'a', encoding='utf-8') as f:
+                # subprocess.run(['nfdump', '-r', str(filename), '-o', fmt_str, '-q'], stdout=f, env=new_env)
+                subprocess.run(['nfdump', '-r', str(filename), '-o', 'csv', '-q'],
+                               stdout=f, stderr= subprocess.DEVNULL , env=new_env)
+        except Exception as e:
+            LOGGER.error(f'Error reading {str(filename)} : {e}')
+            return None
 
     duration = time.time() - start
     LOGGER.debug(f"{filename.name} to CSV in {duration:.2f}s")
@@ -381,7 +405,7 @@ def read_flow(filename: Path, dst_dir: str) -> str:
         with pyarrow.csv.open_csv(input_file=tmp_filename,
                                   read_options=pyarrow.csv.ReadOptions(
                                       block_size=block_size,
-                                      column_names=nf_fields)
+                                      column_names=parquet_fields if new_nfdump else nf_fields)
                                   ) as reader:
             chunk_nr = 0
             for next_chunk in reader:
@@ -389,10 +413,13 @@ def read_flow(filename: Path, dst_dir: str) -> str:
                 if next_chunk is None:
                     break
                 table = pa.Table.from_batches([next_chunk])
-                try:
-                    table = table.drop(drop_columns)
-                except KeyError as ke:
-                    LOGGER.error(ke)
+
+                if not new_nfdump:
+                    # Older version of nfdump. Remove unwanted columns
+                    try:
+                        table = table.drop(drop_columns)
+                    except KeyError as ke:
+                        LOGGER.error(ke)
 
                 table = table.append_column('flowsrc', [[filename.name] * table.column('te').length()])
 
@@ -415,6 +442,7 @@ def read_flow(filename: Path, dst_dir: str) -> str:
 
     return parquetfile
 
+
 def _pcap_convert(source_file: Path, dst_dir: str, nr_processes: int) -> str:
     if not os.path.isfile(source_file):
         raise FileNotFoundError(source_file)
@@ -433,20 +461,22 @@ def _pcap_convert(source_file: Path, dst_dir: str, nr_processes: int) -> str:
 
     return output_file
 
+
 def read_pcap(filename: Path, dst_dir: str, nr_processes: int, rust_converter: bool) -> str:
     # Store converted parquet file in the current working directory
     start = time.time()
     if rust_converter:
-        LOGGER.debug("Using experimental Rust converter")
+        LOGGER.debug("   - Using pcap-converter")
         parquet_file = _pcap_convert(filename, dst_dir, nr_processes)
         duration = time.time() - start
-        LOGGER.debug(f"conversion took {duration:.2f} seconds")
+        LOGGER.debug(f"Conversion took {duration:.2f} seconds")
     else:
+        LOGGER.debug("   - Using tcpdump and tshark")
         pcap2pqt = Pcap2Parquet(filename, dst_dir, False, nr_processes)
         parquet_file = pcap2pqt.convert()
         duration = time.time() - start
         if parquet_file:
-            LOGGER.debug(f"conversion took {duration:.2f} seconds")
+            LOGGER.debug(f"Conversion took {duration:.2f} seconds")
         else:
             LOGGER.error('Conversion failed')
             return error('Conversion failed')
@@ -457,7 +487,7 @@ def read_pcap(filename: Path, dst_dir: str, nr_processes: int, rust_converter: b
     return parquet_file
 
 
-def read_files(filenames: list[Path], dst_dir: str, filetype: FileType, nr_processes: int, rust_converter: bool) -> list[Path]:
+def read_files(filenames: list[Path], dst_dir: Path, filetype: FileType, nr_processes: int, rust_converter: bool) -> list[Path]:
     """
     Convert capture files into parquet using either read_flow or read_pcap
     :param filenames: Paths to capture files
@@ -467,7 +497,9 @@ def read_files(filenames: list[Path], dst_dir: str, filetype: FileType, nr_proce
     :return: Filename of the resulting parquet file
     """
 
-    LOGGER.debug(f'Converting "{filenames}" with {nr_processes} CPUs, storing them in {dst_dir}')
+    fns_str = ",".join([f"'{str(f)}'" for f in filenames])
+    LOGGER.debug(f'Converting {fns_str} with {nr_processes} CPUs')
+    LOGGER.debug(f'   - Storing parquet file(s) in {dst_dir}')
     os.makedirs(dst_dir, exist_ok=True)
     if filetype == FileType.PQT:
         return filenames

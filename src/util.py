@@ -12,6 +12,7 @@ from pathlib import Path
 from configparser import ConfigParser, NoOptionError, NoSectionError
 from collections import OrderedDict
 from typing import Union
+import shutil
 
 from logger import LOGGER
 
@@ -20,7 +21,7 @@ import pprint
 __all__ = ['IPPROTO_TABLE', 'AMPLIFICATION_SERVICES', 'ETHERNET_TYPES', 'TCP_FLAG_NAMES',
            'ICMP_TYPES', 'DNS_QUERY_TYPES', 'FileType', 'determine_filetype', 'print_logo', 'error', 'parse_config',
            'get_outliers_single', 'get_outliers_mult', 'parquet_files_to_view',
-           'determine_source_filetype', 'get_ttl_distribution', 'get_packet_cdf']
+           'determine_source_filetype', 'is_executable_present', 'get_ttl_distribution', 'get_packet_cdf']
 
 IPPROTO_TABLE: OrderedDict() = {
     num: name[8:]
@@ -234,6 +235,22 @@ def determine_source_filetype(filename: Path) -> FileType:
     return filetype
 
 
+def is_executable_present(executable: str) -> bool:
+
+    if not executable:
+        return False
+
+    msg = f"Is executable present? : {executable.ljust(15)} ->"
+    # See if we have the executable somewhere on the PATH
+    path = shutil.which(executable)
+    if path is None:
+        LOGGER.debug(f"{msg} No")
+    else:
+        LOGGER.debug(f"{msg} Yes ({path})")
+
+    return path is not None
+
+
 def determine_filetype(filenames: list[Path]) -> FileType:
     """
     Determine whether the input files are Flows or PCAPs; if it's neither or a mix, quit.
@@ -260,7 +277,7 @@ def determine_filetype(filenames: list[Path]) -> FileType:
         else:
             if filetype is None:
                 error(f"File extesion '{filename.suffix}' not recognized. "
-                      'Please use .pcap for PCAPS and .nfdump or nfcapd. for Flows.')
+                      'Please use .pcap or .pcapng for PCAPS and .nfdump or nfcapd. for Flows.')
             else:
                 error('Please use only one type of capture file to create a fingerprint (.pcap or .nfdump)')
     LOGGER.debug(f'Input file type: {filetype}')

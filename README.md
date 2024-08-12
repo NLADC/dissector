@@ -12,21 +12,21 @@
 
 <div style="content-align: center;">
 
-![Python](https://img.shields.io/badge/python-v3.9+-blue.svg)
-[![GitHub Issues](https://img.shields.io/github/issues/ddos-clearing-house/ddos_dissector)](https://github.com/ddos-clearing-house/ddos_dissector/issues)
+![Python](https://img.shields.io/badge/python-v3.11+-blue.svg)
+[![GitHub Issues](https://img.shields.io/github/issues/nladc/dissector)](https://github.com/nladc/dissector/issues)
 ![Contributions welcome](https://img.shields.io/badge/contributions-welcome-orange.svg)
 [![License](https://img.shields.io/badge/license-AGPL-blue.svg)](https://opensource.org/licenses/AGPL)
-![Last commit](https://img.shields.io/github/last-commit/ddos-clearing-house/ddos_dissector)
+![Last commit](https://img.shields.io/github/last-commit/nladc/dissector)
 </div>
 
-## DDoS Dissector
+# DDoS Dissector
 
 The Dissector summarizes DDoS attack traffic from stored traffic captures (pcap/flows). The resulting summary is in the
 form of a DDoS Fingerprint; a JSON file in which the attack's characteristics are described.
 
-## How to use the Dissector
+# How to use the Dissector
 
-### Option 1: in Docker
+## Option 1: in Docker
 
 You can run DDoS Dissector in a docker container. This way, you do not have to install dependencies yourself and can
 start analyzing traffic captures right away. The only requirement is to
@@ -35,21 +35,25 @@ have [Docker](https://docs.docker.com/get-docker/) installed and running.
 1. Pull the docker image from [docker hub](https://hub.docker.com/r/ddosclearinghouse/dissector): `docker pull ddosclearinghouse/dissector`
 2. Run dissector in a docker container:
     ```bash
-    docker run -i --network="host" \
+    docker run -i --network="host" --env UID=$(id -u) --env GID=$(id -g) \
     --mount type=bind,source=/abs-path/to/config.ini,target=/etc/config.ini \
     -v /abs-path/to/data:/data \
-    ddosclearinghouse/dissector -f /data/capture_file [options]
+    nladc/dissector -f /data/capture_file [options]
     ```
    **Note:** We bind-mount the [config file](config.ini.example) with DDoS-DB and MISP tokens to `/etc/config.ini`, and create a volume mount for the location of capture files.
    We use the local network to also allow connections to a locally running instance of DDoS-DB or MISP. Fingerprints are saved in `your-data-volume/fingerprints`
 
 
-### Option 2: Installed locally
+## Option 2: Installed locally
 
-1. Install the dependencies to read PCAPs (tshark) and Flows (nfdump):
+1. Install the dependencies to read PCAPs (either pcap-converter or tshark+tcpdump) and Flows (nfdump):
 
-    1. https://tshark.dev/
-    2. https://github.com/phaag/nfdump
+   - PCAPs
+     - either https://github.com/NLADC/pcap-converter
+     - or https://tshark.dev/ and https://www.tcpdump.org/ 
+   - Flows
+     - https://github.com/phaag/nfdump
+
 
 2. Clone the Dissector repository
 
@@ -80,7 +84,7 @@ have [Docker](https://docs.docker.com/get-docker/) installed and running.
     python src/main.py -f data/attack_traffic.nfdump --summary
     ```
 
-## Options
+# Options
 
 ```
     ____  _                     __            
@@ -89,23 +93,25 @@ have [Docker](https://docs.docker.com/get-docker/) installed and running.
  / /_/ / (__  |__  )  __/ /__/ /_/ /_/ / /    
 /_____/_/____/____/\___/\___/\__/\____/_/     
 
-usage: main.py [-h] -f FILES [FILES ...] [--summary] [--output OUTPUT] [--config CONFIG] [--nprocesses N] 
-[--target TARGET] [--ddosdb] [--misp] [--noverify] [--debug] [--show-target]
+usage: main.py [-h] -f FILES [FILES ...] [--summary] [--output OUTPUT] [--config CONFIG] [--nprocesses N] [--target TARGET] [--ddosdb]
+               [--misp] [--graph] [--noverify] [--show-target] [--tshark] [--debug]
 
 options:
   -h, --help            show this help message and exit
   -f FILES [FILES ...], --file FILES [FILES ...]
                         Path to Flow / PCAP file(s)
   --summary             Optional: print fingerprint without source addresses
-  --output OUTPUT       Path to directory in which to save the fingerprint (default ./fingerprints)
-  --config CONFIG       Path to DDoS-DB and/or MISP config file (default /etc/config.ini)
-  --nprocesses N        Number of processes used to concurrently read PCAPs (default is the number of CPU cores)
-  --target TARGET       Optional: target IP address or subnet of this attack
-  --ddosdb              Optional: directly upload fingerprint to DDoS-DB
-  --misp                Optional: directly upload fingerprint to MISP
-  --noverify            Optional: Don't verify TLS certificates
-  --debug               Optional: show debug messages
-  --show-target         Optional: Do NOT anonymize the target IP address / network in the fingerprint
+  --output OUTPUT       Path to directory in which to save the fingerprint (default: ./fingerprints)
+  --config CONFIG       Path to DDoS-DB and/or MISP config file (default: /etc/config.ini)
+  --nprocesses N        Number of processes used to read and process PCAPs (default: number of CPU cores (#))
+  --target TARGET       Optional: Specify target IP address of this attack (subnet currently unsupported)
+  --ddosdb              Optional: Directly upload fingerprint to DDoS-DB
+  --misp                Optional: Directly upload fingerprint to MISP
+  --graph               Optional: Create graphs of the attack, stored alongside the fingerprint
+  --noverify            Optional: Do not verify TLS certificates (accept self-signed certificates)
+  --show-target         Optional: Do NOT anonymize the target IP address/network in the fingerprint
+  --tshark              Optional: Force use of tshark/tcpdump over pcap-converter, even if it is present
+  --debug               Optional: Show debug messages
 
 Example: python src/main.py -f /data/part1.nfdump /data/part2.nfdump --summary --config ./localhost.ini --ddosdb --noverify
 ```
