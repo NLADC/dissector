@@ -12,11 +12,11 @@
 
 <div style="content-align: center;">
 
-![Python](https://img.shields.io/badge/python-v3.9+-blue.svg)
-[![GitHub Issues](https://img.shields.io/github/issues/ddos-clearing-house/ddos_dissector)](https://github.com/ddos-clearing-house/ddos_dissector/issues)
+![Python](https://img.shields.io/badge/python-v3.11+-blue.svg)
+[![GitHub Issues](https://img.shields.io/github/issues/nladc/dissector)](https://github.com/nladc/dissector/issues)
 ![Contributions welcome](https://img.shields.io/badge/contributions-welcome-orange.svg)
 [![License](https://img.shields.io/badge/license-AGPL-blue.svg)](https://opensource.org/licenses/AGPL)
-![Last commit](https://img.shields.io/github/last-commit/ddos-clearing-house/ddos_dissector)
+![Last commit](https://img.shields.io/github/last-commit/nladc/dissector)
 </div>
 
 # DDoS Dissector
