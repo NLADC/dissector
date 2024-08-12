@@ -7,8 +7,8 @@ fi
 create_user()
 {
 # command > /dev/null 2>&1
-  groupadd -o -g "${GID}" mygroup
-  useradd -o -c "nobody" -s /usr/sbin/nologin -d /home/myuser -g "${GID}" -u "${UID}" myuser
+  groupadd -o -g "${GID}" mygroup > /dev/null 2>&1
+  useradd -o -c "nobody" -s /usr/sbin/nologin -d /home/myuser -g "${GID}" -u "${UID}" myuser > /dev/null 2>&1
   RUNARGS="runuser -g mygroup -u myuser --"
   mkdir /home/myuser
   chown -R myuser:mygroup /home/myuser
