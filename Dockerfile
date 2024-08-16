@@ -18,8 +18,12 @@ RUN ./autogen.sh && ./configure && make && make install && ldconfig
 
 FROM python:3.11-slim-bookworm
 
-RUN apt-get update && apt-get upgrade -y;
-RUN DEBIAN_FRONTEND=noninteractive apt-get install -y tshark tcpdump
+ENV DISSECTOR_DOCKER=1
+
+ARG DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    apt-get install -y tshark tcpdump
 
 # copy pcap-converter and nfdump from build stage
 COPY --from=build /var/tmp/pcap-converter/target/release/pcap-converter /usr/bin/pcap-converter
@@ -31,20 +35,19 @@ RUN ldconfig
 #RUN adduser --system --group dissector
 #USER dissector
 WORKDIR /app
+ENV HOME=/app
 
 # Create venv and set ENV accordingly
-ENV VIRTUAL_ENV=/app/venv
-RUN python3 -m venv $VIRTUAL_ENV
-ENV PATH="$VIRTUAL_ENV/bin:$PATH"
-ENV HOME=/app
-# update pip
-RUN pip install --upgrade pip
-# install wheel
-RUN pip install wheel
-# Install dissector dependencies
+#ENV VIRTUAL_ENV=/app/venv
+#RUN python3 -m venv $VIRTUAL_ENV
+#ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
 COPY requirements.txt /app
-RUN pip install -r /app/requirements.txt
-ENV DISSECTOR_DOCKER=1
+
+RUN pip install --upgrade pip && \
+    pip install wheel && \
+    pip install -r /app/requirements.txt && \
+    pip cache purge
 
 # Copy the source files to the image
 COPY src/ /app
@@ -54,4 +57,4 @@ COPY entrypoint.sh /app
 
 # Ensure intermediate files are stored on disk rather than tmpfs/RAM (default for /tmp)
 ENV TMPDIR=/var/tmp
-ENTRYPOINT ["/app/entrypoint.sh", "/app/venv/bin/python", "main.py"]
+ENTRYPOINT ["/app/entrypoint.sh", "python", "main.py"]
