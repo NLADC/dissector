@@ -13,6 +13,7 @@ src/functions/input4test/ssdp1.pcap
 src/output
 src/settings.py
 venv/
+main.dist/
 fingerprints/
 *.log
 *.conf
