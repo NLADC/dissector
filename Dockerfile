@@ -34,7 +34,7 @@ RUN pip install --upgrade pip && \
     pip cache purge
 
 
-FROM debian:bookworm-slim
+FROM python:3.11-slim-bookworm
 ENV DISSECTOR_DOCKER=1
 
 ARG DEBIAN_FRONTEND=noninteractive
@@ -49,9 +49,6 @@ COPY --from=build /usr/local/bin/nfdump /usr/local/bin/
 COPY --from=build /usr/local/lib/* /usr/local/lib/
 RUN ldconfig
 
-# Create user
-#RUN adduser --system --group dissector
-#USER dissector
 WORKDIR /app
 ENV HOME=/app
 
