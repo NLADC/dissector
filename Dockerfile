@@ -16,11 +16,29 @@ WORKDIR /app/nfdump
 RUN ./autogen.sh && ./configure && make && make install && ldconfig
 
 
-FROM python:3.11-slim-bookworm
+FROM python:3.11-slim-bookworm AS python
 
+WORKDIR /app
+ENV HOME=/app
+
+# Create venv and set ENV accordingly
+ENV VIRTUAL_ENV=/app/venv
+RUN python3 -m venv $VIRTUAL_ENV
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
+COPY requirements.txt /app
+
+RUN pip install --upgrade pip && \
+    pip install wheel && \
+    pip install -r /app/requirements.txt && \
+    pip cache purge
+
+
+FROM debian:bookworm-slim
 ENV DISSECTOR_DOCKER=1
 
 ARG DEBIAN_FRONTEND=noninteractive
+# Leave out the following for a slim version (but can only use pcap-converter)
 RUN apt-get update && \
     apt-get upgrade -y && \
     apt-get install -y tshark tcpdump
@@ -37,17 +55,11 @@ RUN ldconfig
 WORKDIR /app
 ENV HOME=/app
 
-# Create venv and set ENV accordingly
-#ENV VIRTUAL_ENV=/app/venv
-#RUN python3 -m venv $VIRTUAL_ENV
-#ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+COPY --from=python /app/venv /app/venv
 
-COPY requirements.txt /app
-
-RUN pip install --upgrade pip && \
-    pip install wheel && \
-    pip install -r /app/requirements.txt && \
-    pip cache purge
+# Enable venv
+ENV VIRTUAL_ENV=/app/venv
+ENV PATH="/app/venv/bin:$PATH"
 
 # Copy the source files to the image
 COPY src/ /app
