@@ -400,7 +400,7 @@ def get_outliers_mult(db: DuckDBPyConnection,
 
     df_frac = df_all[df_all['frac'] > fraction_for_outlier].copy()
     others = None
-    df_frac['frac'] = df_frac['frac'].map(lambda frac: round(frac, 3))
+    df_frac.loc[:, 'frac'] = df_frac['frac'].map(lambda frac: round(frac, 3))
 
     duration = time.time() - start
     LOGGER.debug(f"{view} --> {columns}({fraction_for_outlier})\n{df_all.head()}")
@@ -425,8 +425,15 @@ def parquet_files_to_view(db: DuckDBPyConnection, pqt_files: list, filetype: Fil
 
     elif filetype == FileType.PCAP:
         # First create a table that can be used to convert ip_proto --> protocol string
-        df_ipproto = pd.DataFrame.from_dict({"ip_proto": IPPROTO_TABLE.keys(), "protocol": IPPROTO_TABLE.values()})
-        db.execute("create table ipproto_table as select * from df_ipproto")
+        # Below does not work for compiled version of dissector (with nuitka)
+        # df_ipproto = pd.DataFrame.from_dict({"ip_proto": IPPROTO_TABLE.keys(), "protocol": IPPROTO_TABLE.values()})
+        # db.execute("create table ipproto_table as select * from df_ipproto")
+        db.execute("create table ipproto_table (ip_proto INTEGER, protocol VARCHAR);")
+        val_list = []
+        for k,v in IPPROTO_TABLE.items():
+            val_list.append(f"({k},'{v}')")
+        sql_str = f"insert into ipproto_table values {','.join(val_list)};"
+        db.execute(sql_str)
 
         # Create a view from that, flattening udp/tcp ports onto one src/dst port (and replacing NaN with 0 as well)
         # Do similar for source/destination address
