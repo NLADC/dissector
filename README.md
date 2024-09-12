@@ -32,7 +32,7 @@ You can run DDoS Dissector in a docker container. This way, you do not have to i
 start analyzing traffic captures right away. The only requirement is to
 have [Docker](https://docs.docker.com/get-docker/) installed and running.
 
-1. Pull the docker image from [docker hub](https://hub.docker.com/r/ddosclearinghouse/dissector): `docker pull nladc/dissector`
+1. Pull the docker image from [docker hub](https://hub.docker.com/r/nladc/dissector): `docker pull nladc/dissector`
 2. Run dissector in a docker container:
     ```bash
     docker run -i --network="host" --env UID=$(id -u) --env GID=$(id -g) \
