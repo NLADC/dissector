@@ -262,11 +262,22 @@ class AttackVector:
     def summ_nr_bytes(self) -> int:
         return self.bytes if self.service != 'Fragmented IP packets' else 0
 
+    def targets(self) -> []:
+        df = self.db.execute(f"select distinct(destination_address) as targets from '{self.view}'").fetchdf()
+        return df['targets'].tolist()
 
 class Fingerprint:
     def __init__(self, target: str, summary: dict[str, int], attack_vectors: list[AttackVector],
                  show_target: bool = False):
         self.target = target
+        # If no target is present then this is probably a carpet bombing attack
+        # and --carpet argument is given (we wouldn't be here otherwise)
+        # Get all IP addresses from the individual attack vectors instead
+        if not target:
+            av_targets = []
+            for av in attack_vectors:
+                av_targets += av.targets()
+            self.target = sorted(list(set(av_targets)))
         self.summary = summary
         self.attack_vectors = attack_vectors
         self.show_target = show_target
@@ -274,12 +285,12 @@ class Fingerprint:
         self.checksum = hashlib.md5((str(attack_vectors) + str(summary)).encode()).hexdigest()
 
     def __str__(self):
-        return json.dumps(self.as_dict(summarized=True), indent=4)
+        return json.dumps(self.as_dict(summarized=True, anonymous=not self.show_target), indent=4)
 
     def as_dict(self, anonymous: bool = False, summarized: bool = False) -> dict:
         return {
             'attack_vectors': [av.as_dict(summarized) for av in self.attack_vectors],
-            'target': self.target if not anonymous else 'Anonymized',
+            'target': self.target if not anonymous else f'Anonymized - {len(self.target)} target(s)',
             'tags': self.tags,
             'key': self.checksum,
             **self.summary
