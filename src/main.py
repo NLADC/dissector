@@ -140,6 +140,11 @@ if __name__ == '__main__':
 
     # Explicitly set number of threads
     db.execute(f"SET threads={args.n}")
+    # Enable caching of parquet metadata as we read the same file often
+    try:
+        db.execute(f"SET parquet_metadata_cache=true")
+    except duckdb.duckdb.CatalogException as e:
+        LOGGER.error(f"Setting not supported: {e}");
 
     start = time.time()
 
@@ -176,6 +181,7 @@ if __name__ == '__main__':
     if args.graph:
         LOGGER.info("Generating graphs")
         ttl = attack.ttl_distribution()
+        pp.pprint(ttl)
         create_bar_graph(ttl, 'TTL distribution', max_x=255,
                          filename=args.output / (fingerprint.checksum[:16] + '_ttl'))
 
