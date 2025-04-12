@@ -306,6 +306,9 @@ class Fingerprint:
             tags.append('Multi-vector attack')
         # if isinstance(self.target, IPNetwork):
         #     tags.append('Carpet bombing attack')
+        if len(self.target) > 1:
+            tags.append('Carpet bombing attack')
+
         for vector in self.attack_vectors:
             tags.append(vector.protocol)
             if vector.service is None:
