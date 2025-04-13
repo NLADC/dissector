@@ -38,8 +38,6 @@ def parse_arguments() -> Namespace:
                             f'(default: number of CPU cores ({os.cpu_count()}))')
     parser.add_argument('--target', type=str, dest='target',
                         help='Optional: Specify target IP address of this attack (subnet currently unsupported)')
-    parser.add_argument('--carpet', action='store_true',
-                        help='Optional: Assume carpet bombing attack if no target can be found')
     parser.add_argument('--ddosdb', action='store_true',
                         help='Optional: Directly upload fingerprint to DDoS-DB')
     parser.add_argument('--misp', action='store_true',
@@ -144,7 +142,7 @@ if __name__ == '__main__':
     try:
         db.execute(f"SET parquet_metadata_cache=true")
     except duckdb.duckdb.CatalogException as e:
-        LOGGER.error(f"Setting not supported: {e}");
+        LOGGER.debug(f"Setting not supported: {e}");
 
     start = time.time()
 
@@ -153,13 +151,7 @@ if __name__ == '__main__':
 
     target = args.target or infer_target(attack)  # Infer attack target if not passed as argument
     LOGGER.debug(target)
-    if not target:
-        if args.carpet:
-            LOGGER.info("No attack targets found, assume carpet bombing attack")
-        else:
-            LOGGER.info("No attack targets found")
-            exit(0)
-    else:
+    if target:
         attack.filter_data_on_target(target)
     attack_vectors = extract_attack_vectors(attack)
     if len(attack_vectors) == 0:
