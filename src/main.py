@@ -138,6 +138,11 @@ if __name__ == '__main__':
 
     # Explicitly set number of threads
     db.execute(f"SET threads={args.n}")
+    # Enable caching of parquet metadata as we read the same file often
+    try:
+        db.execute(f"SET parquet_metadata_cache=true")
+    except duckdb.duckdb.CatalogException as e:
+        LOGGER.debug(f"Setting not supported: {e}");
 
     start = time.time()
 
@@ -146,11 +151,8 @@ if __name__ == '__main__':
 
     target = args.target or infer_target(attack)  # Infer attack target if not passed as argument
     LOGGER.debug(target)
-    if not target:
-        LOGGER.info("No attack targets found")
-        exit(0)
-
-    attack.filter_data_on_target(target)
+    if target:
+        attack.filter_data_on_target(target)
     attack_vectors = extract_attack_vectors(attack)
     if len(attack_vectors) == 0:
         LOGGER.critical(f'No attack vectors found in traffic capture.')
@@ -171,6 +173,7 @@ if __name__ == '__main__':
     if args.graph:
         LOGGER.info("Generating graphs")
         ttl = attack.ttl_distribution()
+        pp.pprint(ttl)
         create_bar_graph(ttl, 'TTL distribution', max_x=255,
                          filename=args.output / (fingerprint.checksum[:16] + '_ttl'))
 
