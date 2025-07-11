@@ -152,7 +152,12 @@ if __name__ == '__main__':
     target = args.target or infer_target(attack)  # Infer attack target if not passed as argument
     LOGGER.debug(target)
     if target:
+        LOGGER.info("Target identified. Filtering attack traffic.")
         attack.filter_data_on_target(target)
+    else:
+        LOGGER.info("No target identified")
+        LOGGER.info("Proceeding with unfiltered analysis to check for carpet bombing")
+
     attack_vectors = extract_attack_vectors(attack)
     if len(attack_vectors) == 0:
         LOGGER.critical(f'No attack vectors found in traffic capture.')
