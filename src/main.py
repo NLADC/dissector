@@ -147,6 +147,13 @@ if __name__ == '__main__':
     start = time.time()
 
     view = parquet_files_to_view(db, pqt_files, filetype)
+    # view = parquet_files_to_view(db, "test.pq", filetype)
+    if not view:
+        LOGGER.error(f"Cannot continue with analysis, exiting")
+        db.close()
+        exit(1)
+
+
     attack = Attack(db, view, filetype)
 
     target = args.target or infer_target(attack)  # Infer attack target if not passed as argument

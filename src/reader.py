@@ -198,12 +198,14 @@ class Pcap2Parquet:
         new_env['LC_ALL'] = 'C.utf8'
         new_env['LC_TIME'] = 'POSIX'
         new_env['LC_NUMERIC'] = 'C.utf8'
+        # Force absolute timestamps in UTC without timezone suffix in _ws.col.Time.
+        new_env['TZ'] = 'UTC'
 
         tmp_file, tmp_filename = tempfile.mkstemp()
         # tshark_error = False
         # Create command
         csv_file = None
-        command = ['tshark', '-r', str(pcap_chunk), '-t', 'ud', '-T', 'fields']
+        command = ['tshark', '-r', str(pcap_chunk), '-t', 'ad', '-T', 'fields']
         for field in col_extract:
             command.extend(['-e', field])
         for option in ['header=n', 'separator=/t', 'quote=n', 'occurrence=f']:
