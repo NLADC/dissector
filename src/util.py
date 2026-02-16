@@ -285,7 +285,7 @@ def determine_filetype(filenames: list[Path]) -> FileType:
 
 
 def print_logo() -> None:
-    LOGGER.info('''
+    LOGGER.info(r'''
     ____  _                     __            
    / __ \(_)____________  _____/ /_____  _____
   / / / / / ___/ ___/ _ \/ ___/ __/ __ \/ ___/
@@ -411,7 +411,12 @@ def get_outliers_mult(db: DuckDBPyConnection,
 
 def parquet_files_to_view(db: DuckDBPyConnection, pqt_files: list, filetype: FileType) -> str:
     # Create view on parquet file(s)
-    db.execute(f"CREATE VIEW raw AS SELECT * FROM read_parquet({pqt_files})")
+    try:
+        db.execute(f"CREATE VIEW raw AS SELECT * FROM read_parquet({pqt_files})")
+    except Exception as e:
+        LOGGER.error(f"Something went wrong when trying to read {pqt_files}")
+        LOGGER.error(e)
+        return None
 
     if filetype == FileType.FLOW:
         sql = "create view data as select ts as time_start, te as time_end, pr as protocol, " \

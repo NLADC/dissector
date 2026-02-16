@@ -4,3 +4,4 @@ pyarrow
 pymisp
 matplotlib
 seaborn
+pytz
