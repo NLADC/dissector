@@ -58,8 +58,8 @@ have [Docker](https://docs.docker.com/get-docker/) installed and running.
 2. Clone the Dissector repository
 
     ```bash
-    git clone https://github.com/ddos-clearing-house/ddos_dissector;
-    cd ddos_dissector;
+    git clone https://github.com/nladc/dissector;
+    cd dissector;
     ```
 
 3. [Advised] create a python virtual environment or conda environment for the dissector and install the python requirements:
